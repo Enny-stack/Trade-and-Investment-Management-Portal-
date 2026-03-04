@@ -1,0 +1,6 @@
+# Optional helper (Windows PowerShell)
+# 1) Install Python if you don't have it.
+# 2) Run this in the folder:
+#    python -m http.server 8000
+# 3) Open:
+#    http://localhost:8000/index.html

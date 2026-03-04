@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TIMP – Public Portal</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <div class="i18n" data-key="public">Public Portal</div>
+        <span class="sub i18n" data-key="timp">Trade & Investment Management Portal (TIMP)</span>
+      </div>
+    </div>
+    <div class="pills">
+      <a class="pill" href="index.html"><small>Home</small></a>
+      <div class="pill"><small class="i18n" data-key="region">Region</small>&nbsp;<select id="regionSel"></select></div>
+      <div class="pill"><small class="i18n" data-key="language">Language</small>&nbsp;
+        <select id="langSel">
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="ar">العربية</option>
+          <option value="pt">Português</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="navtitle">Public</div>
+      <nav class="nav" id="sidebarNav">
+        <a href="#events" data-nav="events"><span class="i18n" data-key="events">Events</span><span class="badge" id="evCount"></span></a>
+        <a href="#dealroom" data-nav="deal_room"><span class="i18n" data-key="deal_room">Deal Room</span><span class="badge" id="matchCount"></span></a>
+        <a href="#opps" data-nav="opportunities"><span class="i18n" data-key="opportunities">Opportunities</span></a>
+        <a href="#expo" data-nav="exhibition"><span class="i18n" data-key="exhibition">Virtual Exhibition</span></a>
+        <a href="#archive" data-nav="archive"><span class="i18n" data-key="archive">Archive</span></a>
+        <a href="#profile" data-nav="profile"><span class="i18n" data-key="profile">My Profile</span></a>
+      </nav>
+      <div class="navtitle">Shortcut</div>
+      <nav class="nav">
+        <a href="admin.html"><span>Switch to Admin</span><span class="badge">demo</span></a>
+        <a href="walkthrough.html"><span>Demo Script</span></a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="hero">
+        <h1 id="pageTitle">Events</h1>
+        <div class="meta" id="pageMeta"></div>
+        <div class="row" id="pageActions"></div>
+      </div>
+
+      <div id="pageBody" style="margin-top:14px;"></div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast">
+    <b id="toastTitle"></b>
+    <div id="toastMsg"></div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="util.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // build region selector options
+    const regionSel = document.getElementById("regionSel");
+    TIMP_REGIONS.forEach(r=>{
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.name[pickLang()] || r.name.en;
+      regionSel.appendChild(opt);
+    });
+    initTopbar();
+
+    function setActive(navKey){
+      $$("#sidebarNav a").forEach(a=>a.classList.remove("active"));
+      const match = $(`#sidebarNav a[data-nav="${navKey}"]`);
+      if(match) match.classList.add("active");
+    }
+
+    function renderEvents(){
+      setActive("events");
+      $("#pageTitle").textContent = t("events");
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
+      $("#pageActions").innerHTML = ``;
+
+      const evs = filterByRegion(TIMP_DATA.events);
+      $("#evCount").textContent = evs.length;
+
+      const rows = evs.map(e=>`
+        <tr>
+          <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
+          <td>${e.date} <small>(${e.time})</small></td>
+          <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${e.status}</span></td>
+          <td class="row-actions">
+            <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
+            <button onclick="register('${e.id}')">Register</button>
+          </td>
+        </tr>
+      `).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Annual Global Calendar</h2>
+          <p>Shows all roadshows and investment forums to improve visibility and prevent scheduling conflicts (demo view).</p>
+          <table class="table">
+            <thead><tr><th>Event</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="4"><small>No events for this region (demo).</small></td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function openEvent(eventId){
+      const e = TIMP_DATA.events.find(x=>x.id===eventId);
+      if(!e) return;
+      $("#pageTitle").textContent = e.title;
+      $("#pageMeta").innerHTML = `
+        <span class="tag ok">${e.type}</span>
+        <span class="tag ok">${regionLabel(e.region)}</span>
+        <span class="tag muted">${e.venue} • ${e.date} • ${e.time}</span>
+      `;
+      $("#pageActions").innerHTML = `
+        <button onclick="register('${e.id}')">Register</button>
+        <button class="secondary" onclick="setHash('#events')">Back</button>
+      `;
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Event Materials</h2>
+            <p><b>Programme</b> (demo) • <b>Presentations</b> (demo) • <b>Briefing note</b> (demo)</p>
+            <div class="hr"></div>
+            <p><b>Post-event continuity:</b> recordings and decks become available to verified users after publishing.</p>
+            <div class="row-actions">
+              <button class="secondary" onclick="setToast('Materials', 'Demo: In real build, these are secure downloads with RBAC.')">View materials</button>
+              <button class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available after event.')">View recordings</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Feedback</h2>
+            <p>Post-event survey captures rating + recommendations + product-fit, plus comments (demo).</p>
+            <div class="hr"></div>
+            <label>1) Rate overall delivery (1–5)</label>
+            <select><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
+            <div style="height:10px"></div>
+            <label>2) Recommend a future forum?</label>
+            <select><option>Yes</option><option>No</option></select>
+            <div style="height:10px"></div>
+            <label>3) Do products meet expectations?</label>
+            <select><option>Yes</option><option>No</option></select>
+            <div style="height:10px"></div>
+            <label>Additional comments (max 500 chars)</label>
+            <textarea rows="4" maxlength="500" placeholder="Your comments..."></textarea>
+            <div style="height:10px"></div>
+            <button onclick="setToast('Feedback submitted', 'Thanks. In the real build this feeds analytics + reports.')">Submit feedback</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function register(eventId){
+      const e = TIMP_DATA.events.find(x=>x.id===eventId);
+      setToast("Registration submitted", `Demo: ${e ? e.title : 'Event'} — confirmation email automation is part of the real build.`);
+    }
+
+    function renderDealRoom(){
+      setActive("deal_room");
+      $("#pageTitle").textContent = t("deal_room");
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">AI-style recommendations (demo logic)</span>`;
+      $("#pageActions").innerHTML = `
+        <button class="secondary" onclick="setToast('Meeting request', 'Demo: Scheduling integrates with calendar + meeting links in the real build.')">Request 1:1</button>
+        <button class="secondary" onclick="renderPitching()">Pitching</button>
+      `;
+
+      const deals = filterByRegion(TIMP_DATA.deals);
+      const investors = TIMP_DATA.investors;
+
+      function recommendInvestors(deal){
+        return investors
+          .filter(inv => inv.focus.includes(deal.sector))
+          .filter(inv => deal.ticket_usd_m >= inv.ticket_min && deal.ticket_usd_m <= inv.ticket_max)
+          .sort((a,b)=> (b.region_pref.includes(deal.region) - a.region_pref.includes(deal.region)))
+          .slice(0,2);
+      }
+
+      const cards = deals.map(d=>{
+        const rec = recommendInvestors(d);
+        const recHtml = rec.length ? rec.map(r=>`<li><b>${r.name}</b><br><small>${r.focus.join(", ")} • ${fmtMoney(r.ticket_min)}–${fmtMoney(r.ticket_max)}</small></li>`).join("") : `<li><small>No exact match in demo dataset.</small></li>`;
+        return `
+          <div class="card">
+            <h3>${d.country} • ${d.sector} <span style="float:right">${badgeWarmth(d.warmth)}</span></h3>
+            <p><b>${fmtMoney(d.ticket_usd_m)}</b> • Stage: <b>${d.stage}</b><br>${d.summary}</p>
+            <div class="hr"></div>
+            <div class="grid" style="gap:8px">
+              <small><b>Recommended investors (demo)</b></small>
+              <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.45">${recHtml}</ul>
+            </div>
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button onclick="schedule('${d.id}')">Schedule 1:1</button>
+              <button class="secondary" onclick="setToast('Prospectus requested', 'Demo: This becomes an engagement signal (“warm lead”).')">Request Prospectus</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      $("#matchCount").textContent = deals.length;
+
+      const meetingRows = TIMP_DATA.meetings.map(m=>{
+        const deal = TIMP_DATA.deals.find(d=>d.id===m.deal_id);
+        const inv = TIMP_DATA.investors.find(i=>i.id===m.investor_id);
+        return `<tr><td>${deal ? deal.country+' • '+deal.sector : m.deal_id}</td><td>${inv ? inv.name : m.investor_id}</td><td>${m.datetime}</td><td>${m.mode}</td><td>${m.status}</td></tr>`;
+      }).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          ${cards || `<div class="card"><small>No deals for this region in demo.</small></div>`}
+        </div>
+        <div style="height:14px"></div>
+        <div class="card">
+          <h2>1:1 Meetings</h2>
+          <p>Integrated scheduling for physical/virtual meetings (demo list).</p>
+          <table class="table">
+            <thead><tr><th>Deal</th><th>Investor</th><th>Date/Time</th><th>Mode</th><th>Status</th></tr></thead>
+            <tbody>${meetingRows || `<tr><td colspan="5"><small>No meetings yet.</small></td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function schedule(dealId){
+      const d = TIMP_DATA.deals.find(x=>x.id===dealId);
+      setToast("Meeting scheduled (demo)", `${d ? d.country+' • '+d.sector : 'Deal'} — in the real build this creates calendar items + notifications.`);
+    }
+
+    function renderPitching(){
+      setActive("deal_room");
+      $("#pageTitle").textContent = "Pitching Module";
+      $("#pageMeta").innerHTML = `<span class="tag ok">Quickfire snapshots</span> <span class="tag muted">60-second countdown + readiness checklist (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="renderDealRoom()">Back to Deal Room</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>60-second Quickfire</h2>
+            <p>Use this during live pitching sessions (demo timer).</p>
+            <div class="hr"></div>
+            <div class="mini">
+              <div>
+                <div class="label">Countdown</div>
+                <div class="big" id="timer">60</div>
+              </div>
+              <div class="row-actions">
+                <button onclick="startTimer()">Start</button>
+                <button class="secondary" onclick="resetTimer()">Reset</button>
+              </div>
+            </div>
+            <div class="hr"></div>
+            <p><small>Real build: track attendance duration & session popularity.</small></p>
+          </div>
+          <div class="card">
+            <h2>Readiness Checklist</h2>
+            <p>Admin verifies pitch readiness before going live.</p>
+            <div class="hr"></div>
+            <label><input type="checkbox" /> Narrative clarity</label><br>
+            <label><input type="checkbox" /> Impact alignment</label><br>
+            <label><input type="checkbox" /> Visual support</label><br>
+            <div class="hr"></div>
+            <button class="secondary" onclick="setToast('Ready', 'Demo: Checklist stored per deal/pitch in real build.')">Mark ready</button>
+            <button onclick="setToast('Prospectus requested', 'Demo: Investors can click “Request for Prospectus” during live pitch.')">Request for Prospectus</button>
+          </div>
+        </div>
+      `;
+    }
+
+    let interval = null;
+    function startTimer(){
+      if(interval) return;
+      let t = parseInt($("#timer").textContent, 10);
+      interval = setInterval(()=>{
+        t -= 1;
+        $("#timer").textContent = t;
+        if(t<=0){
+          clearInterval(interval); interval=null;
+          setToast("Time!", "Quickfire ended (demo).");
+        }
+      }, 1000);
+    }
+    function resetTimer(){
+      if(interval){ clearInterval(interval); interval=null; }
+      $("#timer").textContent = "60";
+    }
+
+    function renderOpps(){
+      setActive("opportunities");
+      $("#pageTitle").textContent = t("opportunities");
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Pipeline view (stage + warmth)</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="setToast('Deal Book', 'Use the Admin Console to generate branded Deal Books by country/sector (demo).')">Generate Deal Book</button>
+      `;
+
+      const deals = filterByRegion(TIMP_DATA.deals);
+      const rows = deals.map(d=>`
+        <tr>
+          <td><b>${d.country}</b><br><small>${d.sector}</small></td>
+          <td>${fmtMoney(d.ticket_usd_m)}</td>
+          <td>${d.stage}</td>
+          <td>${badgeWarmth(d.warmth)}</td>
+          <td><button class="secondary" onclick="setToast('Deal opened', '${d.summary}')">Open</button></td>
+        </tr>
+      `).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>African Investments Dashboard (demo)</h2>
+          <p>Tracks project status, sector, funding requirements, and investor “warmth” signals.</p>
+          <table class="table">
+            <thead><tr><th>Deal</th><th>Ticket</th><th>Stage</th><th>Lead</th><th></th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="5"><small>No opportunities for this region in demo.</small></td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderExpo(){
+      setActive("exhibition");
+      $("#pageTitle").textContent = t("exhibition");
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Persistent digital stands (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Upload catalog', 'Demo: In real build, exhibitors upload catalogs + offerings.')">Upload Catalog</button>`;
+
+      const booths = filterByRegion(TIMP_DATA.booths);
+      const cards = booths.map(b=>`
+        <div class="card">
+          <h3>${b.org}</h3>
+          <p><b>Catalog:</b> ${b.catalog}<br><b>Offers:</b> ${b.offers}</p>
+          <div class="row-actions">
+            <button class="secondary" onclick="setToast('Catalog opened', 'Demo: Secure download / viewer.')">View catalog</button>
+            <button onclick="setToast('Inquiry sent', 'Demo: Follow-up analytics track inquiries and conversion.')">Send inquiry</button>
+          </div>
+        </div>
+      `).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          ${cards || `<div class="card"><small>No booths for this region in demo.</small></div>`}
+        </div>
+      `;
+    }
+
+    function renderArchive(){
+      setActive("archive");
+      $("#pageTitle").textContent = t("archive");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Audit-ready</span> <span class="tag muted">Search events, decks, recordings, deal books (demo)</span>`;
+      $("#pageActions").innerHTML = ``;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Search</h2>
+            <p>In the real build this searches the asset library and institutional memory.</p>
+            <input id="q" placeholder="Search keywords (e.g., Kenya, Energy, Roadshow)" style="width:100%" />
+            <div style="height:10px"></div>
+            <button onclick="doSearch()">Search</button>
+            <div class="hr"></div>
+            <div id="results"><small>Try “Kenya” or “Energy”.</small></div>
+          </div>
+          <div class="card">
+            <h2>Archive Contents</h2>
+            <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
+              <li>Past event profiles + attendee lists</li>
+              <li>Agendas, briefing notes, slide decks</li>
+              <li>Recordings + photos</li>
+              <li>Deal Books + investor engagement outputs</li>
+              <li>Feedback submissions + analytics exports</li>
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+
+    function doSearch(){
+      const q = ($("#q").value || "").toLowerCase().trim();
+      const hits = [];
+      TIMP_DATA.events.forEach(e=>{
+        if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
+          hits.push({type:"Event", label:e.title+" • "+e.date});
+        }
+      });
+      TIMP_DATA.deals.forEach(d=>{
+        if([d.country,d.sector,d.summary,d.stage].join(" ").toLowerCase().includes(q)){
+          hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
+        }
+      });
+
+      $("#results").innerHTML = hits.length ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>` : `<small>No results.</small>`;
+    }
+
+    function renderProfile(){
+      setActive("profile");
+      $("#pageTitle").textContent = t("profile");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Verified user (demo)</span> <span class="tag muted">Amend profile • manage preferences</span>`;
+      $("#pageActions").innerHTML = ``;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Profile</h2>
+            <label>Name</label><input value="Demo User" style="width:100%" />
+            <div style="height:10px"></div>
+            <label>Organisation</label><input value="Demo Organisation" style="width:100%" />
+            <div style="height:10px"></div>
+            <label>Email</label><input value="demo.user@example.com" style="width:100%" />
+            <div style="height:10px"></div>
+            <button onclick="setToast('Saved', 'Demo: In real build, profile updates are stored securely with GDPR controls.')">Save</button>
+          </div>
+          <div class="card">
+            <h2>Notifications</h2>
+            <p>Automated alerts when new materials, recordings, or deal packs are published.</p>
+            <div class="hr"></div>
+            <label><input type="checkbox" checked /> Event reminders</label><br>
+            <label><input type="checkbox" checked /> New recordings/presentations</label><br>
+            <label><input type="checkbox" checked /> Deal book updates</label><br>
+            <label><input type="checkbox" /> Matchmaking suggestions</label><br>
+          </div>
+        </div>
+      `;
+    }
+
+    function setHash(h){
+      location.hash = h;
+    }
+
+    function route(){
+      const h = location.hash || "#events";
+      if(h.startsWith("#events")) renderEvents();
+      else if(h.startsWith("#dealroom")) renderDealRoom();
+      else if(h.startsWith("#opps")) renderOpps();
+      else if(h.startsWith("#expo")) renderExpo();
+      else if(h.startsWith("#archive")) renderArchive();
+      else if(h.startsWith("#profile")) renderProfile();
+      else renderEvents();
+    }
+
+    window.addEventListener("hashchange", route);
+    route();
+  </script>
+</body>
+</html>
