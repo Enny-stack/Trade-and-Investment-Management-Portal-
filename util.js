@@ -8,7 +8,17 @@ function setToast(title, msg){
   t.classList.add("show");
   setTimeout(()=>t.classList.remove("show"), 3200);
 }
+function getDeals(){
+  try{
+    const x = JSON.parse(localStorage.getItem("timp_deals"));
+    if(Array.isArray(x)) return x;
+  }catch(e){}
+  return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.deals)) ? window.TIMP_DATA.deals : [];
+}
 
+function saveDeals(deals){
+  localStorage.setItem("timp_deals", JSON.stringify(deals));
+}
 function fmtMoney(m){
   return `$${m}m`;
 }
