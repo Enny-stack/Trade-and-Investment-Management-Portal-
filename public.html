@@ -177,7 +177,7 @@
         <button class="secondary" onclick="renderPitching()">Pitching</button>
       `;
 
-      const deals = filterByRegion(TIMP_DATA.deals);
+      const deals = filterByRegion(getDeals());
       const investors = TIMP_DATA.investors;
 
       function recommendInvestors(deal){
@@ -304,7 +304,7 @@
         <button onclick="setToast('Deal Book', 'Use the Admin Console to generate branded Deal Books by country/sector (demo).')">Generate Deal Book</button>
       `;
 
-      const deals = filterByRegion(TIMP_DATA.deals);
+      const deals = filterByRegion(getDeals());
       const rows = deals.map(d=>`
         <tr>
           <td><b>${d.country}</b><br><small>${d.sector}</small></td>
