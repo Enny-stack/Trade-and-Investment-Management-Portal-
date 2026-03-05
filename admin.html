@@ -66,19 +66,105 @@
     <div id="toastMsg"></div>
   </div>
 
+  <!-- keep your existing JS files -->
   <script src="data.js"></script>
   <script src="util.js"></script>
   <script src="app.js"></script>
-  <script>
-    const regionSel = document.getElementById("regionSel");
-    TIMP_REGIONS.forEach(r=>{
-      const opt = document.createElement("option");
-      opt.value = r.id;
-      opt.textContent = r.name[pickLang()] || r.name.en;
-      regionSel.appendChild(opt);
-    });
-    initTopbar();
 
+  <script>
+    // -------------------- SAFE BASE HELPERS (won't override if already defined) --------------------
+    const $  = window.$  || ((s)=>document.querySelector(s));
+    const $$ = window.$$ || ((s)=>Array.from(document.querySelectorAll(s)));
+
+    const t = window.t || ((key)=>key);
+
+    const pickLang = window.pickLang || (() => localStorage.getItem("timp_lang") || "en");
+    const pickRegion = window.pickRegion || (() => localStorage.getItem("timp_region") || "non_reg");
+
+    function regionLabel(id){
+      const list = window.TIMP_REGIONS || [];
+      const r = list.find(x=>x.id===id);
+      if(!r) return id;
+      return (r.name && (r.name[pickLang()] || r.name.en)) || id;
+    }
+
+    function filterByRegion(items){
+      if(typeof window.filterByRegion === "function") return window.filterByRegion(items);
+      const r = pickRegion();
+      if(r === "non_reg") return items;
+      return (items || []).filter(x => x && x.region === r);
+    }
+
+    function fmtMoney(m){
+      if(typeof window.fmtMoney === "function") return window.fmtMoney(m);
+      const n = Number(m);
+      if(!isFinite(n)) return "";
+      return "$" + n.toLocaleString() + "m";
+    }
+
+    function badgeWarmth(w){
+      if(typeof window.badgeWarmth === "function") return window.badgeWarmth(w);
+      const val = (w || "Cold");
+      const cls = val === "Hot" ? "ok" : (val === "Warm" ? "warn" : "muted");
+      return `<span class="tag ${cls}">${val}</span>`;
+    }
+
+    function setToast(title, msg){
+      if(typeof window.setToast === "function") return window.setToast(title, msg);
+      const tEl = $("#toastTitle");
+      const mEl = $("#toastMsg");
+      const box = $("#toast");
+      if(!tEl || !mEl || !box) return;
+      tEl.textContent = title || "";
+      mEl.textContent = msg || "";
+      box.classList.add("show");
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(()=> box.classList.remove("show"), 2600);
+    }
+
+    // -------------------- SAFE DATA (fallback to localStorage or TIMP_DATA) --------------------
+    function readLS(key){
+      try{
+        const raw = localStorage.getItem(key);
+        if(!raw) return null;
+        return JSON.parse(raw);
+      }catch(e){ return null; }
+    }
+
+    function safeGetEvents(){
+      if(typeof window.getEvents === "function") return window.getEvents();
+      const ls = readLS("timp_events");
+      if(Array.isArray(ls)) return ls;
+      return (window.TIMP_DATA?.events ? window.TIMP_DATA.events.slice() : []);
+    }
+    function safeSaveEvents(evs){
+      if(typeof window.saveEvents === "function") return window.saveEvents(evs);
+      localStorage.setItem("timp_events", JSON.stringify(evs || []));
+    }
+
+    function safeGetDeals(){
+      if(typeof window.getDeals === "function") return window.getDeals();
+      const ls = readLS("timp_deals");
+      if(Array.isArray(ls)) return ls;
+      return (window.TIMP_DATA?.deals ? window.TIMP_DATA.deals.slice() : []);
+    }
+    function safeSaveDeals(deals){
+      if(typeof window.saveDeals === "function") return window.saveDeals(deals);
+      localStorage.setItem("timp_deals", JSON.stringify(deals || []));
+    }
+
+    function safeGetRegs(){
+      if(typeof window.getRegistrations === "function") return window.getRegistrations();
+      const ls = readLS("timp_regs");
+      if(Array.isArray(ls)) return ls;
+      return (window.TIMP_DATA?.registrations ? window.TIMP_DATA.registrations.slice() : []);
+    }
+    function safeSaveRegs(regs){
+      if(typeof window.saveRegistrations === "function") return window.saveRegistrations(regs);
+      localStorage.setItem("timp_regs", JSON.stringify(regs || []));
+    }
+
+    // -------------------- UI helpers --------------------
     function setActive(navKey){
       $$("#sidebarNav a").forEach(a=>a.classList.remove("active"));
       const match = $(`#sidebarNav a[data-nav="${navKey}"]`);
@@ -86,18 +172,27 @@
     }
 
     function adminFilter(items){
-      // Admin view is also region segregated in concept note
-      return filterByRegion(items);
+      return filterByRegion(items || []);
     }
 
-    // safe fallbacks (in case util.js isn't fully patched yet)
-    function safeGetEvents(){ return (typeof getEvents === "function") ? getEvents() : (TIMP_DATA.events || []); }
-    function safeGetRegs(){ return (typeof getRegistrations === "function") ? getRegistrations() : (TIMP_DATA.registrations || []); }
-    function safeSaveRegs(regs){
-      if(typeof saveRegistrations === "function") saveRegistrations(regs);
-      else localStorage.setItem("timp_regs", JSON.stringify(regs));
+    function renderFatal(err){
+      setActive("dashboard");
+      $("#pageTitle").textContent = "Admin Dashboard";
+      $("#pageMeta").innerHTML = `<span class="tag warn">Render error</span>`;
+      $("#pageActions").innerHTML = ``;
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Something broke in the demo JS</h2>
+          <p><small>Open DevTools → Console to see the error. This panel is here so the UI never stays blank.</small></p>
+          <div class="hr"></div>
+          <pre style="white-space:pre-wrap;color:var(--muted)">${String(err && err.stack ? err.stack : err)}</pre>
+          <div class="hr"></div>
+          <small>Most common cause: missing function in util.js/app.js or a file path typo.</small>
+        </div>
+      `;
     }
 
+    // -------------------- PAGES --------------------
     function renderDashboard(){
       setActive("dashboard");
       $("#pageTitle").textContent = "Admin Dashboard";
@@ -112,9 +207,8 @@
         return ev && (pickRegion()==="non_reg" || ev.region===pickRegion());
       });
 
-      const deals = adminFilter(getDeals());
+      const deals = adminFilter(safeGetDeals());
 
-      // keep sidebar badge in sync
       $("#regCount").textContent = regs.length;
 
       $("#pageBody").innerHTML = `
@@ -160,6 +254,105 @@
       `;
     }
 
+    // -------------------- EVENT MANAGER --------------------
+    function setEvStatusTag(status){
+      const tag = $("#evStatusTag");
+      if(!tag) return;
+      tag.textContent = status;
+      tag.className = "tag " + (status === "Published" ? "ok" : "warn");
+    }
+
+    function newEvent(){
+      $("#evId").value = "";
+      $("#evTitle").value = "New Investment Forum (demo)";
+      $("#evType").value = "Investment Forum";
+      $("#evVenue").value = "Abidjan";
+      $("#evDate").value = "2026-07-15";
+      $("#evTime").value = "10:00";
+      $("#evTheme").value = "Capital mobilisation + value chains";
+      const r = pickRegion();
+      $("#evRegion").value = (r === "non_reg") ? "north" : r;
+      setEvStatusTag("Draft");
+      setToast("New event", "Fill the form and Save draft or Publish.");
+    }
+
+    function upsertEvent(status){
+      const title = ($("#evTitle").value || "").trim();
+      const venue = ($("#evVenue").value || "").trim();
+      const date  = ($("#evDate").value || "").trim();
+
+      if(!title || !venue || !date){
+        setToast("Missing fields", "Title, Venue and Date are required for this demo.");
+        return null;
+      }
+
+      const id = ($("#evId").value || "").trim() || ("ev" + Date.now());
+      const ev = {
+        id,
+        region: $("#evRegion").value,
+        type: $("#evType").value,
+        title,
+        theme: ($("#evTheme").value || "").trim(),
+        venue,
+        date,
+        time: ($("#evTime").value || "").trim(),
+        status
+      };
+
+      const events = safeGetEvents();
+      const idx = events.findIndex(x=>x.id===id);
+      if(idx >= 0) events[idx] = ev; else events.push(ev);
+      safeSaveEvents(events);
+
+      $("#evId").value = id;
+      setEvStatusTag(status);
+      return id;
+    }
+
+    function saveEvent(){
+      const id = upsertEvent("Draft");
+      if(!id) return;
+      setToast("Saved", "Draft event saved (demo).");
+      renderEventManager();
+      setTimeout(()=>editEvent(id), 0);
+    }
+
+    function publishEvent(){
+      const id = upsertEvent("Published");
+      if(!id) return;
+      setToast("Published", "Event published. In real build this triggers notifications.");
+      renderEventManager();
+      setTimeout(()=>editEvent(id), 0);
+    }
+
+    function editEvent(id){
+      const e = safeGetEvents().find(x=>x.id===id);
+      if(!e) return;
+      $("#evId").value = e.id;
+      $("#evRegion").value = e.region;
+      $("#evTitle").value = e.title;
+      $("#evVenue").value = e.venue;
+      $("#evTheme").value = e.theme || "";
+      $("#evType").value = e.type;
+      $("#evDate").value = e.date;
+      $("#evTime").value = e.time || "";
+      setEvStatusTag(e.status || "Draft");
+      setToast("Editing", "Loaded event into editor (demo).");
+    }
+
+    function deleteEvent(id){
+      const events = safeGetEvents().filter(e=>e.id!==id);
+      safeSaveEvents(events);
+      setToast("Deleted", "Event removed (demo).");
+      renderEventManager();
+    }
+
+    function resetEvents(){
+      localStorage.removeItem("timp_events");
+      setToast("Reset", "Events reset to sample dataset.");
+      renderEventManager();
+    }
+
     function renderEventManager(){
       setActive("events");
       $("#pageTitle").textContent = t("create_event");
@@ -186,7 +379,7 @@
         </tr>
       `).join("");
 
-      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+      const regionOpts = (window.TIMP_REGIONS || []).map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
@@ -258,111 +451,12 @@
         </div>
       `;
 
-      // default region in editor
       const r = pickRegion();
-      $("#evRegion").value = (r === "non_reg") ? "north" : r;
-    }
-
-    function setEvStatusTag(status){
-      const tag = $("#evStatusTag");
-      tag.textContent = status;
-      tag.className = "tag " + (status === "Published" ? "ok" : "warn");
-    }
-
-    function newEvent(){
-      $("#evId").value = "";
-      $("#evTitle").value = "New Investment Forum (demo)";
-      $("#evType").value = "Investment Forum";
-      $("#evVenue").value = "Abidjan";
-      $("#evDate").value = "2026-07-15";
-      $("#evTime").value = "10:00";
-      $("#evTheme").value = "Capital mobilisation + value chains";
-      const r = pickRegion();
-      $("#evRegion").value = (r === "non_reg") ? "north" : r;
+      if($("#evRegion")) $("#evRegion").value = (r === "non_reg") ? "north" : r;
       setEvStatusTag("Draft");
-      setToast("New event", "Fill the form and Save draft or Publish.");
     }
 
-    function upsertEvent(status){
-      const title = ($("#evTitle").value || "").trim();
-      const venue = ($("#evVenue").value || "").trim();
-      const date  = ($("#evDate").value || "").trim();
-
-      if(!title || !venue || !date){
-        setToast("Missing fields", "Title, Venue and Date are required for this demo.");
-        return null;
-      }
-
-      const id = ($("#evId").value || "").trim() || ("ev" + Date.now());
-      const ev = {
-        id,
-        region: $("#evRegion").value,
-        type: $("#evType").value,
-        title,
-        theme: ($("#evTheme").value || "").trim(),
-        venue,
-        date,
-        time: ($("#evTime").value || "").trim(),
-        status
-      };
-
-      const events = safeGetEvents();
-      const idx = events.findIndex(x=>x.id===id);
-      if(idx >= 0) events[idx] = ev; else events.push(ev);
-
-      if(typeof saveEvents === "function") saveEvents(events);
-      else localStorage.setItem("timp_events", JSON.stringify(events));
-
-      $("#evId").value = id;
-      setEvStatusTag(status);
-      return id;
-    }
-
-    function saveEvent(){
-      const id = upsertEvent("Draft");
-      if(!id) return;
-      setToast("Saved", "Draft event saved (demo).");
-      renderEventManager();
-      setTimeout(()=>editEvent(id), 0);
-    }
-
-    function publishEvent(){
-      const id = upsertEvent("Published");
-      if(!id) return;
-      setToast("Published", "Event published. In real build this triggers notifications.");
-      renderEventManager();
-      setTimeout(()=>editEvent(id), 0);
-    }
-
-    function editEvent(id){
-      const e = safeGetEvents().find(x=>x.id===id);
-      if(!e) return;
-      $("#evId").value = e.id;
-      $("#evRegion").value = e.region;
-      $("#evTitle").value = e.title;
-      $("#evVenue").value = e.venue;
-      $("#evTheme").value = e.theme || "";
-      $("#evType").value = e.type;
-      $("#evDate").value = e.date;
-      $("#evTime").value = e.time || "";
-      setEvStatusTag(e.status || "Draft");
-      setToast("Editing", "Loaded event into editor (demo).");
-    }
-
-    function deleteEvent(id){
-      const events = safeGetEvents().filter(e=>e.id!==id);
-      if(typeof saveEvents === "function") saveEvents(events);
-      else localStorage.setItem("timp_events", JSON.stringify(events));
-      setToast("Deleted", "Event removed (demo).");
-      renderEventManager();
-    }
-
-    function resetEvents(){
-      localStorage.removeItem("timp_events");
-      setToast("Reset", "Events reset to sample dataset.");
-      renderEventManager();
-    }
-
+    // -------------------- REGISTRATIONS --------------------
     function renderRegistrations(){
       setActive("registrations");
       $("#pageTitle").textContent = t("registrations");
@@ -413,43 +507,33 @@
     function approve(id){
       const regs = safeGetRegs();
       const r = regs.find(x=>x.id===id);
-      if(!r){
-        setToast("Not found", "Registration not found (demo).");
-        return;
-      }
+      if(!r){ setToast("Not found", "Registration not found (demo)."); return; }
       r.state = "Approved";
       r.updated_at = new Date().toISOString();
       safeSaveRegs(regs);
-
       setToast("Approved", "Participant approved. Real build sends confirmation email + access rights.");
       renderRegistrations();
-      // keep dashboard numbers fresh if user navigates back
-      // (optional) renderDashboard();
     }
 
     function reject(id){
       const regs = safeGetRegs();
       const r = regs.find(x=>x.id===id);
-      if(!r){
-        setToast("Not found", "Registration not found (demo).");
-        return;
-      }
+      if(!r){ setToast("Not found", "Registration not found (demo)."); return; }
       r.state = "Rejected";
       r.updated_at = new Date().toISOString();
       safeSaveRegs(regs);
-
       setToast("Rejected", "Participant rejected. Real build logs reason and sends notification.");
       renderRegistrations();
-      // (optional) renderDashboard();
     }
 
+    // -------------------- DEAL BOOK --------------------
     function renderDealBook(){
-      setActive("dealbook");
+      setActive("dealbook"); // not in sidebar; still OK
       $("#pageTitle").textContent = t("dealbook");
       $("#pageMeta").innerHTML = `<span class="tag ok">Branded</span> <span class="tag muted">Generate by country or sector (demo)</span>`;
       $("#pageActions").innerHTML = `<button onclick="genDealBook()">Generate</button>`;
 
-      const deals = adminFilter(getDeals());
+      const deals = adminFilter(safeGetDeals());
       const countries = Array.from(new Set(deals.map(d=>d.country))).sort();
       const sectors = Array.from(new Set(deals.map(d=>d.sector))).sort();
 
@@ -486,14 +570,14 @@
     }
 
     function genDealBook(){
-      const deals = adminFilter(getDeals());
+      const deals = adminFilter(safeGetDeals());
       const c = ($("#country")?.value || "");
       const s = ($("#sector")?.value || "");
       const out = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
       $("#dealPreview").innerHTML = `
         <p><b>Generated:</b> ${out.length} opportunities</p>
         <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
-          ${out.map(d=>`<li>${d.country} • ${d.sector} • ${fmtMoney(d.ticket_usd_m)} • ${d.video}</li>`).join("") || "<li>No matches.</li>"}
+          ${out.map(d=>`<li>${d.country} • ${d.sector} • ${fmtMoney(d.ticket_usd_m)} • ${d.video || ""}</li>`).join("") || "<li>No matches.</li>"}
         </ul>
         <div class="hr"></div>
         <p><small>Real build: export branded PDF + tracking for downloads and investor engagement.</small></p>
@@ -501,10 +585,84 @@
       setToast("Deal Book generated (demo)", "In the real build this outputs a branded PDF and tracks downloads.");
     }
 
-    /* --- EVERYTHING ELSE BELOW IS UNCHANGED FROM YOUR FILE --- */
-    /* Deals manager, matchmaking, region profiles, RBAC, analytics, archive remain intact */
+    // -------------------- DEALS MANAGER --------------------
+    function clearDealForm(){
+      $("#dealId").value = "";
+      $("#dealCountry").value = "";
+      $("#dealSector").value = "";
+      $("#dealTicket").value = "";
+      $("#dealOwner").value = "";
+      $("#dealSummary").value = "";
+      $("#dealVideo").value = "";
+      $("#dealStage").value = "Origination";
+      $("#dealWarmth").value = "Cold";
+      setToast("Cleared", "Deal form reset (demo).");
+    }
 
-    function renderDealsManager(){ /* unchanged */ 
+    function loadDeal(id){
+      const d = safeGetDeals().find(x=>x.id===id);
+      if(!d) return;
+      $("#dealId").value = d.id;
+      $("#dealRegion").value = d.region;
+      $("#dealCountry").value = d.country;
+      $("#dealSector").value = d.sector;
+      $("#dealTicket").value = d.ticket_usd_m;
+      $("#dealStage").value = d.stage;
+      $("#dealWarmth").value = d.warmth;
+      $("#dealOwner").value = d.owner || "";
+      $("#dealSummary").value = d.summary || "";
+      $("#dealVideo").value = d.video || "";
+      setToast("Loaded", "Deal loaded for editing (demo).");
+    }
+
+    function saveDeal(){
+      const id = ($("#dealId").value || "").trim();
+      const deal = {
+        id: id || ("d" + Date.now()),
+        region: $("#dealRegion").value,
+        country: ($("#dealCountry").value || "").trim(),
+        sector: ($("#dealSector").value || "").trim(),
+        ticket_usd_m: parseInt($("#dealTicket").value || "0", 10),
+        stage: $("#dealStage").value,
+        warmth: $("#dealWarmth").value,
+        owner: ($("#dealOwner").value || "").trim(),
+        summary: ($("#dealSummary").value || "").trim(),
+        video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)"
+      };
+
+      if(!deal.country || !deal.sector || !deal.ticket_usd_m){
+        setToast("Missing fields", "Country, sector and ticket size are required in this demo.");
+        return;
+      }
+
+      const deals = safeGetDeals();
+      const idx = deals.findIndex(x=>x.id===deal.id);
+      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
+      safeSaveDeals(deals);
+
+      setToast("Saved", "Deal saved. Now visible in Deal Room and Opportunities.");
+      renderDealsManager();
+    }
+
+    function deleteDeal(id){
+      const deals = safeGetDeals().filter(d=>d.id!==id);
+      safeSaveDeals(deals);
+      setToast("Deleted", "Deal removed (demo).");
+      renderDealsManager();
+    }
+
+    function addDeal(){
+      clearDealForm();
+      setToast("New deal", "Fill the form and click Save.");
+    }
+
+    function resetDeals(){
+      localStorage.removeItem("timp_deals");
+      setToast("Reset", "Deals reset to sample dataset.");
+      renderDealsManager();
+    }
+
+    function renderDealsManager(){
       setActive("deals");
       $("#pageTitle").textContent = "Deals Manager";
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Add/edit opportunities (stored in browser for demo)</span>`;
@@ -513,8 +671,8 @@
         <button class="secondary" onclick="resetDeals()">Reset to sample</button>
       `;
 
-      const deals = adminFilter(getDeals());
-      const allDeals = getDeals();
+      const deals = adminFilter(safeGetDeals());
+      const allDeals = safeGetDeals();
 
       const rows = deals.map(d=>`
         <tr>
@@ -530,7 +688,7 @@
         </tr>
       `).join("");
 
-      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+      const regionOpts = (window.TIMP_REGIONS || []).map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
@@ -546,11 +704,11 @@
             <div style="height:10px"></div>
 
             <label>Country</label>
-            <input id="dealCountry" placeholder="e.g., Nigéria" style="width:100%" />
+            <input id="dealCountry" placeholder="e.g., Nigeria" style="width:100%" />
             <div style="height:10px"></div>
 
             <label>Sector</label>
-            <input id="dealSector" placeholder="e.g., Énergie" style="width:100%" />
+            <input id="dealSector" placeholder="e.g., Energy" style="width:100%" />
             <div style="height:10px"></div>
 
             <label>Ticket size (USD millions)</label>
@@ -610,139 +768,253 @@
       `;
 
       const r = pickRegion();
-      $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
+      if($("#dealRegion")) $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
     }
 
-    function clearDealForm(){
-      $("#dealId").value = "";
-      $("#dealCountry").value = "";
-      $("#dealSector").value = "";
-      $("#dealTicket").value = "";
-      $("#dealOwner").value = "";
-      $("#dealSummary").value = "";
-      $("#dealVideo").value = "";
-      $("#dealStage").value = "Origination";
-      $("#dealWarmth").value = "Cold";
-      setToast("Cleared", "Deal form reset (demo).");
+    // -------------------- MATCHMAKING --------------------
+    function renderMatchmaking(){
+      setActive("matchmaking");
+      $("#pageTitle").textContent = t("matchmaking");
+      $("#pageMeta").innerHTML = `<span class="tag ok">AI-enhanced</span> <span class="tag muted">Rules + tracking (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Rules saved', 'Demo: Matchmaking parameters stored and tuned over time.')">Save rules</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Matchmaking Rules</h2>
+            <p>Recommend connections between investors and project owners based on sector + ticket size (demo).</p>
+            <div class="hr"></div>
+            <label>Primary match fields</label>
+            <select style="width:100%" multiple size="4">
+              <option selected>Sector</option>
+              <option selected>Ticket size</option>
+              <option>Geography / region</option>
+              <option>Impact theme</option>
+            </select>
+            <div style="height:10px"></div>
+            <label>Lead warmth signals</label><br>
+            <label><input type="checkbox" checked /> Prospectus request</label><br>
+            <label><input type="checkbox" checked /> Deal book download</label><br>
+            <label><input type="checkbox" /> Time spent on deal page</label><br>
+            <div class="hr"></div>
+            <button onclick="setToast('Preview generated', 'Demo: shows sample recommendations.')">Preview recommendations</button>
+          </div>
+          <div class="card">
+            <h2>Meeting Scheduling</h2>
+            <p>Integrated calendar for 1:1 meetings (physical or virtual).</p>
+            <div class="hr"></div>
+            <button class="secondary" onclick="setToast('Calendar', 'Demo: integrate with Outlook/Teams or internal scheduling service.')">Open calendar integration</button>
+            <button class="secondary" onclick="setToast('Virtual meeting', 'Demo: generate Teams link + send to attendees.')">Generate meeting link</button>
+          </div>
+        </div>
+      `;
     }
 
-    function loadDeal(id){
-      const d = getDeals().find(x=>x.id===id);
-      if(!d) return;
-      $("#dealId").value = d.id;
-      $("#dealRegion").value = d.region;
-      $("#dealCountry").value = d.country;
-      $("#dealSector").value = d.sector;
-      $("#dealTicket").value = d.ticket_usd_m;
-      $("#dealStage").value = d.stage;
-      $("#dealWarmth").value = d.warmth;
-      $("#dealOwner").value = d.owner || "";
-      $("#dealSummary").value = d.summary || "";
-      $("#dealVideo").value = d.video || "";
-      setToast("Loaded", "Deal loaded for editing (demo).");
+    // -------------------- REGION PROFILES --------------------
+    function renderRegionProfiles(){
+      setActive("region_profiles");
+      $("#pageTitle").textContent = t("region_profiles");
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Macro/regulatory context + stakeholders (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Saved', 'Demo: region profile stored for planning and investor briefings.')">Save profile</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Operating Environment</h2>
+            <label>Macro overview</label>
+            <textarea rows="5" style="width:100%" placeholder="National/regional macro summary (demo)"></textarea>
+            <div style="height:10px"></div>
+            <label>Regulatory environment</label>
+            <textarea rows="5" style="width:100%" placeholder="Key regulations relevant to trade & investment (demo)"></textarea>
+          </div>
+          <div class="card">
+            <h2>Existing Opportunities</h2>
+            <label>Key driving sectors</label>
+            <input style="width:100%" placeholder="e.g., energy, logistics, manufacturing" />
+            <div style="height:10px"></div>
+            <label>Key projects</label>
+            <textarea rows="5" style="width:100%" placeholder="List priority national/regional projects (demo)"></textarea>
+            <div style="height:10px"></div>
+            <label>Key stakeholders</label>
+            <textarea rows="4" style="width:100%" placeholder="List key players/partners (demo)"></textarea>
+          </div>
+        </div>
+      `;
     }
 
-    function saveDeal(){
-      const id = ($("#dealId").value || "").trim();
-      const deal = {
-        id: id || ("d" + Date.now()),
-        region: $("#dealRegion").value,
-        country: ($("#dealCountry").value || "").trim(),
-        sector: ($("#dealSector").value || "").trim(),
-        ticket_usd_m: parseInt($("#dealTicket").value || "0", 10),
-        stage: $("#dealStage").value,
-        warmth: $("#dealWarmth").value,
-        owner: ($("#dealOwner").value || "").trim(),
-        summary: ($("#dealSummary").value || "").trim(),
-        video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)"
-      };
+    // -------------------- RBAC --------------------
+    function renderRBAC(){
+      setActive("users_rbac");
+      $("#pageTitle").textContent = t("users_rbac");
+      $("#pageMeta").innerHTML = `<span class="tag ok">RBAC</span> <span class="tag muted">Role-based access control (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Roles updated', 'Demo: In real build, connect to SSO and identity management.')">Update roles</button>`;
 
-      if(!deal.country || !deal.sector || !deal.ticket_usd_m){
-        setToast("Missing fields", "Country, sector and ticket size are required in this demo.");
-        return;
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Roles (from concept note)</h2>
+          <p>Admin rights granted to specific roles across Regional Comms, Regional Staff, Client Relations, TFIP, and Digital Business (demo).</p>
+          <div class="hr"></div>
+          <table class="table">
+            <thead><tr><th>Role</th><th>Count (indicative)</th><th>Key Permissions</th></tr></thead>
+            <tbody>
+              <tr><td>Regional Comms Manager</td><td>1</td><td>Publish events, manage content</td></tr>
+              <tr><td>Regional Staff</td><td>1</td><td>Event support, uploads</td></tr>
+              <tr><td>Client Relations</td><td>2</td><td>Investor onboarding, follow-up</td></tr>
+              <tr><td>Trade & Investment Promotion</td><td>3</td><td>Deal curation, deal book, matchmaking</td></tr>
+              <tr><td>Digital Business</td><td>2</td><td>Platform admin, integrations</td></tr>
+            </tbody>
+          </table>
+          <div class="hr"></div>
+          <p><small>Public rights: verified users can register, view allowed materials, and amend their profiles.</small></p>
+        </div>
+      `;
+    }
+
+    // -------------------- ANALYTICS --------------------
+    function renderAnalytics(){
+      setActive("analytics");
+      $("#pageTitle").textContent = t("analytics");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Reporting</span> <span class="tag muted">Engagement + downloads + conversion (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Exported', 'Demo: export analytics for post-event reports.')">Export report</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-3">
+          <div class="card"><div class="mini"><div><div class="label">Attendance rate</div><div class="big">78%</div></div><span class="tag ok">Events</span></div><div class="progress"><div style="width:78%"></div></div></div>
+          <div class="card"><div class="mini"><div><div class="label">Deal book downloads</div><div class="big">134</div></div><span class="tag warn">Content</span></div><div class="progress"><div style="width:62%"></div></div></div>
+          <div class="card"><div class="mini"><div><div class="label">Prospectus requests</div><div class="big">21</div></div><span class="tag ok">Signals</span></div><div class="progress"><div style="width:35%"></div></div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>What gets measured</h2>
+            <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
+              <li>Attendance and participation rates</li>
+              <li>Engagement (polls, Q&A, chat)</li>
+              <li>Content access (recordings/decks)</li>
+              <li>Deal book downloads</li>
+              <li>Investor interactions per project (warmth)</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h2>Follow-up prioritization</h2>
+            <p>Real build uses analytics to rank “warm leads” and automate personalized follow-up sequences.</p>
+            <div class="hr"></div>
+            <button onclick="setToast('Follow-up queued', 'Demo: in real build, this triggers sequences and assigns owners.')">Generate follow-up list</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // -------------------- ARCHIVE --------------------
+    function renderArchive(){
+      setActive("archive");
+      $("#pageTitle").textContent = t("archive");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Institutional Memory</span> <span class="tag muted">Audit-ready searchable repository (demo)</span>`;
+      $("#pageActions").innerHTML = ``;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Archive Search</h2>
+            <input id="q" placeholder="Search keywords (e.g., Lagos, Manufacturing, Deal Book)" style="width:100%" />
+            <div style="height:10px"></div>
+            <button onclick="doSearch()">Search</button>
+            <div class="hr"></div>
+            <div id="results"><small>Try “Manufacturing”.</small></div>
+          </div>
+          <div class="card">
+            <h2>Audit & Governance</h2>
+            <p>Real build keeps logs for publishing, approvals, access to sensitive documents, and exports.</p>
+            <div class="hr"></div>
+            <span class="tag ok">Audit ready</span>
+            <span class="tag ok">Controlled access</span>
+            <span class="tag warn">GDPR controls</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function doSearch(){
+      const q = ($("#q").value || "").toLowerCase().trim();
+      const hits = [];
+
+      safeGetEvents().forEach(e=>{
+        if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
+          hits.push({type:"Event", label:e.title+" • "+e.date});
+        }
+      });
+
+      safeGetDeals().forEach(d=>{
+        if([d.country,d.sector,d.summary,d.stage].join(" ").toLowerCase().includes(q)){
+          hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
+        }
+      });
+
+      $("#results").innerHTML = hits.length
+        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>`
+        : `<small>No results.</small>`;
+    }
+
+    // -------------------- ROUTER (SAFE) --------------------
+    function route(){
+      const h = (location.hash || "#dashboard").toLowerCase();
+
+      if(h.startsWith("#dashboard")) return renderDashboard();
+      if(h.startsWith("#events")) return renderEventManager();
+      if(h.startsWith("#regs")) return renderRegistrations();
+      if(h.startsWith("#dealbook")) return renderDealBook();
+      if(h.startsWith("#deals")) return renderDealsManager();
+      if(h.startsWith("#matchmaking")) return renderMatchmaking();
+      if(h.startsWith("#regionprofiles")) return renderRegionProfiles();
+      if(h.startsWith("#rbac")) return renderRBAC();
+      if(h.startsWith("#analytics")) return renderAnalytics();
+      if(h.startsWith("#archive")) return renderArchive();
+
+      return renderDashboard();
+    }
+
+    function safeRoute(){
+      try{ route(); }
+      catch(err){
+        console.error(err);
+        renderFatal(err);
+      }
+    }
+
+    // -------------------- INIT --------------------
+    document.addEventListener("DOMContentLoaded", ()=>{
+      // build region selector options (guarded)
+      try{
+        const regionSel = document.getElementById("regionSel");
+        const regions = window.TIMP_REGIONS || [];
+        if(regionSel && regions.length){
+          regionSel.innerHTML = "";
+          regions.forEach(r=>{
+            const opt = document.createElement("option");
+            opt.value = r.id;
+            opt.textContent = (r.name && (r.name[pickLang()] || r.name.en)) || r.id;
+            regionSel.appendChild(opt);
+          });
+        }
+      }catch(e){
+        console.warn("Region selector build failed:", e);
       }
 
-      const deals = getDeals();
-      const idx = deals.findIndex(x=>x.id===deal.id);
-      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
-      saveDeals(deals);
+      // initTopbar (guarded)
+      try{
+        if(typeof window.initTopbar === "function") window.initTopbar();
+      }catch(e){
+        console.warn("initTopbar failed:", e);
+      }
 
-      setToast("Saved", "Deal saved. Now visible in Deal Room and Opportunities.");
-      renderDealsManager();
-    }
+      // keep nav responsive even if clicking same hash repeatedly
+      document.querySelectorAll("#sidebarNav a").forEach(a=>{
+        a.addEventListener("click", ()=> setTimeout(safeRoute, 0));
+      });
 
-    function deleteDeal(id){
-      const deals = getDeals().filter(d=>d.id!==id);
-      saveDeals(deals);
-      setToast("Deleted", "Deal removed (demo).");
-      renderDealsManager();
-    }
-
-    function addDeal(){
-      clearDealForm();
-      setToast("New deal", "Fill the form and click Save.");
-    }
-
-    function resetDeals(){
-      localStorage.removeItem("timp_deals");
-      setToast("Reset", "Deals reset to sample dataset.");
-      renderDealsManager();
-    }
-
-    // (your matchmaking, region profiles, RBAC, analytics, archive, doSearch, route) remain as in your original file.
-    // If you want, paste your bottom section and I’ll also swap archive search to getEvents/getDeals for consistency.
-
-   <script>
-  // ...keep everything you already have above...
-
-  function renderNotReady(navKey, title){
-    setActive(navKey);
-    $("#pageTitle").textContent = title;
-    $("#pageMeta").innerHTML = `<span class="tag warn">Demo module not loaded</span>`;
-    $("#pageActions").innerHTML = ``;
-    $("#pageBody").innerHTML = `
-      <div class="card">
-        <h2>${title}</h2>
-        <p>This menu item is routing correctly, but the page function is missing or not loaded.</p>
-        <div class="hr"></div>
-        <small>
-          Check you still have <b>function ${title.replace(/[^a-zA-Z]/g,"")}</b> (e.g. renderMatchmaking / renderRegionProfiles / renderRBAC / renderAnalytics / renderArchive)
-          below your pasted code, and that there are no JS errors above them.
-        </small>
-      </div>
-    `;
-  }
-
-  function call(fnName, navKey, title){
-    const fn = window[fnName];
-    if(typeof fn === "function") return fn();
-    return renderNotReady(navKey, title);
-  }
-
-  function route(){
-    const h = (location.hash || "#dashboard").toLowerCase();
-
-    if(h.startsWith("#dashboard")) return call("renderDashboard", "dashboard", "Dashboard");
-    if(h.startsWith("#events")) return call("renderEventManager", "events", "Create / Edit Event");
-    if(h.startsWith("#regs")) return call("renderRegistrations", "registrations", "Registrations");
-    if(h.startsWith("#dealbook")) return call("renderDealBook", "dealbook", "Deal Book");
-    if(h.startsWith("#deals")) return call("renderDealsManager", "deals", "Deals");
-    if(h.startsWith("#matchmaking")) return call("renderMatchmaking", "matchmaking", "Matchmaking");
-    if(h.startsWith("#regionprofiles")) return call("renderRegionProfiles", "region_profiles", "Region Profiles");
-    if(h.startsWith("#rbac")) return call("renderRBAC", "users_rbac", "Users & RBAC");
-    if(h.startsWith("#analytics")) return call("renderAnalytics", "analytics", "Analytics");
-    if(h.startsWith("#archive")) return call("renderArchive", "archive", "Archive");
-
-    return call("renderDashboard", "dashboard", "Dashboard");
-  }
-
-  // Make nav always re-render (even if you click the same hash twice)
-  document.querySelectorAll("#sidebarNav a").forEach(a=>{
-    a.addEventListener("click", ()=> setTimeout(route, 0));
-  });
-
-  window.addEventListener("hashchange", route);
-  route();
-</script>
+      window.addEventListener("hashchange", safeRoute);
+      safeRoute();
+    });
+  </script>
 </body>
 </html>
