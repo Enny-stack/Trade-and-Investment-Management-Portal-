@@ -146,82 +146,205 @@
       `;
     }
 
-    function renderEventManager(){
-      setActive("events");
-      $("#pageTitle").textContent = t("create_event");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Event profiling + publishing (demo)</span>`;
-      $("#pageActions").innerHTML = `
-        <button onclick="publishEvent()">Publish</button>
-        <button class="secondary" onclick="setToast('Invite link generated', 'Demo: Registration link + invitation email automation.')">Generate invite link</button>
-      `;
+   function renderEventManager(){
+  setActive("events");
+  $("#pageTitle").textContent = t("create_event");
+  $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Event profiling + publishing (demo – stored in browser)</span>`;
+  $("#pageActions").innerHTML = `
+    <button class="secondary" onclick="newEvent()">Add new</button>
+    <button onclick="publishEvent()">Publish</button>
+    <button class="secondary" onclick="saveEvent()">Save draft</button>
+    <button class="secondary" onclick="setToast('Invite link generated', 'Demo: Registration link + invitation email automation.')">Generate invite link</button>
+    <button class="ghost" onclick="resetEvents()">Reset events</button>
+  `;
 
-      const evs = adminFilter(TIMP_DATA.events);
-      const rows = evs.map(e=>`
-        <tr>
-          <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
-          <td>${e.date}</td>
-          <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${e.status}</span></td>
-          <td class="row-actions">
-            <button class="secondary" onclick="editEvent('${e.id}')">Edit</button>
-            <button class="danger" onclick="setToast('Not deleted', 'Demo: delete disabled. Real build uses audit trail.')">Delete</button>
-          </td>
-        </tr>
-      `).join("");
+  const evs = adminFilter(getEvents());
 
-      $("#pageBody").innerHTML = `
+  const rows = evs.map(e=>`
+    <tr>
+      <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
+      <td>${e.date} ${e.time || ""}</td>
+      <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${e.status || "Draft"}</span></td>
+      <td class="row-actions">
+        <button class="secondary" onclick="editEvent('${e.id}')">Edit</button>
+        <button class="danger" onclick="deleteEvent('${e.id}')">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+
+  $("#pageBody").innerHTML = `
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Event Profile Builder</h2>
+        <p>Create and edit events live for the demo. Saved in your browser (localStorage).</p>
+        <div class="hr"></div>
+
+        <input type="hidden" id="evId" value="" />
+
         <div class="grid cols-2">
-          <div class="card">
-            <h2>Event Profile Builder</h2>
-            <p>Admins add venue, date/time, theme, banner, and upload programme/presentations.</p>
-            <div class="hr"></div>
-            <label>Title</label><input id="evTitle" value="New Investment Forum (demo)" style="width:100%" />
-            <div style="height:10px"></div>
-            <div class="grid cols-2">
-              <div><label>Type</label><select id="evType" style="width:100%"><option>Investment Forum</option><option>Roadshow</option></select></div>
-              <div><label>Venue</label><input id="evVenue" value="Abidjan" style="width:100%" /></div>
-            </div>
-            <div style="height:10px"></div>
-            <div class="grid cols-2">
-              <div><label>Date</label><input id="evDate" type="date" value="2026-07-15" style="width:100%" /></div>
-              <div><label>Time</label><input id="evTime" value="10:00" style="width:100%" /></div>
-            </div>
-            <div style="height:10px"></div>
-            <label>Theme</label><input id="evTheme" value="Capital mobilisation + value chains" style="width:100%" />
-            <div style="height:10px"></div>
-            <div class="row-actions">
-              <button class="secondary" onclick="saveEvent()">Save draft</button>
-              <button class="secondary" onclick="setToast('Materials uploaded', 'Demo: files stored in a secure library with access control.')">Upload materials</button>
-            </div>
+          <div>
+            <label>Region</label>
+            <select id="evRegion" style="width:100%">${regionOpts}</select>
           </div>
-          <div class="card">
-            <h2>Events (Admin view)</h2>
-            <table class="table">
-              <thead><tr><th>Event</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>${rows || `<tr><td colspan="4"><small>No events for this region.</small></td></tr>`}</tbody>
-            </table>
+          <div>
+            <label>Status</label>
+            <div style="padding:10px;border:1px solid var(--line);border-radius:12px;">
+              <span id="evStatusTag" class="tag warn">Draft</span>
+            </div>
           </div>
         </div>
-      `;
-    }
 
-    function saveEvent(){
-      setToast("Saved (demo)", "Draft event saved. Real build writes to database and logs audit trail.");
-    }
-    function publishEvent(){
-      setToast("Published (demo)", "Event published. Real build triggers notifications to registered participants.");
-    }
-    function editEvent(id){
-      const e = TIMP_DATA.events.find(x=>x.id===id);
-      if(!e) return;
-      $("#evTitle").value = e.title;
-      $("#evVenue").value = e.venue;
-      $("#evTheme").value = e.theme;
-      $("#evType").value = e.type;
-      $("#evDate").value = e.date;
-      $("#evTime").value = e.time;
-      setToast("Editing", "Loaded event into editor (demo).");
-    }
+        <div style="height:10px"></div>
+        <label>Title</label>
+        <input id="evTitle" value="New Investment Forum (demo)" style="width:100%" />
 
+        <div style="height:10px"></div>
+        <div class="grid cols-2">
+          <div>
+            <label>Type</label>
+            <select id="evType" style="width:100%">
+              <option>Investment Forum</option>
+              <option>Roadshow</option>
+            </select>
+          </div>
+          <div>
+            <label>Venue</label>
+            <input id="evVenue" value="Abidjan" style="width:100%" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="grid cols-2">
+          <div><label>Date</label><input id="evDate" type="date" value="2026-07-15" style="width:100%" /></div>
+          <div><label>Time</label><input id="evTime" value="10:00" style="width:100%" /></div>
+        </div>
+
+        <div style="height:10px"></div>
+        <label>Theme</label>
+        <input id="evTheme" value="Capital mobilisation + value chains" style="width:100%" />
+
+        <div style="height:10px"></div>
+        <div class="row-actions">
+          <button class="secondary" onclick="saveEvent()">Save draft</button>
+          <button onclick="publishEvent()">Publish</button>
+          <button class="secondary" onclick="setToast('Materials uploaded', 'Demo: files stored in a secure library with access control.')">Upload materials</button>
+          <button class="ghost" onclick="newEvent()">Clear</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Events (Admin view)</h2>
+        <table class="table">
+          <thead><tr><th>Event</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="4"><small>No events for this region.</small></td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // default region in editor
+  const r = pickRegion();
+  $("#evRegion").value = (r === "non_reg") ? "north" : r;
+}
+
+function setEvStatusTag(status){
+  const tag = $("#evStatusTag");
+  tag.textContent = status;
+  tag.className = "tag " + (status === "Published" ? "ok" : "warn");
+}
+
+function newEvent(){
+  $("#evId").value = "";
+  $("#evTitle").value = "New Investment Forum (demo)";
+  $("#evType").value = "Investment Forum";
+  $("#evVenue").value = "Abidjan";
+  $("#evDate").value = "2026-07-15";
+  $("#evTime").value = "10:00";
+  $("#evTheme").value = "Capital mobilisation + value chains";
+  const r = pickRegion();
+  $("#evRegion").value = (r === "non_reg") ? "north" : r;
+  setEvStatusTag("Draft");
+  setToast("New event", "Fill the form and Save draft or Publish.");
+}
+
+function upsertEvent(status){
+  const title = ($("#evTitle").value || "").trim();
+  const venue = ($("#evVenue").value || "").trim();
+  const date  = ($("#evDate").value || "").trim();
+
+  if(!title || !venue || !date){
+    setToast("Missing fields", "Title, Venue and Date are required for this demo.");
+    return null;
+  }
+
+  const id = ($("#evId").value || "").trim() || ("ev" + Date.now());
+  const ev = {
+    id,
+    region: $("#evRegion").value,
+    type: $("#evType").value,
+    title,
+    theme: ($("#evTheme").value || "").trim(),
+    venue,
+    date,
+    time: ($("#evTime").value || "").trim(),
+    status
+  };
+
+  const events = getEvents();
+  const idx = events.findIndex(x=>x.id===id);
+  if(idx >= 0) events[idx] = ev; else events.push(ev);
+  saveEvents(events);
+
+  $("#evId").value = id;
+  setEvStatusTag(status);
+  return id;
+}
+
+function saveEvent(){
+  const id = upsertEvent("Draft");
+  if(!id) return;
+  setToast("Saved", "Draft event saved (demo).");
+  renderEventManager();
+  setTimeout(()=>editEvent(id), 0);
+}
+
+function publishEvent(){
+  const id = upsertEvent("Published");
+  if(!id) return;
+  setToast("Published", "Event published. In real build this triggers notifications.");
+  renderEventManager();
+  setTimeout(()=>editEvent(id), 0);
+}
+
+function editEvent(id){
+  const e = getEvents().find(x=>x.id===id);
+  if(!e) return;
+  $("#evId").value = e.id;
+  $("#evRegion").value = e.region;
+  $("#evTitle").value = e.title;
+  $("#evVenue").value = e.venue;
+  $("#evTheme").value = e.theme || "";
+  $("#evType").value = e.type;
+  $("#evDate").value = e.date;
+  $("#evTime").value = e.time || "";
+  setEvStatusTag(e.status || "Draft");
+  setToast("Editing", "Loaded event into editor (demo).");
+}
+
+function deleteEvent(id){
+  const events = getEvents().filter(e=>e.id!==id);
+  saveEvents(events);
+  setToast("Deleted", "Event removed (demo).");
+  renderEventManager();
+}
+
+function resetEvents(){
+  localStorage.removeItem("timp_events");
+  setToast("Reset", "Events reset to sample dataset.");
+  renderEventManager();
+}
     function renderRegistrations(){
       setActive("registrations");
       $("#pageTitle").textContent = t("registrations");
