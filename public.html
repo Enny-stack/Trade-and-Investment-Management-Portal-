@@ -89,7 +89,7 @@
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
       $("#pageActions").innerHTML = ``;
 
-      const evs = filterByRegion(TIMP_DATA.events);
+      const evs = filterByRegion(getEvents());
       $("#evCount").textContent = evs.length;
 
       const rows = evs.map(e=>`
@@ -117,7 +117,7 @@
     }
 
     function openEvent(eventId){
-      const e = TIMP_DATA.events.find(x=>x.id===eventId);
+      const e = getEvents().find(x=>x.id===eventId);
       if(!e) return;
       $("#pageTitle").textContent = e.title;
       $("#pageMeta").innerHTML = `
@@ -164,7 +164,7 @@
     }
 
     function register(eventId){
-      const e = TIMP_DATA.events.find(x=>x.id===eventId);
+      const e = getEvents().find(x=>x.id===eventId);
       setToast("Registration submitted", `Demo: ${e ? e.title : 'Event'} — confirmation email automation is part of the real build.`);
     }
 
@@ -386,7 +386,7 @@
     function doSearch(){
       const q = ($("#q").value || "").toLowerCase().trim();
       const hits = [];
-      TIMP_DATA.events.forEach(e=>{
+      getEvents().forEach(e=>{
         if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Event", label:e.title+" • "+e.date});
         }
