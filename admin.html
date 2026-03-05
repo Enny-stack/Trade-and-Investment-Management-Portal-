@@ -36,7 +36,13 @@
         <a href="#dashboard" data-nav="dashboard"><span>Dashboard</span></a>
         <a href="#events" data-nav="events"><span class="i18n" data-key="create_event">Create / Edit Event</span></a>
         <a href="#regs" data-nav="registrations"><span class="i18n" data-key="registrations">Registrations</span><span class="badge" id="regCount"></span></a>
+
+        <!-- FIX: add Deal Book back -->
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
+
+        <!-- Deals Manager -->
+        <a href="#deals" data-nav="deals"><span>Deals</span></a>
+
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
         <a href="#regionprofiles" data-nav="region_profiles"><span class="i18n" data-key="region_profiles">Region Profiles</span></a>
         <a href="#rbac" data-nav="users_rbac"><span class="i18n" data-key="users_rbac">Users & RBAC</span></a>
@@ -101,7 +107,7 @@
         const ev = TIMP_DATA.events.find(e=>e.id===r.event_id);
         return ev && (pickRegion()==="non_reg" || ev.region===pickRegion());
       });
-      const deals = adminFilter(TIMP_DATA.deals);
+      const deals = adminFilter(getDeals());
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-3">
@@ -275,7 +281,7 @@
       $("#pageMeta").innerHTML = `<span class="tag ok">Branded</span> <span class="tag muted">Generate by country or sector (demo)</span>`;
       $("#pageActions").innerHTML = `<button onclick="genDealBook()">Generate</button>`;
 
-      const deals = adminFilter(TIMP_DATA.deals);
+      const deals = adminFilter(getDeals());
       const countries = Array.from(new Set(deals.map(d=>d.country))).sort();
       const sectors = Array.from(new Set(deals.map(d=>d.sector))).sort();
 
@@ -312,7 +318,7 @@
     }
 
     function genDealBook(){
-      const deals = adminFilter(TIMP_DATA.deals);
+      const deals = adminFilter(getDeals());
       const c = ($("#country")?.value || "");
       const s = ($("#sector")?.value || "");
       const out = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
@@ -325,6 +331,194 @@
         <p><small>Real build: export branded PDF + tracking for downloads and investor engagement.</small></p>
       `;
       setToast("Deal Book generated (demo)", "In the real build this outputs a branded PDF and tracks downloads.");
+    }
+
+    /* =========================
+       FIX: Deals Manager Page
+       ========================= */
+    function renderDealsManager(){
+      setActive("deals");
+      $("#pageTitle").textContent = "Deals Manager";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Add/edit opportunities (stored in browser for demo)</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="addDeal()">Add Deal</button>
+        <button class="secondary" onclick="resetDeals()">Reset to sample</button>
+      `;
+
+      const deals = adminFilter(getDeals());
+      const allDeals = getDeals();
+
+      const rows = deals.map(d=>`
+        <tr>
+          <td><b>${d.country}</b><br><small>${d.sector}</small></td>
+          <td>${regionLabel(d.region)}</td>
+          <td>${fmtMoney(d.ticket_usd_m)}</td>
+          <td>${d.stage}</td>
+          <td>${badgeWarmth(d.warmth)}</td>
+          <td class="row-actions">
+            <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
+            <button class="danger" onclick="deleteDeal('${d.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join("");
+
+      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Deal Entry</h2>
+            <p>Use this to add opportunities for the demo. Data is saved in your browser (localStorage).</p>
+            <div class="hr"></div>
+
+            <input type="hidden" id="dealId" value="" />
+
+            <label>Region</label>
+            <select id="dealRegion" style="width:100%">${regionOpts}</select>
+            <div style="height:10px"></div>
+
+            <label>Country</label>
+            <input id="dealCountry" placeholder="e.g., Nigéria" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Sector</label>
+            <input id="dealSector" placeholder="e.g., Énergie" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Ticket size (USD millions)</label>
+            <input id="dealTicket" type="number" min="1" step="1" placeholder="e.g., 80" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <div class="grid cols-2">
+              <div>
+                <label>Stage</label>
+                <select id="dealStage" style="width:100%">
+                  <option>Origination</option>
+                  <option>Screening</option>
+                  <option>Due Diligence</option>
+                  <option>Term Sheet</option>
+                  <option>Approved</option>
+                  <option>Disbursed</option>
+                </select>
+              </div>
+              <div>
+                <label>Warmth</label>
+                <select id="dealWarmth" style="width:100%">
+                  <option>Cold</option>
+                  <option>Warm</option>
+                  <option>Hot</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+            <label>Owner / Sponsor</label>
+            <input id="dealOwner" placeholder="e.g., TFIP" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Short summary</label>
+            <textarea id="dealSummary" rows="4" maxlength="500" placeholder="What is the opportunity? (max 500 chars)" style="width:100%"></textarea>
+
+            <div style="height:10px"></div>
+            <label>Video / pitch label (optional)</label>
+            <input id="dealVideo" placeholder="e.g., Video pitch (demo)" style="width:100%" />
+
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="saveDeal()">Save</button>
+              <button class="ghost" onclick="clearDealForm()">Clear</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Deals (Current Region View)</h2>
+            <p><small>Tip: set Region to “Non-Regional” to view and edit all deals.</small></p>
+            <table class="table">
+              <thead><tr><th>Deal</th><th>Region</th><th>Ticket</th><th>Stage</th><th>Lead</th><th>Actions</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="6"><small>No deals in this region yet.</small></td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      const r = pickRegion();
+      $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
+    }
+
+    function clearDealForm(){
+      $("#dealId").value = "";
+      $("#dealCountry").value = "";
+      $("#dealSector").value = "";
+      $("#dealTicket").value = "";
+      $("#dealOwner").value = "";
+      $("#dealSummary").value = "";
+      $("#dealVideo").value = "";
+      $("#dealStage").value = "Origination";
+      $("#dealWarmth").value = "Cold";
+      setToast("Cleared", "Deal form reset (demo).");
+    }
+
+    function loadDeal(id){
+      const d = getDeals().find(x=>x.id===id);
+      if(!d) return;
+      $("#dealId").value = d.id;
+      $("#dealRegion").value = d.region;
+      $("#dealCountry").value = d.country;
+      $("#dealSector").value = d.sector;
+      $("#dealTicket").value = d.ticket_usd_m;
+      $("#dealStage").value = d.stage;
+      $("#dealWarmth").value = d.warmth;
+      $("#dealOwner").value = d.owner || "";
+      $("#dealSummary").value = d.summary || "";
+      $("#dealVideo").value = d.video || "";
+      setToast("Loaded", "Deal loaded for editing (demo).");
+    }
+
+    function saveDeal(){
+      const id = ($("#dealId").value || "").trim();
+      const deal = {
+        id: id || ("d" + Date.now()),
+        region: $("#dealRegion").value,
+        country: ($("#dealCountry").value || "").trim(),
+        sector: ($("#dealSector").value || "").trim(),
+        ticket_usd_m: parseInt($("#dealTicket").value || "0", 10),
+        stage: $("#dealStage").value,
+        warmth: $("#dealWarmth").value,
+        owner: ($("#dealOwner").value || "").trim(),
+        summary: ($("#dealSummary").value || "").trim(),
+        video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)"
+      };
+
+      if(!deal.country || !deal.sector || !deal.ticket_usd_m){
+        setToast("Missing fields", "Country, sector and ticket size are required in this demo.");
+        return;
+      }
+
+      const deals = getDeals();
+      const idx = deals.findIndex(x=>x.id===deal.id);
+      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
+      saveDeals(deals);
+
+      setToast("Saved", "Deal saved. Now visible in Deal Room and Opportunities.");
+      renderDealsManager();
+    }
+
+    function deleteDeal(id){
+      const deals = getDeals().filter(d=>d.id!==id);
+      saveDeals(deals);
+      setToast("Deleted", "Deal removed (demo).");
+      renderDealsManager();
+    }
+
+    function addDeal(){
+      clearDealForm();
+      setToast("New deal", "Fill the form and click Save.");
+    }
+
+    function resetDeals(){
+      localStorage.removeItem("timp_deals");
+      setToast("Reset", "Deals reset to sample dataset.");
+      renderDealsManager();
     }
 
     function renderMatchmaking(){
@@ -485,20 +679,28 @@
       `;
     }
 
+    /* FIX: Archive search uses getDeals() and respects region segregation */
     function doSearch(){
       const q = ($("#q").value || "").toLowerCase().trim();
       const hits = [];
-      TIMP_DATA.events.forEach(e=>{
+
+      const evs = adminFilter(TIMP_DATA.events);
+      evs.forEach(e=>{
         if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Event", label:e.title+" • "+e.date});
         }
       });
-      TIMP_DATA.deals.forEach(d=>{
-        if([d.country,d.sector,d.summary,d.stage].join(" ").toLowerCase().includes(q)){
+
+      const deals = adminFilter(getDeals());
+      deals.forEach(d=>{
+        if([d.country,d.sector,(d.summary||""),d.stage].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
         }
       });
-      $("#results").innerHTML = hits.length ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>` : `<small>No results.</small>`;
+
+      $("#results").innerHTML = hits.length
+        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>`
+        : `<small>No results.</small>`;
     }
 
     function route(){
@@ -507,6 +709,10 @@
       else if(h.startsWith("#events")) renderEventManager();
       else if(h.startsWith("#regs")) renderRegistrations();
       else if(h.startsWith("#dealbook")) renderDealBook();
+
+      /* FIX: handle Deals page */
+      else if(h.startsWith("#deals")) renderDealsManager();
+
       else if(h.startsWith("#matchmaking")) renderMatchmaking();
       else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
       else if(h.startsWith("#rbac")) renderRBAC();
