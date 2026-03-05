@@ -96,9 +96,9 @@
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">KPIs snapshot (demo)</span>`;
       $("#pageActions").innerHTML = ``;
 
-      const evs = adminFilter(TIMP_DATA.events);
+      const evs = adminFilter(getEvents());
       const regs = TIMP_DATA.registrations.filter(r=>{
-        const ev = TIMP_DATA.events.find(e=>e.id===r.event_id);
+        const ev = getEvents().find(e=>e.id===r.event_id);
         return ev && (pickRegion()==="non_reg" || ev.region===pickRegion());
       });
       const deals = adminFilter(getDeals());
@@ -352,7 +352,7 @@ function resetEvents(){
       $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Export', 'Demo: export registration list to Excel/PDF.')">Export</button>`;
 
       const regs = TIMP_DATA.registrations.filter(r=>{
-        const ev = TIMP_DATA.events.find(e=>e.id===r.event_id);
+        const ev = getEvents().find(e=>e.id===r.event_id);
         return ev && (pickRegion()==="non_reg" || ev.region===pickRegion());
       });
       $("#regCount").textContent = regs.length;
