@@ -83,62 +83,28 @@
       if(match) match.classList.add("active");
     }
 
-    // -------- helpers (safe fallbacks if util.js not fully patched yet) ----------
-    function safeGetEvents(){ return (typeof getEvents === "function") ? getEvents() : (TIMP_DATA.events || []); }
-    function safeGetDeals(){ return (typeof getDeals === "function") ? getDeals() : (TIMP_DATA.deals || []); }
-    function safeGetRegs(){ return (typeof getRegistrations === "function") ? getRegistrations() : (TIMP_DATA.registrations || []); }
-
-    function emailLower(){
-      try{
-        const p = (typeof getProfile==="function") ? getProfile() : null;
-        return (p && p.email) ? String(p.email).trim().toLowerCase() : "";
-      }catch(e){
-        return "";
-      }
-    }
-
-    function myRegFor(eventId){
-      const em = emailLower();
-      if(!em) return null;
-      return safeGetRegs().find(r => r.event_id === eventId && (r.email || "").toLowerCase() === em) || null;
-    }
-
-    function isApproved(eventId){
-      const r = myRegFor(eventId);
-      return !!(r && r.state === "Approved");
-    }
-
-    // -------------------- EVENTS --------------------
     function renderEvents(){
       setActive("events");
       $("#pageTitle").textContent = t("events");
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
       $("#pageActions").innerHTML = ``;
 
-      const evs = filterByRegion(safeGetEvents());
+      const evs = filterByRegion(getEvents());
       $("#evCount").textContent = evs.length;
 
-      const rows = evs.map(e=>{
-        const st = e.status || "Draft";
-        const stClass = st === "Published" ? "ok" : "warn";
-        const reg = myRegFor(e.id);
-        const regTag = reg ? `<span class="tag ${reg.state==='Approved'?'ok':(reg.state==='Rejected'?'danger':'warn')}" style="margin-left:8px">${reg.state}</span>` : "";
-        return `
-          <tr>
-            <td><b>${e.title}</b>${regTag}<br><small>${e.type} • ${e.venue}</small></td>
-            <td>${e.date} <small>(${e.time || ""})</small></td>
-            <td><span class="tag ${stClass}">${st}</span></td>
-            <td class="row-actions">
-              <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
-              <button onclick="register('${e.id}')">Register</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
+      const rows = evs.map(e=>`
+        <tr>
+          <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
+          <td>${e.date} <small>(${e.time})</small></td>
+          <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${e.status}</span></td>
+          <td class="row-actions">
+            <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
+            <button onclick="register('${e.id}')">Register</button>
+          </td>
+        </tr>
+      `).join("");
 
       $("#pageBody").innerHTML = `
-        <div id="myRegsMount"></div>
-
         <div class="card">
           <h2>Annual Global Calendar</h2>
           <p>Shows all roadshows and investment forums to improve visibility and prevent scheduling conflicts (demo view).</p>
@@ -148,47 +114,33 @@
           </table>
         </div>
       `;
-
-      renderMyRegsCard();
     }
 
     function openEvent(eventId){
-      const e = safeGetEvents().find(x=>x.id===eventId);
+      const e = getEvents().find(x=>x.id===eventId);
       if(!e) return;
-
       $("#pageTitle").textContent = e.title;
       $("#pageMeta").innerHTML = `
         <span class="tag ok">${e.type}</span>
         <span class="tag ok">${regionLabel(e.region)}</span>
-        <span class="tag muted">${e.venue} • ${e.date} • ${e.time || ""}</span>
+        <span class="tag muted">${e.venue} • ${e.date} • ${e.time}</span>
       `;
-
-      const reg = myRegFor(eventId);
-      const regInfo = reg ? `<span class="tag ${reg.state==='Approved'?'ok':(reg.state==='Rejected'?'danger':'warn')}">${reg.state}</span>` : `<span class="tag warn">Not registered</span>`;
-
       $("#pageActions").innerHTML = `
         <button onclick="register('${e.id}')">Register</button>
         <button class="secondary" onclick="setHash('#events')">Back</button>
       `;
-
       $("#pageBody").innerHTML = `
-        <div class="card" style="margin-bottom:14px">
-          <b>Registration status:</b> ${regInfo}
-          <br><small>Materials/recordings unlock after Admin approval (demo).</small>
-        </div>
-
         <div class="grid cols-2">
           <div class="card">
             <h2>Event Materials</h2>
             <p><b>Programme</b> (demo) • <b>Presentations</b> (demo) • <b>Briefing note</b> (demo)</p>
             <div class="hr"></div>
-            <p><b>Post-event continuity:</b> recordings and decks become available to verified users after approval.</p>
+            <p><b>Post-event continuity:</b> recordings and decks become available to verified users after publishing.</p>
             <div class="row-actions">
-              <button class="secondary" onclick="openMaterials('${e.id}')">View materials</button>
-              <button class="secondary" onclick="openRecordings('${e.id}')">View recordings</button>
+              <button class="secondary" onclick="setToast('Materials', 'Demo: In real build, these are secure downloads with RBAC.')">View materials</button>
+              <button class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available after event.')">View recordings</button>
             </div>
           </div>
-
           <div class="card">
             <h2>Feedback</h2>
             <p>Post-event survey captures rating + recommendations + product-fit, plus comments (demo).</p>
@@ -211,137 +163,47 @@
       `;
     }
 
-    function openMaterials(eventId){
-      if(!myRegFor(eventId)){
-        setToast("Not registered", "Please register first.");
-        return;
-      }
-      if(!isApproved(eventId)){
-        setToast("Locked", "Materials are available after Admin approval (demo).");
-        return;
-      }
-      setToast("Materials", "Demo: In real build, these are secure downloads with RBAC.");
-    }
+  function register(eventId){
+  const p = getProfile();
+  if(!p || !p.email){
+    setToast("Profile needed", "Go to My Profile and add your email before registering.");
+    location.hash = "#profile"; // if your router uses this
+    return;
+  }
 
-    function openRecordings(eventId){
-      if(!myRegFor(eventId)){
-        setToast("Not registered", "Please register first.");
-        return;
-      }
-      if(!isApproved(eventId)){
-        setToast("Locked", "Recordings are available after Admin approval (demo).");
-        return;
-      }
-      setToast("Recordings", "Demo: Recording library becomes available after event.");
-    }
+  const email = String(p.email).trim().toLowerCase();
+  const ev = getEvents().find(e => e.id === eventId);
+  if(!ev){
+    setToast("Not found", "Event not found (demo).");
+    return;
+  }
 
-    // -------------------- REGISTRATION --------------------
-    function register(eventId){
-      const p = (typeof getProfile==="function") ? getProfile() : null;
-      if(!p || !p.email){
-        setToast("Profile needed", "Go to My Profile and add your email before registering.");
-        location.hash = "#profile";
-        return;
-      }
+  const regs = getRegistrations();
+  const existing = regs.find(r => r.event_id === eventId && (r.email || "").toLowerCase() === email);
 
-      const email = String(p.email).trim().toLowerCase();
-      const ev = safeGetEvents().find(e => e.id === eventId);
-      if(!ev){
-        setToast("Not found", "Event not found (demo).");
-        return;
-      }
+  if(existing){
+    setToast("Already registered", `Status: ${existing.state}`);
+    renderMyRegsCard(); // refresh home card if visible
+    return;
+  }
 
-      const regs = safeGetRegs();
-      const existing = regs.find(r => r.event_id === eventId && (r.email || "").toLowerCase() === email);
+  regs.push({
+    id: "r" + Date.now(),
+    event_id: eventId,
+    region: ev.region,                // helps filtering by region
+    name: p.name || "",
+    organisation: p.organisation || "",
+    title: p.title || "",
+    email: email,
+    state: "Pending",
+    created_at: new Date().toISOString()
+  });
 
-      if(existing){
-        setToast("Already registered", `Status: ${existing.state}`);
-        // bring user back to Events so they can see it reflected
-        if(location.hash !== "#events"){ setHash("#events"); }
-        else { renderEvents(); }
-        return;
-      }
+  saveRegistrations(regs);
+  setToast("Registered", "Registration submitted (Pending approval).");
+  renderMyRegsCard();
+}
 
-      regs.push({
-        id: "r" + Date.now(),
-        event_id: eventId,
-        region: ev.region,
-        name: p.name || "",
-        organisation: p.organisation || "",
-        title: p.title || "",
-        email: email,
-        state: "Pending",
-        created_at: new Date().toISOString()
-      });
-
-      if(typeof saveRegistrations === "function"){
-        saveRegistrations(regs);
-      }else{
-        // fallback: store anyway
-        localStorage.setItem("timp_regs", JSON.stringify(regs));
-      }
-
-      setToast("Registered", "Registration submitted (Pending approval).");
-
-      // reflect it on home (Events page)
-      if(location.hash !== "#events"){ setHash("#events"); }
-      else { renderEvents(); }
-    }
-
-    function renderMyRegsCard(){
-      const mount = document.getElementById("myRegsMount");
-      if(!mount) return;
-
-      const em = emailLower();
-      if(!em){
-        mount.innerHTML = `
-          <div class="card">
-            <h2>My Registrations</h2>
-            <p><small>Add your email in <b>My Profile</b> to register for events.</small></p>
-          </div>
-        `;
-        return;
-      }
-
-      const regs = safeGetRegs()
-        .filter(r => (r.email || "").toLowerCase() === em)
-        .sort((a,b)=> (b.created_at||"").localeCompare(a.created_at||""));
-
-      if(regs.length === 0){
-        mount.innerHTML = `
-          <div class="card">
-            <h2>My Registrations</h2>
-            <p><small>No registrations yet.</small></p>
-          </div>
-        `;
-        return;
-      }
-
-      const rows = regs.map(r=>{
-        const ev = safeGetEvents().find(e=>e.id===r.event_id);
-        const title = ev ? ev.title : r.event_id;
-        const when = ev ? `${ev.date || ""} ${ev.time || ""}` : "";
-        const tag = r.state === "Approved" ? "ok" : (r.state === "Rejected" ? "danger" : "warn");
-        return `
-          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)">
-            <div>
-              <b>${title}</b><br><small>${when}</small>
-            </div>
-            <span class="tag ${tag}">${r.state}</span>
-          </div>
-        `;
-      }).join("");
-
-      mount.innerHTML = `
-        <div class="card">
-          <h2>My Registrations</h2>
-          ${rows}
-          <p style="margin-top:10px"><small>Approved registrations unlock materials and recordings (demo).</small></p>
-        </div>
-      `;
-    }
-
-    // -------------------- DEAL ROOM --------------------
     function renderDealRoom(){
       setActive("deal_room");
       $("#pageTitle").textContent = t("deal_room");
@@ -351,7 +213,7 @@
         <button class="secondary" onclick="renderPitching()">Pitching</button>
       `;
 
-      const deals = filterByRegion(safeGetDeals());
+      const deals = filterByRegion(getDeals());
       const investors = TIMP_DATA.investors;
 
       function recommendInvestors(deal){
@@ -385,9 +247,9 @@
 
       $("#matchCount").textContent = deals.length;
 
-      const meetingRows = (TIMP_DATA.meetings || []).map(m=>{
-        const deal = safeGetDeals().find(d=>d.id===m.deal_id);
-        const inv = (TIMP_DATA.investors || []).find(i=>i.id===m.investor_id);
+      const meetingRows = TIMP_DATA.meetings.map(m=>{
+        const deal = TIMP_DATA.deals.find(d=>d.id===m.deal_id);
+        const inv = TIMP_DATA.investors.find(i=>i.id===m.investor_id);
         return `<tr><td>${deal ? deal.country+' • '+deal.sector : m.deal_id}</td><td>${inv ? inv.name : m.investor_id}</td><td>${m.datetime}</td><td>${m.mode}</td><td>${m.status}</td></tr>`;
       }).join("");
 
@@ -408,7 +270,7 @@
     }
 
     function schedule(dealId){
-      const d = safeGetDeals().find(x=>x.id===dealId);
+      const d = TIMP_DATA.deals.find(x=>x.id===dealId);
       setToast("Meeting scheduled (demo)", `${d ? d.country+' • '+d.sector : 'Deal'} — in the real build this creates calendar items + notifications.`);
     }
 
@@ -470,7 +332,6 @@
       $("#timer").textContent = "60";
     }
 
-    // -------------------- OPPORTUNITIES --------------------
     function renderOpps(){
       setActive("opportunities");
       $("#pageTitle").textContent = t("opportunities");
@@ -479,7 +340,7 @@
         <button onclick="setToast('Deal Book', 'Use the Admin Console to generate branded Deal Books by country/sector (demo).')">Generate Deal Book</button>
       `;
 
-      const deals = filterByRegion(safeGetDeals());
+      const deals = filterByRegion(getDeals());
       const rows = deals.map(d=>`
         <tr>
           <td><b>${d.country}</b><br><small>${d.sector}</small></td>
@@ -502,7 +363,6 @@
       `;
     }
 
-    // -------------------- EXHIBITION --------------------
     function renderExpo(){
       setActive("exhibition");
       $("#pageTitle").textContent = t("exhibition");
@@ -528,7 +388,6 @@
       `;
     }
 
-    // -------------------- ARCHIVE --------------------
     function renderArchive(){
       setActive("archive");
       $("#pageTitle").textContent = t("archive");
@@ -563,25 +422,20 @@
     function doSearch(){
       const q = ($("#q").value || "").toLowerCase().trim();
       const hits = [];
-
-      safeGetEvents().forEach(e=>{
+      getEvents().forEach(e=>{
         if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Event", label:e.title+" • "+e.date});
         }
       });
-
-      safeGetDeals().forEach(d=>{
+      TIMP_DATA.deals.forEach(d=>{
         if([d.country,d.sector,d.summary,d.stage].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
         }
       });
 
-      $("#results").innerHTML = hits.length
-        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>`
-        : `<small>No results.</small>`;
+      $("#results").innerHTML = hits.length ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>` : `<small>No results.</small>`;
     }
 
-    // -------------------- PROFILE --------------------
     function renderProfile(){
       setActive("profile");
       $("#pageTitle").textContent = t("profile");
@@ -592,21 +446,15 @@
         <div class="grid cols-2">
           <div class="card">
             <h2>Profile</h2>
-            <label>Name</label><input id="pName" value="" style="width:100%" />
+            <label>Name</label><input value="Demo User" style="width:100%" />
             <div style="height:10px"></div>
-
-            <label>Organisation</label><input id="pOrg" value="" style="width:100%" />
+            <label>Organisation</label><input value="Demo Organisation" style="width:100%" />
             <div style="height:10px"></div>
-
-            <label>Title/Position</label><input id="pTitle" value="" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <label>Email</label><input id="pEmail" value="" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <button onclick="saveProfileFromForm()">Save</button>
+            <label>Email</label><input value="demo.user@example.com" style="width:100%" />
+            <div style="height:10px">
+        /div>
+            <button onclick="setToast('Saved', 'Demo: In real build, profile updates are stored securely with GDPR controls.')">Save</button>
           </div>
-
           <div class="card">
             <h2>Notifications</h2>
             <p>Automated alerts when new materials, recordings, or deal packs are published.</p>
@@ -618,30 +466,6 @@
           </div>
         </div>
       `;
-
-      // prefill
-      const p = (typeof getProfile==="function" ? (getProfile() || {}) : {});
-      $("#pName").value  = p.name || "Demo User";
-      $("#pOrg").value   = p.organisation || "Demo Organisation";
-      $("#pTitle").value = p.title || "Participant";
-      $("#pEmail").value = p.email || "demo.user@example.com";
-    }
-
-    function saveProfileFromForm(){
-      const p = {
-        name: ($("#pName").value || "").trim(),
-        organisation: ($("#pOrg").value || "").trim(),
-        title: ($("#pTitle").value || "").trim(),
-        email: ($("#pEmail").value || "").trim().toLowerCase()
-      };
-
-      if(typeof saveProfile === "function"){
-        saveProfile(p);
-      }else{
-        localStorage.setItem("timp_profile", JSON.stringify(p));
-      }
-
-      setToast("Saved", "Profile updated. You can now register for events.");
     }
 
     function setHash(h){
@@ -663,4 +487,4 @@
     route();
   </script>
 </body>
-</html>
+</html> fix the issues in Public.html and return back with the updated
