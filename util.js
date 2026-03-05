@@ -19,6 +19,57 @@ function getDeals(){
 function saveDeals(deals){
   localStorage.setItem("timp_deals", JSON.stringify(deals));
 }
+// ---------- Events ----------
+function getEvents(){
+  try{
+    const x = JSON.parse(localStorage.getItem("timp_events"));
+    if(Array.isArray(x)) return x;
+  }catch(e){}
+  return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.events)) ? window.TIMP_DATA.events : [];
+}
+function saveEvents(events){
+  localStorage.setItem("timp_events", JSON.stringify(events));
+}
+
+// ---------- Registrations ----------
+function getRegistrations(){
+  try{
+    const x = JSON.parse(localStorage.getItem("timp_regs"));
+    if(Array.isArray(x)) return x;
+  }catch(e){}
+  return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.registrations)) ? window.TIMP_DATA.registrations : [];
+}
+function saveRegistrations(regs){
+  localStorage.setItem("timp_regs", JSON.stringify(regs));
+}
+
+// ---------- Public Profile ----------
+function getProfile(){
+  try{
+    return JSON.parse(localStorage.getItem("timp_profile")) || null;
+  }catch(e){
+    return null;
+  }
+}
+function saveProfile(p){
+  localStorage.setItem("timp_profile", JSON.stringify(p));
+}
+
+function currentEmail(){
+  const p = getProfile();
+  return (p && p.email) ? String(p.email).trim().toLowerCase() : "";
+}
+
+function myRegistrationFor(eventId){
+  const email = currentEmail();
+  if(!email) return null;
+  return getRegistrations().find(r => r.event_id === eventId && (r.email || "").toLowerCase() === email) || null;
+}
+
+function isApprovedFor(eventId){
+  const r = myRegistrationFor(eventId);
+  return !!(r && r.state === "Approved");
+}
 function fmtMoney(m){
   return `$${m}m`;
 }
