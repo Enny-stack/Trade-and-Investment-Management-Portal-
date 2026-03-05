@@ -692,23 +692,57 @@
     // (your matchmaking, region profiles, RBAC, analytics, archive, doSearch, route) remain as in your original file.
     // If you want, paste your bottom section and I’ll also swap archive search to getEvents/getDeals for consistency.
 
-    function route(){
-      const h = location.hash || "#dashboard";
-      if(h.startsWith("#dashboard")) renderDashboard();
-      else if(h.startsWith("#events")) renderEventManager();
-      else if(h.startsWith("#regs")) renderRegistrations();
-      else if(h.startsWith("#dealbook")) renderDealBook();
-      else if(h.startsWith("#deals")) renderDealsManager();
-      else if(h.startsWith("#matchmaking")) renderMatchmaking();
-      else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
-      else if(h.startsWith("#rbac")) renderRBAC();
-      else if(h.startsWith("#analytics")) renderAnalytics();
-      else if(h.startsWith("#archive")) renderArchive();
-      else renderDashboard();
-    }
+   <script>
+  // ...keep everything you already have above...
 
-    window.addEventListener("hashchange", route);
-    route();
-  </script>
+  function renderNotReady(navKey, title){
+    setActive(navKey);
+    $("#pageTitle").textContent = title;
+    $("#pageMeta").innerHTML = `<span class="tag warn">Demo module not loaded</span>`;
+    $("#pageActions").innerHTML = ``;
+    $("#pageBody").innerHTML = `
+      <div class="card">
+        <h2>${title}</h2>
+        <p>This menu item is routing correctly, but the page function is missing or not loaded.</p>
+        <div class="hr"></div>
+        <small>
+          Check you still have <b>function ${title.replace(/[^a-zA-Z]/g,"")}</b> (e.g. renderMatchmaking / renderRegionProfiles / renderRBAC / renderAnalytics / renderArchive)
+          below your pasted code, and that there are no JS errors above them.
+        </small>
+      </div>
+    `;
+  }
+
+  function call(fnName, navKey, title){
+    const fn = window[fnName];
+    if(typeof fn === "function") return fn();
+    return renderNotReady(navKey, title);
+  }
+
+  function route(){
+    const h = (location.hash || "#dashboard").toLowerCase();
+
+    if(h.startsWith("#dashboard")) return call("renderDashboard", "dashboard", "Dashboard");
+    if(h.startsWith("#events")) return call("renderEventManager", "events", "Create / Edit Event");
+    if(h.startsWith("#regs")) return call("renderRegistrations", "registrations", "Registrations");
+    if(h.startsWith("#dealbook")) return call("renderDealBook", "dealbook", "Deal Book");
+    if(h.startsWith("#deals")) return call("renderDealsManager", "deals", "Deals");
+    if(h.startsWith("#matchmaking")) return call("renderMatchmaking", "matchmaking", "Matchmaking");
+    if(h.startsWith("#regionprofiles")) return call("renderRegionProfiles", "region_profiles", "Region Profiles");
+    if(h.startsWith("#rbac")) return call("renderRBAC", "users_rbac", "Users & RBAC");
+    if(h.startsWith("#analytics")) return call("renderAnalytics", "analytics", "Analytics");
+    if(h.startsWith("#archive")) return call("renderArchive", "archive", "Archive");
+
+    return call("renderDashboard", "dashboard", "Dashboard");
+  }
+
+  // Make nav always re-render (even if you click the same hash twice)
+  document.querySelectorAll("#sidebarNav a").forEach(a=>{
+    a.addEventListener("click", ()=> setTimeout(route, 0));
+  });
+
+  window.addEventListener("hashchange", route);
+  route();
+</script>
 </body>
 </html>
