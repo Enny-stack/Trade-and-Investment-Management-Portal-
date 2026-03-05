@@ -177,7 +177,7 @@
         <button class="secondary" onclick="renderPitching()">Pitching</button>
       `;
 
-      const deals = filterByRegion(TIMP_DATA.deals);
+      const deals = filterByRegion(getDeals());
       const investors = TIMP_DATA.investors;
 
       function recommendInvestors(deal){
@@ -212,7 +212,7 @@
       $("#matchCount").textContent = deals.length;
 
       const meetingRows = TIMP_DATA.meetings.map(m=>{
-        const deal = TIMP_DATA.deals.find(d=>d.id===m.deal_id);
+        const deal = getDeals().find(d => d.id === id)
         const inv = TIMP_DATA.investors.find(i=>i.id===m.investor_id);
         return `<tr><td>${deal ? deal.country+' • '+deal.sector : m.deal_id}</td><td>${inv ? inv.name : m.investor_id}</td><td>${m.datetime}</td><td>${m.mode}</td><td>${m.status}</td></tr>`;
       }).join("");
@@ -234,7 +234,7 @@
     }
 
     function schedule(dealId){
-      const d = TIMP_DATA.deals.find(x=>x.id===dealId);
+      const d = getDeals().find(d => d.id === id)
       setToast("Meeting scheduled (demo)", `${d ? d.country+' • '+d.sector : 'Deal'} — in the real build this creates calendar items + notifications.`);
     }
 
