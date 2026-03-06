@@ -67,6 +67,62 @@
   <script src="util.js"></script>
   <script src="app.js"></script>
   <script>
+    // -----------------------------
+    // Safe storage helpers (Public)
+    // -----------------------------
+    function safeEvents(){
+      return (typeof getEvents === "function") ? getEvents() : (TIMP_DATA.events || []);
+    }
+    function safeDeals(){
+      return (typeof getDeals === "function") ? getDeals() : (TIMP_DATA.deals || []);
+    }
+
+    function getRegistrations(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_regs"));
+        if(Array.isArray(x)) return x;
+      }catch(e){}
+      return (TIMP_DATA.registrations || []);
+    }
+    function saveRegistrations(rows){
+      localStorage.setItem("timp_regs", JSON.stringify(rows));
+    }
+
+    function getProfile(){
+      try{
+        const p = JSON.parse(localStorage.getItem("timp_profile"));
+        if(p && typeof p === "object") return p;
+      }catch(e){}
+      return { name:"Demo User", org:"Demo Organisation", title:"Participant", email:"demo.user@example.com" };
+    }
+    function saveProfile(p){
+      localStorage.setItem("timp_profile", JSON.stringify(p));
+    }
+
+    function getDealBooks(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_deal_books"));
+        if(x && typeof x === "object") return x;
+      }catch(e){}
+      return {};
+    }
+    function saveDealBooks(obj){
+      localStorage.setItem("timp_deal_books", JSON.stringify(obj));
+    }
+
+    function isDealVisibleOnPublic(d){
+      // Default: visible unless explicitly Draft
+      if(!d || typeof d !== "object") return false;
+      if(!("status" in d)) return true;
+      return d.status !== "Draft";
+    }
+
+    function eventBadge(status){
+      const s = status || "Draft";
+      const cls = (s === "Published") ? "ok" : (s === "Draft" ? "warn" : "muted");
+      return `<span class="tag ${cls}">${s}</span>`;
+    }
+
     // build region selector options
     const regionSel = document.getElementById("regionSel");
     TIMP_REGIONS.forEach(r=>{
@@ -83,23 +139,27 @@
       if(match) match.classList.add("active");
     }
 
+    // -----------------------------
+    // EVENTS (Public)
+    // -----------------------------
     function renderEvents(){
       setActive("events");
       $("#pageTitle").textContent = t("events");
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
       $("#pageActions").innerHTML = ``;
 
-      const evs = filterByRegion(TIMP_DATA.events);
+      // FIX: use getEvents() + show only Published
+      const evs = filterByRegion(safeEvents()).filter(e => (e.status === "Published"));
       $("#evCount").textContent = evs.length;
 
       const rows = evs.map(e=>`
         <tr>
           <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
-          <td>${e.date} <small>(${e.time})</small></td>
-          <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${e.status}</span></td>
+          <td>${e.date} <small>(${e.time || ""})</small></td>
+          <td>${eventBadge(e.status)}</td>
           <td class="row-actions">
             <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
-            <button onclick="register('${e.id}')">Register</button>
+            <button onclick="registerForEvent('${e.id}')">Register</button>
           </td>
         </tr>
       `).join("");
@@ -107,40 +167,49 @@
       $("#pageBody").innerHTML = `
         <div class="card">
           <h2>Annual Global Calendar</h2>
-          <p>Shows all roadshows and investment forums to improve visibility and prevent scheduling conflicts (demo view).</p>
+          <p>Shows published roadshows and investment forums to improve visibility and prevent scheduling conflicts (demo view).</p>
           <table class="table">
             <thead><tr><th>Event</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="4"><small>No events for this region (demo).</small></td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="4"><small>No published events for this region yet.</small></td></tr>`}</tbody>
           </table>
+          <div class="hr"></div>
+          <small><b>Note:</b> Only events marked <b>Published</b> in Admin are visible here.</small>
         </div>
       `;
     }
 
     function openEvent(eventId){
-      const e = getEvents().find(x=>x.id===id);
-      if(!e) return;
+      // FIX: eventId param and correct lookup
+      const e = safeEvents().find(x=>x.id===eventId);
+      if(!e) {
+        setToast("Not found", "Event not found (demo).");
+        return;
+      }
+
       $("#pageTitle").textContent = e.title;
       $("#pageMeta").innerHTML = `
         <span class="tag ok">${e.type}</span>
-        <span class="tag ok">${regionLabel(e.region)}</span>
-        <span class="tag muted">${e.venue} • ${e.date} • ${e.time}</span>
+        <span class="tag ok">${regionLabel(e.region || pickRegion())}</span>
+        <span class="tag muted">${e.venue} • ${e.date} • ${e.time || ""}</span>
       `;
       $("#pageActions").innerHTML = `
-        <button onclick="register('${e.id}')">Register</button>
+        <button onclick="registerForEvent('${e.id}')">Register</button>
         <button class="secondary" onclick="setHash('#events')">Back</button>
       `;
+
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
           <div class="card">
             <h2>Event Materials</h2>
             <p><b>Programme</b> (demo) • <b>Presentations</b> (demo) • <b>Briefing note</b> (demo)</p>
             <div class="hr"></div>
-            <p><b>Post-event continuity:</b> recordings and decks become available to verified users after publishing.</p>
+            <p><b>Post-event continuity:</b> recordings and decks become available to verified users after the event (controlled access).</p>
             <div class="row-actions">
-              <button class="secondary" onclick="setToast('Materials', 'Demo: In real build, these are secure downloads with RBAC.')">View materials</button>
-              <button class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available after event.')">View recordings</button>
+              <button class="secondary" onclick="setToast('Materials', 'Demo: Secure downloads with RBAC in real build.')">View materials</button>
+              <button class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available post-event.')">View recordings</button>
             </div>
           </div>
+
           <div class="card">
             <h2>Feedback</h2>
             <p>Post-event survey captures rating + recommendations + product-fit, plus comments (demo).</p>
@@ -163,11 +232,49 @@
       `;
     }
 
-    function register(eventId){
-      const e = const e = getEvents().find(x=>x.id===id);
-      setToast("Registration submitted", `Demo: ${e ? e.title : 'Event'} — confirmation email automation is part of the real build.`);
+    function registerForEvent(eventId){
+      const e = safeEvents().find(x=>x.id===eventId);
+      if(!e) {
+        setToast("Not found", "Event not found (demo).");
+        return;
+      }
+
+      const p = getProfile();
+      let name = (p.name || "").trim();
+      let org = (p.org || "").trim();
+      let title = (p.title || "").trim();
+      let email = (p.email || "").trim();
+
+      // If profile is empty, ask quickly (demo convenience)
+      if(!name) name = prompt("Your name:", "Demo User") || "Demo User";
+      if(!email) email = prompt("Your email:", "demo.user@example.com") || "demo.user@example.com";
+
+      const regs = getRegistrations();
+      // avoid duplicates: same email + same event
+      const exists = regs.some(r => (r.event_id===eventId) && (String(r.email||"").toLowerCase()===String(email).toLowerCase()));
+      if(exists){
+        setToast("Already registered", "You’ve already registered for this event (demo).");
+        return;
+      }
+
+      regs.push({
+        id: "r" + Date.now(),
+        event_id: eventId,
+        name,
+        org,
+        title,
+        email,
+        state: "Pending",
+        submitted_at: new Date().toISOString()
+      });
+
+      saveRegistrations(regs);
+      setToast("Registration submitted", `${e.title} — status: Pending (Admin will approve/reject).`);
     }
 
+    // -----------------------------
+    // DEAL ROOM (Public)
+    // -----------------------------
     function renderDealRoom(){
       setActive("deal_room");
       $("#pageTitle").textContent = t("deal_room");
@@ -177,12 +284,13 @@
         <button class="secondary" onclick="renderPitching()">Pitching</button>
       `;
 
-      const deals = filterByRegion(getDeals());
-      const investors = TIMP_DATA.investors;
+      // FIX: read deals from getDeals()
+      const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
+      const investors = TIMP_DATA.investors || [];
 
       function recommendInvestors(deal){
         return investors
-          .filter(inv => inv.focus.includes(deal.sector))
+          .filter(inv => (inv.focus || []).includes(deal.sector))
           .filter(inv => deal.ticket_usd_m >= inv.ticket_min && deal.ticket_usd_m <= inv.ticket_max)
           .sort((a,b)=> (b.region_pref.includes(deal.region) - a.region_pref.includes(deal.region)))
           .slice(0,2);
@@ -190,11 +298,16 @@
 
       const cards = deals.map(d=>{
         const rec = recommendInvestors(d);
-        const recHtml = rec.length ? rec.map(r=>`<li><b>${r.name}</b><br><small>${r.focus.join(", ")} • ${fmtMoney(r.ticket_min)}–${fmtMoney(r.ticket_max)}</small></li>`).join("") : `<li><small>No exact match in demo dataset.</small></li>`;
+        const recHtml = rec.length
+          ? rec.map(r=>`<li><b>${r.name}</b><br><small>${(r.focus||[]).join(", ")} • ${fmtMoney(r.ticket_min)}–${fmtMoney(r.ticket_max)}</small></li>`).join("")
+          : `<li><small>No exact match in demo dataset.</small></li>`;
+
+        const statusTag = d.status ? `<span class="tag ${d.status==='Published'?'ok':'warn'}" style="margin-left:8px">${d.status}</span>` : "";
+
         return `
           <div class="card">
-            <h3>${d.country} • ${d.sector} <span style="float:right">${badgeWarmth(d.warmth)}</span></h3>
-            <p><b>${fmtMoney(d.ticket_usd_m)}</b> • Stage: <b>${d.stage}</b><br>${d.summary}</p>
+            <h3>${d.country} • ${d.sector} ${statusTag} <span style="float:right">${badgeWarmth(d.warmth)}</span></h3>
+            <p><b>${fmtMoney(d.ticket_usd_m)}</b> • Stage: <b>${d.stage}</b><br>${d.summary || ""}</p>
             <div class="hr"></div>
             <div class="grid" style="gap:8px">
               <small><b>Recommended investors (demo)</b></small>
@@ -211,15 +324,22 @@
 
       $("#matchCount").textContent = deals.length;
 
-      const meetingRows = TIMP_DATA.meetings.map(m=>{
-        const deal = getDeals().find(d => d.id === id)
-        const inv = TIMP_DATA.investors.find(i=>i.id===m.investor_id);
-        return `<tr><td>${deal ? deal.country+' • '+deal.sector : m.deal_id}</td><td>${inv ? inv.name : m.investor_id}</td><td>${m.datetime}</td><td>${m.mode}</td><td>${m.status}</td></tr>`;
+      // FIX: meeting rows lookup uses m.deal_id and safeDeals()
+      const meetingRows = (TIMP_DATA.meetings || []).map(m=>{
+        const deal = safeDeals().find(d => d.id === m.deal_id);
+        const inv = (TIMP_DATA.investors || []).find(i=>i.id===m.investor_id);
+        return `<tr>
+          <td>${deal ? (deal.country+' • '+deal.sector) : m.deal_id}</td>
+          <td>${inv ? inv.name : m.investor_id}</td>
+          <td>${m.datetime}</td>
+          <td>${m.mode}</td>
+          <td>${m.status}</td>
+        </tr>`;
       }).join("");
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
-          ${cards || `<div class="card"><small>No deals for this region in demo.</small></div>`}
+          ${cards || `<div class="card"><small>No deals for this region yet.</small></div>`}
         </div>
         <div style="height:14px"></div>
         <div class="card">
@@ -234,8 +354,9 @@
     }
 
     function schedule(dealId){
-      const d = getDeals().find(d => d.id === id)
-      setToast("Meeting scheduled (demo)", `${d ? d.country+' • '+d.sector : 'Deal'} — in the real build this creates calendar items + notifications.`);
+      // FIX: correct variable usage
+      const d = safeDeals().find(x => x.id === dealId);
+      setToast("Meeting scheduled (demo)", `${d ? (d.country+' • '+d.sector) : 'Deal'} — real build creates calendar items + notifications.`);
     }
 
     function renderPitching(){
@@ -296,44 +417,180 @@
       $("#timer").textContent = "60";
     }
 
+    // -----------------------------
+    // OPPORTUNITIES (Public)
+    // + Submission form + deal book upload (demo)
+    // -----------------------------
     function renderOpps(){
       setActive("opportunities");
       $("#pageTitle").textContent = t("opportunities");
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Pipeline view (stage + warmth)</span>`;
       $("#pageActions").innerHTML = `
-        <button onclick="setToast('Deal Book', 'Use the Admin Console to generate branded Deal Books by country/sector (demo).')">Generate Deal Book</button>
+        <button onclick="setToast('Deal Book', 'Admin generates branded Deal Books by country/sector. Public can upload deal packs (demo).')">Info</button>
       `;
 
-      const deals = filterByRegion(getDeals());
-      const rows = deals.map(d=>`
-        <tr>
-          <td><b>${d.country}</b><br><small>${d.sector}</small></td>
-          <td>${fmtMoney(d.ticket_usd_m)}</td>
-          <td>${d.stage}</td>
-          <td>${badgeWarmth(d.warmth)}</td>
-          <td><button class="secondary" onclick="setToast('Deal opened', '${d.summary}')">Open</button></td>
-        </tr>
-      `).join("");
+      const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
+      const dealBooks = getDealBooks();
+
+      const rows = deals.map(d=>{
+        const book = dealBooks[d.id] ? `<small class="tag ok">Uploaded: ${dealBooks[d.id]}</small>` : `<small class="tag muted">No deal book uploaded</small>`;
+        const status = d.status ? `<span class="tag ${d.status==='Published'?'ok':'warn'}">${d.status}</span>` : "";
+
+        return `
+          <tr>
+            <td>
+              <b>${d.country}</b> ${status}<br>
+              <small>${d.sector}</small><br>
+              ${book}
+            </td>
+            <td>${fmtMoney(d.ticket_usd_m)}</td>
+            <td>${d.stage}</td>
+            <td>${badgeWarmth(d.warmth)}</td>
+            <td class="row-actions">
+              <button class="secondary" onclick="setToast('Deal opened', '${(d.summary||"").replace(/'/g,"&#39;")}')">Open</button>
+              <button class="secondary" onclick="uploadDealBook('${d.id}')">Upload Deal Book</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
 
       $("#pageBody").innerHTML = `
-        <div class="card">
-          <h2>African Investments Dashboard (demo)</h2>
-          <p>Tracks project status, sector, funding requirements, and investor “warmth” signals.</p>
-          <table class="table">
-            <thead><tr><th>Deal</th><th>Ticket</th><th>Stage</th><th>Lead</th><th></th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="5"><small>No opportunities for this region in demo.</small></td></tr>`}</tbody>
-          </table>
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Submit an Opportunity (Public demo)</h2>
+            <p>Public users can submit an opportunity + upload a deal pack. In the real build, Admin reviews and publishes.</p>
+            <div class="hr"></div>
+
+            <label>Country</label>
+            <input id="subCountry" placeholder="e.g., Nigéria" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Sector</label>
+            <input id="subSector" placeholder="e.g., Énergie" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Ticket size (USD millions)</label>
+            <input id="subTicket" type="number" min="1" step="1" placeholder="e.g., 80" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Stage</label>
+            <select id="subStage" style="width:100%">
+              <option>Origination</option>
+              <option>Screening</option>
+              <option>Due Diligence</option>
+              <option>Term Sheet</option>
+              <option>Approved</option>
+              <option>Disbursed</option>
+            </select>
+            <div style="height:10px"></div>
+
+            <label>Short summary (max 500 chars)</label>
+            <textarea id="subSummary" rows="4" maxlength="500" placeholder="Describe the opportunity..." style="width:100%"></textarea>
+            <div style="height:10px"></div>
+
+            <label>Deal book / deal pack (PDF) – demo upload</label>
+            <input id="subFile" type="file" accept=".pdf" />
+            <div class="hr"></div>
+
+            <button onclick="submitOpportunity()">Submit</button>
+            <button class="secondary" onclick="setToast('Workflow', 'Demo: submission saved to browser storage; Admin reviews and sets Published.')">How it works</button>
+          </div>
+
+          <div class="card">
+            <h2>African Investments Dashboard (demo)</h2>
+            <p>Tracks project status, sector, funding requirements, and investor “warmth” signals.</p>
+            <table class="table">
+              <thead><tr><th>Deal</th><th>Ticket</th><th>Stage</th><th>Lead</th><th>Actions</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="5"><small>No opportunities for this region yet.</small></td></tr>`}</tbody>
+            </table>
+          </div>
         </div>
+
+        <input id="dealBookFile" type="file" accept=".pdf" style="display:none" />
       `;
     }
 
+    function submitOpportunity(){
+      const country = ($("#subCountry").value || "").trim();
+      const sector = ($("#subSector").value || "").trim();
+      const ticket = parseInt($("#subTicket").value || "0", 10);
+      const stage = $("#subStage").value;
+      const summary = ($("#subSummary").value || "").trim();
+      const fileEl = $("#subFile");
+
+      if(!country || !sector || !ticket){
+        setToast("Missing fields", "Country, sector, and ticket size are required.");
+        return;
+      }
+
+      const deals = safeDeals();
+      const id = "d" + Date.now();
+
+      const newDeal = {
+        id,
+        region: pickRegion(),
+        country,
+        sector,
+        ticket_usd_m: ticket,
+        stage,
+        warmth: "Warm",
+        owner: "Public submission",
+        summary,
+        video: "Deal pack (demo)",
+        status: "Pending"
+      };
+
+      // save deal list (requires getDeals/saveDeals in util.js; fallback: overwrite key)
+      if(typeof saveDeals === "function"){
+        deals.push(newDeal);
+        saveDeals(deals);
+      } else {
+        // minimal fallback if saveDeals doesn't exist
+        localStorage.setItem("timp_deals", JSON.stringify([...deals, newDeal]));
+      }
+
+      // store deal book filename if provided
+      const f = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
+      if(f){
+        const map = getDealBooks();
+        map[id] = f.name;
+        saveDealBooks(map);
+      }
+
+      setToast("Submitted", "Opportunity submitted (Pending). Admin can review and publish.");
+      renderOpps();
+    }
+
+    function uploadDealBook(dealId){
+      const inp = $("#dealBookFile");
+      if(!inp) return;
+
+      inp.value = "";
+      inp.onchange = () => {
+        const f = (inp.files && inp.files[0]) ? inp.files[0] : null;
+        if(!f) return;
+
+        const map = getDealBooks();
+        map[dealId] = f.name;
+        saveDealBooks(map);
+
+        setToast("Uploaded", `Saved: ${f.name} (demo).`);
+        renderOpps();
+      };
+
+      inp.click();
+    }
+
+    // -----------------------------
+    // EXHIBITION (Public)
+    // -----------------------------
     function renderExpo(){
       setActive("exhibition");
       $("#pageTitle").textContent = t("exhibition");
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Persistent digital stands (demo)</span>`;
       $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Upload catalog', 'Demo: In real build, exhibitors upload catalogs + offerings.')">Upload Catalog</button>`;
 
-      const booths = filterByRegion(TIMP_DATA.booths);
+      const booths = filterByRegion(TIMP_DATA.booths || []);
       const cards = booths.map(b=>`
         <div class="card">
           <h3>${b.org}</h3>
@@ -352,6 +609,9 @@
       `;
     }
 
+    // -----------------------------
+    // ARCHIVE (Public)
+    // -----------------------------
     function renderArchive(){
       setActive("archive");
       $("#pageTitle").textContent = t("archive");
@@ -386,37 +646,54 @@
     function doSearch(){
       const q = ($("#q").value || "").toLowerCase().trim();
       const hits = [];
-      TIMP_DATA.events.forEach(e=>{
+
+      // FIX: search published events from getEvents()
+      const evs = filterByRegion(safeEvents()).filter(e => e.status === "Published");
+      evs.forEach(e=>{
         if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Event", label:e.title+" • "+e.date});
         }
       });
-      getDeals().forEach(d=>{
-        if([d.country,d.sector,d.summary,d.stage].join(" ").toLowerCase().includes(q)){
+
+      // search deals from getDeals()
+      const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
+      deals.forEach(d=>{
+        if([d.country,d.sector,(d.summary||""),d.stage,(d.status||"")].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
         }
       });
 
-      $("#results").innerHTML = hits.length ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>` : `<small>No results.</small>`;
+      $("#results").innerHTML = hits.length
+        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>`
+        : `<small>No results.</small>`;
     }
 
+    // -----------------------------
+    // PROFILE (Public)
+    // -----------------------------
     function renderProfile(){
       setActive("profile");
       $("#pageTitle").textContent = t("profile");
       $("#pageMeta").innerHTML = `<span class="tag ok">Verified user (demo)</span> <span class="tag muted">Amend profile • manage preferences</span>`;
       $("#pageActions").innerHTML = ``;
 
+      const p = getProfile();
+
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
           <div class="card">
             <h2>Profile</h2>
-            <label>Name</label><input value="Demo User" style="width:100%" />
+            <label>Name</label><input id="pName" value="${(p.name||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
-            <label>Organisation</label><input value="Demo Organisation" style="width:100%" />
+            <label>Organisation</label><input id="pOrg" value="${(p.org||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
-            <label>Email</label><input value="demo.user@example.com" style="width:100%" />
+            <label>Title/Position</label><input id="pTitle" value="${(p.title||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
-            <button onclick="setToast('Saved', 'Demo: In real build, profile updates are stored securely with GDPR controls.')">Save</button>
+            <label>Email</label><input id="pEmail" value="${(p.email||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <div style="height:10px"></div>
+            <button onclick="savePublicProfile()">Save</button>
+            <div class="hr"></div>
+            <small>Registrations use this profile (demo).</small>
           </div>
           <div class="card">
             <h2>Notifications</h2>
@@ -429,6 +706,17 @@
           </div>
         </div>
       `;
+    }
+
+    function savePublicProfile(){
+      const p = {
+        name: ($("#pName").value || "").trim(),
+        org: ($("#pOrg").value || "").trim(),
+        title: ($("#pTitle").value || "").trim(),
+        email: ($("#pEmail").value || "").trim()
+      };
+      saveProfile(p);
+      setToast("Saved", "Profile saved (demo).");
     }
 
     function setHash(h){
