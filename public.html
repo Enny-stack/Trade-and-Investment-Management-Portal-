@@ -117,7 +117,7 @@
     }
 
     function openEvent(eventId){
-      const e = TIMP_DATA.events.find(x=>x.id===eventId);
+      const e = getEvents().find(x=>x.id===id);
       if(!e) return;
       $("#pageTitle").textContent = e.title;
       $("#pageMeta").innerHTML = `
@@ -164,7 +164,7 @@
     }
 
     function register(eventId){
-      const e = TIMP_DATA.events.find(x=>x.id===eventId);
+      const e = const e = getEvents().find(x=>x.id===id);
       setToast("Registration submitted", `Demo: ${e ? e.title : 'Event'} — confirmation email automation is part of the real build.`);
     }
 
@@ -304,7 +304,7 @@
         <button onclick="setToast('Deal Book', 'Use the Admin Console to generate branded Deal Books by country/sector (demo).')">Generate Deal Book</button>
       `;
 
-      const deals = filterByRegion(TIMP_DATA.deals);
+      const deals = filterByRegion(getDeals());
       const rows = deals.map(d=>`
         <tr>
           <td><b>${d.country}</b><br><small>${d.sector}</small></td>
@@ -391,7 +391,7 @@
           hits.push({type:"Event", label:e.title+" • "+e.date});
         }
       });
-      TIMP_DATA.deals.forEach(d=>{
+      getDeals().forEach(d=>{
         if([d.country,d.sector,d.summary,d.stage].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
         }
