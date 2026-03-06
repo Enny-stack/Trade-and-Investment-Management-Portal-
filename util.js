@@ -26,7 +26,17 @@ function getEvents(){
   }catch(e){}
   return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.events)) ? window.TIMP_DATA.events : [];
 }
+function getRegistrations(){
+  try{
+    const x = JSON.parse(localStorage.getItem("timp_regs"));
+    if(Array.isArray(x)) return x;
+  }catch(e){}
+  return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.registrations)) ? window.TIMP_DATA.registrations : [];
+}
 
+function saveRegistrations(rows){
+  localStorage.setItem("timp_regs", JSON.stringify(rows));
+}
 function saveEvents(events){
   localStorage.setItem("timp_events", JSON.stringify(events));
 }
