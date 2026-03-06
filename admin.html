@@ -96,61 +96,49 @@
       return filterByRegion(items);
     }
 
-    function renderDashboard(){
-      setActive("dashboard");
-      $("#pageTitle").textContent = "Admin Dashboard";
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">KPIs snapshot (demo)</span>`;
-      $("#pageActions").innerHTML = ``;
+  function renderDashboard(){
+  setActive("dashboard");
+  $("#pageTitle").textContent = "Admin Dashboard";
+  $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">KPIs snapshot (demo)</span>`;
+  $("#pageActions").innerHTML = ``;
 
-      const evs = adminFilter(getEvents());
-      const regs = TIMP_DATA.registrations.filter(r=>{
-        const ev = getEvents().find(e=>e.id===r.event_id);
-        return ev && (pickRegion()==="non_reg" || ev.region===pickRegion());
-      });
-      const deals = adminFilter(getDeals());
+  const events = getEvents();
+  const evs = adminFilter(events);
 
-      $("#pageBody").innerHTML = `
-        <div class="grid cols-3">
-          <div class="card">
-            <div class="mini"><div><div class="label">Events this year</div><div class="big">${evs.length}</div></div><span class="tag ok">Calendar</span></div>
-            <div class="hr"></div>
-            <small>Centralized annual visibility across roadshows & forums.</small>
-          </div>
-          <div class="card">
-            <div class="mini"><div><div class="label">Registrations</div><div class="big">${regs.length}</div></div><span class="tag warn">Workflow</span></div>
-            <div class="hr"></div>
-            <small>Approve/reject; send automated alerts when materials are published.</small>
-          </div>
-          <div class="card">
-            <div class="mini"><div><div class="label">Active opportunities</div><div class="big">${deals.length}</div></div><span class="tag ok">Pipeline</span></div>
-            <div class="hr"></div>
-            <small>Track stages + investor “warmth” signals.</small>
-          </div>
-        </div>
+  // ✅ use localStorage registrations, not TIMP_DATA.registrations
+  const regsAll = getRegistrations();
+  const regs = regsAll.filter(r=>{
+    const ev = events.find(e=>e.id===r.event_id);
+    if(!ev) return (pickRegion()==="non_reg");
+    return (pickRegion()==="non_reg" || ev.region===pickRegion());
+  });
 
-        <div style="height:14px"></div>
+  // ✅ keep the sidebar badge consistent everywhere
+  if ($("#regCount")) $("#regCount").textContent = regs.length;
 
-        <div class="grid cols-2">
-          <div class="card">
-            <h2>Quick Actions</h2>
-            <div class="row-actions">
-              <button onclick="location.hash='#events'">Create Event</button>
-              <button class="secondary" onclick="location.hash='#regs'">Approve Registrations</button>
-              <button class="secondary" onclick="location.hash='#dealbook'">Generate Deal Book</button>
-              <button class="secondary" onclick="location.hash='#analytics'">View Analytics</button>
-            </div>
-          </div>
-          <div class="card">
-            <h2>Security posture (demo)</h2>
-            <p>RBAC controls who can publish events, approve registrations, upload materials, and access sensitive pitch decks.</p>
-            <div class="hr"></div>
-            <span class="tag ok">RBAC</span>
-            <span class="tag ok">Secure data rooms</span>
-            <span class="tag warn">SSO in real build</span>
-          </div>
-        </div>
-      `;
-    }
+  const deals = adminFilter(getDeals());
+
+  $("#pageBody").innerHTML = `
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="mini"><div><div class="label">Events this year</div><div class="big">${evs.length}</div></div><span class="tag ok">Calendar</span></div>
+        <div class="hr"></div>
+        <small>Centralized annual visibility across roadshows & forums.</small>
+      </div>
+      <div class="card">
+        <div class="mini"><div><div class="label">Registrations</div><div class="big">${regs.length}</div></div><span class="tag warn">Workflow</span></div>
+        <div class="hr"></div>
+        <small>Approve/reject; send automated alerts when materials are published.</small>
+      </div>
+      <div class="card">
+        <div class="mini"><div><div class="label">Active opportunities</div><div class="big">${deals.length}</div></div><span class="tag ok">Pipeline</span></div>
+        <div class="hr"></div>
+        <small>Track stages + investor “warmth” signals.</small>
+      </div>
+    </div>
+    ...
+  `;
+}
 
     function renderEventManager(){
       setActive("events");
