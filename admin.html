@@ -315,51 +315,85 @@ function deleteEvent(id){
   renderEventManager();
 }
     function renderRegistrations(){
-      setActive("registrations");
-      $("#pageTitle").textContent = t("registrations");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject workflow (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Export', 'Demo: export registration list to Excel/PDF.')">Export</button>`;
+  setActive("registrations");
+  $("#pageTitle").textContent = t("registrations");
+  $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject workflow (demo)</span>`;
+  $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Export', 'Demo: export registration list to Excel/PDF.')">Export</button>`;
 
-      const regs = TIMP_DATA.registrations.filter(r=>{
-        const ev = getEvents().find(e=>e.id===r.event_id);
-        return ev && (pickRegion()==="non_reg" || ev.region===pickRegion());
-      });
-      $("#regCount").textContent = regs.length;
+  const events = getEvents();
+  const regsAll = getRegistrations();
 
-      const rows = regs.map(r=>{
-        const ev = getEvents().find(e=>e.id===r.event_id);
-        return `
-          <tr>
-            <td><b>${r.name}</b><br><small>${r.org} • ${r.title}</small></td>
-            <td><small>${r.email}</small></td>
-            <td>${ev ? ev.title : r.event_id}</td>
-            <td><span class="tag ${r.state==='Approved'?'ok':(r.state==='Pending'?'warn':'muted')}">${r.state}</span></td>
-            <td class="row-actions">
-              <button onclick="approve('${r.id}')">Approve</button>
-              <button class="danger" onclick="reject('${r.id}')">Reject</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
+  // Region segregation: show regs tied to events in this region (or all if non_reg)
+  const regs = regsAll.filter(r=>{
+    const ev = events.find(e=>e.id===r.event_id);
+    if(!ev) return (pickRegion()==="non_reg"); // if event missing, show only in non-reg
+    return (pickRegion()==="non_reg" || ev.region===pickRegion());
+  });
 
-      $("#pageBody").innerHTML = `
-        <div class="card">
-          <h2>Registration Queue</h2>
-          <p>Admin can approve/reject, then participants gain controlled access to published materials and recordings.</p>
-          <table class="table">
-            <thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="5"><small>No registrations in demo.</small></td></tr>`}</tbody>
-          </table>
-        </div>
-      `;
-    }
+  $("#regCount").textContent = regs.length;
 
-    function approve(id){
-      setToast("Approved (demo)", "Participant approved. Real build sends confirmation email + access rights.");
-    }
-    function reject(id){
-      setToast("Rejected (demo)", "Participant rejected. Real build logs reason and sends notification.");
-    }
+  const rows = regs.map(r=>{
+    const ev = events.find(e=>e.id===r.event_id);
+    const evTitle = ev ? ev.title : r.event_id;
+
+    const stateClass =
+      r.state==="Approved" ? "ok" :
+      r.state==="Pending" ? "warn" :
+      r.state==="Rejected" ? "muted" : "muted";
+
+    const disableApprove = r.state === "Approved";
+    const disableReject = r.state === "Rejected";
+
+    return `
+      <tr>
+        <td><b>${r.name || ""}</b><br><small>${r.org || ""} • ${r.title || ""}</small></td>
+        <td><small>${r.email || ""}</small></td>
+        <td>${evTitle}</td>
+        <td><span class="tag ${stateClass}">${r.state || "Pending"}</span></td>
+        <td class="row-actions">
+          <button ${disableApprove ? "disabled" : ""} onclick="approve('${r.id}')">Approve</button>
+          <button class="danger" ${disableReject ? "disabled" : ""} onclick="reject('${r.id}')">Reject</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  $("#pageBody").innerHTML = `
+    <div class="card">
+      <h2>Registration Queue</h2>
+      <p>Admin can approve/reject, then participants gain controlled access to published materials and recordings.</p>
+      <table class="table">
+        <thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="5"><small>No registrations found for this region.</small></td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+   function approve(id){
+  const r = getRegistrations();
+  const i = r.findIndex(x=>x.id===id);
+  if(i < 0){
+    setToast("Not found", "Registration not found.");
+    return;
+  }
+  r[i].state = "Approved";
+  saveRegistrations(r);
+  setToast("Approved", "Participant approved (demo).");
+  renderRegistrations();
+}
+
+function reject(id){
+  const r = getRegistrations();
+  const i = r.findIndex(x=>x.id===id);
+  if(i < 0){
+    setToast("Not found", "Registration not found.");
+    return;
+  }
+  r[i].state = "Rejected";
+  saveRegistrations(r);
+  setToast("Rejected", "Participant rejected (demo).");
+  renderRegistrations();
+}
 
     function renderDealBook(){
       setActive("dealbook");
