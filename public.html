@@ -250,9 +250,9 @@
 
       const p = getProfile();
       let name  = ($("#regName")?.value || "").trim() || (p.name || "").trim();
-let org   = ($("#regOrg")?.value  || "").trim() || (p.org || "").trim();
-let title = ($("#regTitle")?.value|| "").trim() || (p.title || "").trim();
-let email = ($("#regEmail")?.value|| "").trim() || (p.email || "").trim();
+      let org   = ($("#regOrg")?.value  || "").trim() || (p.org || "").trim();
+      let title = ($("#regTitle")?.value|| "").trim() || (p.title || "").trim();
+      let email = ($("#regEmail")?.value|| "").trim() || (p.email || "").trim();
 
       // If profile is empty, ask quickly (demo convenience)
       if(!name) name = prompt("Your name:", "Demo User") || "Demo User";
