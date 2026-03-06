@@ -59,3 +59,37 @@ function pickRegion(){
 function applyDirForArabic(lang){
   document.documentElement.dir = (lang==="ar") ? "rtl" : "ltr";
 }
+function getNotifications(){
+  try{
+    const x = JSON.parse(localStorage.getItem("timp_notifs"));
+    return Array.isArray(x) ? x : [];
+  }catch(e){ return []; }
+}
+
+function saveNotifications(n){
+  localStorage.setItem("timp_notifs", JSON.stringify(n));
+}
+
+function pushNotification(n){
+  const all = getNotifications();
+  all.unshift({
+    id: "n" + Date.now(),
+    ts: new Date().toISOString(),
+    read: false,
+    target: n.target || "admin", // "admin" | "public" | "public:<email>"
+    title: n.title || "Notification",
+    message: n.message || "",
+    link: n.link || ""
+  });
+  saveNotifications(all);
+}
+
+function markNotifRead(id){
+  const all = getNotifications();
+  const i = all.findIndex(x=>x.id===id);
+  if(i>=0){ all[i].read = true; saveNotifications(all); }
+}
+
+function unreadCount(targetPrefix){
+  return getNotifications().filter(n => !n.read && (!targetPrefix || String(n.target).startsWith(targetPrefix))).length;
+}
