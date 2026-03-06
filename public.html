@@ -67,6 +67,24 @@
   <script src="util.js"></script>
   <script src="app.js"></script>
   <script>
+    let OPEN_EVENT_ID = null;
+
+function myRegForEvent(eventId){
+  const p = getProfile();
+  const email = String(p.email || "").toLowerCase().trim();
+  if(!email) return null;
+  return getRegistrations().find(r =>
+    r.event_id === eventId &&
+    String(r.email || "").toLowerCase().trim() === email
+  ) || null;
+}
+
+function regTag(state){
+  const s = state || "Pending";
+  const cls = (s === "Approved") ? "ok" : (s === "Pending") ? "warn" : "muted";
+  return `<span class="tag ${cls}">${s}</span>`;
+}
+<script> 
     // -----------------------------
     // Safe storage helpers (Public)
     // -----------------------------
@@ -152,17 +170,24 @@
       const evs = filterByRegion(safeEvents()).filter(e => (e.status === "Published"));
       $("#evCount").textContent = evs.length;
 
-      const rows = evs.map(e=>`
-        <tr>
-          <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
-          <td>${e.date} <small>(${e.time || ""})</small></td>
-          <td>${eventBadge(e.status)}</td>
-          <td class="row-actions">
-            <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
-            <button onclick="registerForEvent('${e.id}')">Register</button>
-          </td>
-        </tr>
-      `).join("");
+     const rows = evs.map(e=>{
+  const my = myRegForEvent(e.id);
+  const actionRight = my
+    ? regTag(my.state)
+    : `<button onclick="registerForEvent('${e.id}')">Register</button>`;
+
+  return `
+    <tr>
+      <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
+      <td>${e.date} <small>(${e.time || ""})</small></td>
+      <td><span class="tag ok">Published</span></td>
+      <td class="row-actions">
+        <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
+        ${actionRight}
+      </td>
+    </tr>
+  `;
+}).join("");
 
       $("#pageBody").innerHTML = `
         <div class="card">
@@ -180,6 +205,7 @@
 
     function openEvent(eventId){
       // FIX: eventId param and correct lookup
+      OPEN_EVENT_ID = eventId;
       const e = safeEvents().find(x=>x.id===eventId);
       if(!e) {
         setToast("Not found", "Event not found (demo).");
@@ -192,10 +218,12 @@
         <span class="tag ok">${regionLabel(e.region || pickRegion())}</span>
         <span class="tag muted">${e.venue} • ${e.date} • ${e.time || ""}</span>
       `;
-      $("#pageActions").innerHTML = `
-        <button onclick="registerForEvent('${e.id}')">Register</button>
-        <button class="secondary" onclick="setHash('#events')">Back</button>
-      `;
+     const my = myRegForEvent(e.id);
+
+$("#pageActions").innerHTML = `
+  ${my ? regTag(my.state) : `<button onclick="registerForEvent('${e.id}')">Register</button>`}
+  <button class="secondary" onclick="setHash('#events')">Back</button>
+`;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
@@ -242,29 +270,46 @@
     }
 
     function registerForEvent(eventId){
-      const e = safeEvents().find(x=>x.id===eventId);
-      if(!e) {
-        setToast("Not found", "Event not found (demo).");
-        return;
-      }
+  const e = getEvents().find(x=>x.id===eventId);
+  if(!e) return setToast("Not found", "Event not found.");
 
-      const p = getProfile();
-      let name  = ($("#regName")?.value || "").trim() || (p.name || "").trim();
-      let org   = ($("#regOrg")?.value  || "").trim() || (p.org || "").trim();
-      let title = ($("#regTitle")?.value|| "").trim() || (p.title || "").trim();
-      let email = ($("#regEmail")?.value|| "").trim() || (p.email || "").trim();
+  const p = getProfile();
+  const email = String(p.email || "").trim();
+  const name  = String(p.name || "").trim();
+  const org   = String(p.org || "").trim();
+  const title = String(p.title || "").trim();
 
-      // If profile is empty, ask quickly (demo convenience)
-      if(!name) name = prompt("Your name:", "Demo User") || "Demo User";
-      if(!email) email = prompt("Your email:", "demo.user@example.com") || "demo.user@example.com";
+  if(!email){
+    setToast("Profile needed", "Please add your email in My Profile before registering.");
+    setHash("#profile");
+    return;
+  }
 
-      const regs = getRegistrations();
-      // avoid duplicates: same email + same event
-      const exists = regs.some(r => (r.event_id===eventId) && (String(r.email||"").toLowerCase()===String(email).toLowerCase()));
-      if(exists){
-        setToast("Already registered", "You’ve already registered for this event (demo).");
-        return;
-      }
+  const regs = getRegistrations();
+  const exists = regs.some(r =>
+    r.event_id===eventId &&
+    String(r.email||"").toLowerCase().trim()===email.toLowerCase().trim()
+  );
+  if(exists){
+    setToast("Already registered", "You already registered (demo).");
+    // refresh screen so it shows status tag
+    if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID); else renderEvents();
+    return;
+  }
+
+  regs.push({
+    id: "r" + Date.now(),
+    event_id: eventId,
+    name, org, title, email,
+    state: "Pending"
+  });
+
+  saveRegistrations(regs);
+  setToast("Registration submitted", `${e.title} — status: Pending`);
+
+  // refresh screen so it shows Pending immediately
+  if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID); else renderEvents();
+}
 
       regs.push({
         id: "r" + Date.now(),
@@ -457,7 +502,9 @@
             <td>${badgeWarmth(d.warmth)}</td>
             <td class="row-actions">
               <button class="secondary" onclick="setToast('Deal opened', '${(d.summary||"").replace(/'/g,"&#39;")}')">Open</button>
-              <button class="secondary" onclick="uploadDealBook('${d.id}')">Upload Deal Book</button>
+              <td class="row-actions">
+  <button class="secondary" onclick="setToast('Deal opened', '${d.summary}')">Open</button>
+</td>
             </td>
           </tr>
         `;
