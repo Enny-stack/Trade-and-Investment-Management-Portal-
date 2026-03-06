@@ -19,6 +19,17 @@ function getDeals(){
 function saveDeals(deals){
   localStorage.setItem("timp_deals", JSON.stringify(deals));
 }
+function getEvents(){
+  try{
+    const x = JSON.parse(localStorage.getItem("timp_events"));
+    if(Array.isArray(x)) return x;
+  }catch(e){}
+  return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.events)) ? window.TIMP_DATA.events : [];
+}
+
+function saveEvents(events){
+  localStorage.setItem("timp_events", JSON.stringify(events));
+}
 function fmtMoney(m){
   return `$${m}m`;
 }
