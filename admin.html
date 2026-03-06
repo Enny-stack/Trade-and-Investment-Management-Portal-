@@ -169,65 +169,151 @@
           <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${e.status}</span></td>
           <td class="row-actions">
             <button class="secondary" onclick="editEvent('${e.id}')">Edit</button>
-            <button class="danger" onclick="setToast('Not deleted', 'Demo: delete disabled. Real build uses audit trail.')">Delete</button>
+            <button class="danger" onclick="deleteEvent('${e.id}')">Delete</button>
           </td>
         </tr>
       `).join("");
 
-      $("#pageBody").innerHTML = `
-        <div class="grid cols-2">
-          <div class="card">
-            <h2>Event Profile Builder</h2>
-            <p>Admins add venue, date/time, theme, banner, and upload programme/presentations.</p>
-            <div class="hr"></div>
-            <label>Title</label><input id="evTitle" value="New Investment Forum (demo)" style="width:100%" />
-            <div style="height:10px"></div>
-            <div class="grid cols-2">
-              <div><label>Type</label><select id="evType" style="width:100%"><option>Investment Forum</option><option>Roadshow</option></select></div>
-              <div><label>Venue</label><input id="evVenue" value="Abidjan" style="width:100%" /></div>
-            </div>
-            <div style="height:10px"></div>
-            <div class="grid cols-2">
-              <div><label>Date</label><input id="evDate" type="date" value="2026-07-15" style="width:100%" /></div>
-              <div><label>Time</label><input id="evTime" value="10:00" style="width:100%" /></div>
-            </div>
-            <div style="height:10px"></div>
-            <label>Theme</label><input id="evTheme" value="Capital mobilisation + value chains" style="width:100%" />
-            <div style="height:10px"></div>
-            <div class="row-actions">
-              <button class="secondary" onclick="saveEvent()">Save draft</button>
-              <button class="secondary" onclick="setToast('Materials uploaded', 'Demo: files stored in a secure library with access control.')">Upload materials</button>
-            </div>
-          </div>
-          <div class="card">
-            <h2>Events (Admin view)</h2>
-            <table class="table">
-              <thead><tr><th>Event</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>${rows || `<tr><td colspan="4"><small>No events for this region.</small></td></tr>`}</tbody>
-            </table>
-          </div>
-        </div>
-      `;
+     $("#pageBody").innerHTML = `
+  <div class="grid cols-2">
+    <div class="card">
+      <h2>Event Profile Builder</h2>
+      <p>Admins add venue, date/time, theme, banner, and upload programme/presentations.</p>
+
+      <div class="hr"></div>
+
+      <input type="hidden" id="evId" value="" />
+
+      <label>Region</label>
+      <select id="evRegion" style="width:100%">
+        ${TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("")}
+      </select>
+      <div style="height:10px"></div>
+
+      <!-- continue with your existing fields below -->
+      <label>Title</label><input id="evTitle" value="New Investment Forum (demo)" style="width:100%" />
+      <div style="height:10px"></div>
+
+      <div class="grid cols-2">
+        <div><label>Type</label><select id="evType" style="width:100%"><option>Investment Forum</option><option>Roadshow</option></select></div>
+        <div><label>Venue</label><input id="evVenue" value="Abidjan" style="width:100%" /></div>
+      </div>
+      <div style="height:10px"></div>
+
+      <div class="grid cols-2">
+        <div><label>Date</label><input id="evDate" type="date" value="2026-07-15" style="width:100%" /></div>
+        <div><label>Time</label><input id="evTime" value="10:00" style="width:100%" /></div>
+      </div>
+      <div style="height:10px"></div>
+
+      <label>Theme</label><input id="evTheme" value="Capital mobilisation + value chains" style="width:100%" />
+      <div style="height:10px"></div>
+
+      <div class="row-actions">
+        <button class="secondary" onclick="saveEvent()">Save draft</button>
+        <button class="secondary" onclick="setToast('Materials uploaded', 'Demo: files stored in a secure library with access control.')">Upload materials</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Events (Admin view)</h2>
+      <table class="table">
+        <thead><tr><th>Event</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4"><small>No events for this region.</small></td></tr>`}</tbody>
+      </table>
+    </div>
+  </div>
+`;
+
+// ✅ Default region selection for the form (this MUST be after innerHTML is set)
+const defaultRegion = (pickRegion() === "non_reg") ? "north" : pickRegion();
+if ($("#evRegion")) $("#evRegion").value = defaultRegion;
     }
 
     function saveEvent(){
-      setToast("Saved (demo)", "Draft event saved. Real build writes to database and logs audit trail.");
-    }
-    function publishEvent(){
-      setToast("Published (demo)", "Event published. Real build triggers notifications to registered participants.");
-    }
-    function editEvent(id){
-      const e = getEvents().find(x=>x.id===id);
-      if(!e) return;
-      $("#evTitle").value = e.title;
-      $("#evVenue").value = e.venue;
-      $("#evTheme").value = e.theme;
-      $("#evType").value = e.type;
-      $("#evDate").value = e.date;
-      $("#evTime").value = e.time;
-      setToast("Editing", "Loaded event into editor (demo).");
-    }
+  const id = ($("#evId").value || "").trim();
 
+  const newEvent = {
+    id: id || ("e" + Date.now()),
+    region: $("#evRegion").value,
+    title: ($("#evTitle").value || "").trim(),
+    type: $("#evType").value,
+    venue: ($("#evVenue").value || "").trim(),
+    date: $("#evDate").value,
+    time: ($("#evTime").value || "").trim(),
+    theme: ($("#evTheme").value || "").trim()
+  };
+
+  if(!newEvent.title || !newEvent.venue || !newEvent.date){
+    setToast("Missing fields", "Title, Venue and Date are required.");
+    return;
+  }
+
+  const events = getEvents();
+  const idx = events.findIndex(e=>e.id===newEvent.id);
+
+  // Keep existing status if already Published; otherwise Draft
+  const existingStatus = (idx >= 0 && events[idx].status) ? events[idx].status : "Draft";
+  const status = existingStatus === "Published" ? "Published" : "Draft";
+
+  const eventToSave = { ...newEvent, status };
+
+  if(idx >= 0) events[idx] = { ...events[idx], ...eventToSave };
+  else events.push(eventToSave);
+
+  saveEvents(events);
+
+  setToast("Saved", `Event saved (${status}).`);
+  renderEventManager();
+
+  // Reload saved event into the form after re-render
+  editEvent(eventToSave.id);
+}
+
+function publishEvent(){
+  const id = ($("#evId").value || "").trim();
+  if(!id){
+    setToast("Save first", "Please save the event first, then publish.");
+    return;
+  }
+
+  const events = getEvents();
+  const idx = events.findIndex(e=>e.id===id);
+  if(idx < 0){
+    setToast("Not found", "Event not found in saved list.");
+    return;
+  }
+
+  events[idx].status = "Published";
+  saveEvents(events);
+
+  setToast("Published", "Event is now visible on the Public Portal.");
+  renderEventManager();
+  editEvent(id);
+}
+
+function editEvent(id){
+  const e = getEvents().find(x=>x.id===id);
+  if(!e) return;
+
+  $("#evId").value = e.id;
+  $("#evRegion").value = e.region || ((pickRegion()==="non_reg") ? "north" : pickRegion());
+  $("#evTitle").value = e.title || "";
+  $("#evVenue").value = e.venue || "";
+  $("#evTheme").value = e.theme || "";
+  $("#evType").value = e.type || "Investment Forum";
+  $("#evDate").value = e.date || "";
+  $("#evTime").value = e.time || "";
+
+  setToast("Editing", "Loaded event into editor.");
+}
+
+function deleteEvent(id){
+  const events = getEvents().filter(e=>e.id!==id);
+  saveEvents(events);
+  setToast("Deleted", "Event removed (demo).");
+  renderEventManager();
+}
     function renderRegistrations(){
       setActive("registrations");
       $("#pageTitle").textContent = t("registrations");
