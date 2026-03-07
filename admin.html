@@ -303,11 +303,18 @@ if ($("#evRegion")) $("#evRegion").value = defaultRegion;
 
 function publishEvent(){
   const id = ($("#evId").value || "").trim();
-  if(!id){
-    setToast("Save first", "Please save the event first, then publish.");
-    return;
-  }
+  if(!id) return setToast("Missing", "Save the event first.");
 
+  const events = getEvents();
+  const i = events.findIndex(e=>e.id===id);
+  if(i<0) return setToast("Not found", "Event not found.");
+
+  events[i].status = "Published";
+  saveEvents(events);
+
+  setToast("Published", "Event is now visible on Public (demo).");
+  renderEventManager();
+}
   const events = getEvents();
   const idx = events.findIndex(e=>e.id===id);
   if(idx < 0){
