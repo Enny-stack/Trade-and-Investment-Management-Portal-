@@ -3,11 +3,27 @@ const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
 
 function setToast(title, msg){
   const t = $("#toast");
+  if(!t) return;
   $("#toastTitle").textContent = title;
   $("#toastMsg").textContent = msg;
   t.classList.add("show");
   setTimeout(()=>t.classList.remove("show"), 3200);
 }
+
+/**
+ * ✅ NEW: Convert a selected file to a base64 DataURL for demo storage in localStorage
+ * - Used for event banners, PDF decks, programmes, prospectus, etc.
+ */
+function fileToDataUrl(file){
+  return new Promise((resolve)=>{
+    if(!file) return resolve("");
+    const r = new FileReader();
+    r.onload = ()=> resolve(String(r.result || ""));
+    r.onerror = ()=> resolve("");
+    r.readAsDataURL(file);
+  });
+}
+
 function getDeals(){
   try{
     const x = JSON.parse(localStorage.getItem("timp_deals"));
@@ -19,6 +35,7 @@ function getDeals(){
 function saveDeals(deals){
   localStorage.setItem("timp_deals", JSON.stringify(deals));
 }
+
 function getEvents(){
   try{
     const x = JSON.parse(localStorage.getItem("timp_events"));
@@ -26,6 +43,11 @@ function getEvents(){
   }catch(e){}
   return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.events)) ? window.TIMP_DATA.events : [];
 }
+
+function saveEvents(events){
+  localStorage.setItem("timp_events", JSON.stringify(events));
+}
+
 function getRegistrations(){
   try{
     const x = JSON.parse(localStorage.getItem("timp_regs"));
@@ -37,11 +59,11 @@ function getRegistrations(){
 function saveRegistrations(rows){
   localStorage.setItem("timp_regs", JSON.stringify(rows));
 }
-function saveEvents(events){
-  localStorage.setItem("timp_events", JSON.stringify(events));
-}
+
 function fmtMoney(m){
-  return `$${m}m`;
+  const n = Number(m || 0);
+  // keep your original style, but avoid "undefinedm"
+  return `$${n}m`;
 }
 
 function badgeWarmth(w){
@@ -53,12 +75,15 @@ function badgeWarmth(w){
 function pickLang(){
   return localStorage.getItem("lang") || "en";
 }
+
 function pickRegion(){
   return localStorage.getItem("region") || "non_reg";
 }
+
 function applyDirForArabic(lang){
   document.documentElement.dir = (lang==="ar") ? "rtl" : "ltr";
 }
+
 function getNotifications(){
   try{
     const x = JSON.parse(localStorage.getItem("timp_notifs"));
@@ -87,7 +112,10 @@ function pushNotification(n){
 function markNotifRead(id){
   const all = getNotifications();
   const i = all.findIndex(x=>x.id===id);
-  if(i>=0){ all[i].read = true; saveNotifications(all); }
+  if(i>=0){
+    all[i].read = true;
+    saveNotifications(all);
+  }
 }
 
 function unreadCount(targetPrefix){
