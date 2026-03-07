@@ -5,18 +5,102 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ATIMP – Home</title>
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- Small page-only helpers (no need to edit styles.css) -->
+  <style>
+    .mediaBlock{
+      display:grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap:16px;
+      align-items:stretch;
+    }
+    @media (max-width: 860px){
+      .mediaBlock{ grid-template-columns: 1fr; }
+    }
+    .imgSlot{
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background:
+        radial-gradient(900px 260px at 40% 20%, rgba(255,255,255,0.10), transparent 60%),
+        linear-gradient(135deg, rgba(0,180,120,0.18), rgba(255,210,0,0.10));
+      overflow:hidden;
+      min-height: 220px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:14px;
+    }
+    .imgSlot img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .imgHint{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .featureGrid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:14px;
+    }
+    @media (max-width: 980px){
+      .featureGrid{ grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px){
+      .featureGrid{ grid-template-columns: 1fr; }
+    }
+    .featureCard .featureTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .featureCard .featureImg{
+      width:100%;
+      height:140px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
+      overflow:hidden;
+      margin:10px 0;
+      background:
+        radial-gradient(700px 200px at 40% 20%, rgba(255,255,255,0.10), transparent 60%),
+        linear-gradient(135deg, rgba(0,120,255,0.12), rgba(255,90,0,0.10));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .featureCard .featureImg img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .ctaRow{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+  </style>
 </head>
+
 <body>
   <div class="topbar">
     <div class="brand">
       <div class="logo"></div>
       <div>
-        <div><b>Afreximbank • ATIMP</b></div>
-        <span class="sub">African Trade & Investment Management Portal</span>
+        <div><b>Trade & Investment Management Portal (ATIMP)</b></div>
+        <span class="sub">Afreximbank’s digital gateway for trade + investment facilitation</span>
       </div>
     </div>
 
     <div class="pills">
+      <a class="pill" href="index.html"><small>Home</small></a>
       <div class="pill"><small>Region</small>&nbsp;<select id="regionSel"></select></div>
       <div class="pill"><small>Language</small>&nbsp;
         <select id="langSel">
@@ -32,104 +116,216 @@
 
   <div class="main" style="max-width:1100px;margin:0 auto;">
 
-    <!-- KEEP THIS “TOP BLOCK” FEEL (your circled red area concept) -->
+    <!-- THIS IS YOUR “CIRCLED RED” TOP AREA FEEL -->
     <div class="hero">
-      <h1 style="margin-bottom:8px;">African Trade & Investment Management Portal (ATIMP)</h1>
+      <h1 style="margin-bottom:8px;">Afreximbank Trade & Investment Management Portal (ATIMP)</h1>
 
       <div class="meta">
         <span class="tag ok">Admin + Public</span>
-        <span class="tag ok">Region-segregated</span>
+        <span class="tag ok">Region-profiled</span>
         <span class="tag warn">Demo data</span>
-        <span class="tag muted">Static HTML prototype</span>
+        <span class="tag muted">Static prototype (GitHub Pages friendly)</span>
       </div>
 
-      <div class="row" style="gap:10px; flex-wrap:wrap;">
+      <div class="ctaRow">
         <a href="public.html"><button>Enter Public Portal</button></a>
         <a href="admin.html"><button class="secondary">Enter Admin Console</button></a>
         <a href="public.html#events"><button class="secondary">Register / Events</button></a>
       </div>
     </div>
 
-    <!-- AFSIC-ish stacked landing sections -->
-    <div class="grid cols-2" style="margin-top:14px;">
-      <div class="card" style="padding:0; overflow:hidden;">
-        <div style="height:220px; background:
-          radial-gradient(900px 260px at 30% 30%, rgba(255,255,255,0.10), transparent 60%),
-          linear-gradient(135deg, rgba(0,180,120,0.18), rgba(255,210,0,0.10));
-          display:flex; align-items:flex-end; padding:18px;">
-          <div>
-            <div class="tag ok">ATIMP</div>
-            <h2 style="margin:10px 0 0 0;">Profile your Deals</h2>
-            <p style="margin:6px 0 0 0; color:var(--muted);">
-              Publish investment opportunities, attach prospectus/deal packs, and track engagement signals.
-            </p>
-          </div>
-        </div>
-        <div style="padding:18px;">
-          <div class="row-actions">
-            <a href="admin.html#deals"><button>Upload Deals (Admin)</button></a>
-            <a href="public.html#dealroom"><button class="secondary">Browse Deal Room</button></a>
-          </div>
-        </div>
-      </div>
+    <!-- OVERVIEW + IMAGE AFTER FIRST PARAGRAPH -->
+    <div class="card" style="margin-top:14px;">
+      <div class="mediaBlock">
+        <div>
+          <h2 style="margin-top:0;">Driving Trade and Investment Across Africa</h2>
 
-      <div class="card" style="padding:0; overflow:hidden;">
-        <div style="height:220px; background:
-          radial-gradient(900px 260px at 60% 20%, rgba(255,255,255,0.10), transparent 60%),
-          linear-gradient(135deg, rgba(0,120,255,0.12), rgba(255,90,0,0.10));
-          display:flex; align-items:flex-end; padding:18px;">
-          <div>
-            <div class="tag warn">Quickfire</div>
-            <h2 style="margin:10px 0 0 0;">Pitching + Matchmaking</h2>
-            <p style="margin:6px 0 0 0; color:var(--muted);">
-              Quickfire timer, investor matches, meeting requests, and warm-lead tracking.
-            </p>
-          </div>
-        </div>
-        <div style="padding:18px;">
-          <div class="row-actions">
-            <a href="public.html#dealroom"><button>Open Deal Room</button></a>
-            <a href="admin.html#matchmaking"><button class="secondary">Admin Match Rules</button></a>
-          </div>
-        </div>
-      </div>
-    </div>
+          <p style="color:var(--muted); line-height:1.7;">
+            The Trade and Investment Management Portal is Afreximbank’s digital gateway for facilitating trade,
+            mobilizing investment, and connecting African opportunities with global capital. The portal provides
+            a centralized platform where investors, businesses, governments, and financial institutions can
+            discover investment opportunities, promote projects, and engage with strategic partners.
+          </p>
 
-    <div class="grid cols-2" style="margin-top:14px;">
-      <div class="card">
-        <h2>Virtual Exhibition</h2>
-        <p style="color:var(--muted); line-height:1.6;">
-          Persistent digital booths: catalogs, offers, and enquiries — editable in Admin and visible on Public.
-        </p>
-        <div class="hr"></div>
-        <div class="row-actions">
-          <a href="admin.html#exhibition"><button>Manage Booths (Admin)</button></a>
-          <a href="public.html#expo"><button class="secondary">View Exhibition (Public)</button></a>
-        </div>
-      </div>
+          <!-- Image must be placed RIGHT AFTER the first paragraph -->
+          <div class="hr"></div>
 
-      <div class="card">
-        <h2>Governance + Reporting</h2>
-        <p style="color:var(--muted); line-height:1.6;">
-          Approvals workflow, analytics, and archive search — designed for audit-ready institutional memory.
-        </p>
-        <div class="hr"></div>
-        <div class="row-actions">
-          <a href="admin.html#regs"><button>Registrations</button></a>
-          <a href="admin.html#analytics"><button class="secondary">Analytics</button></a>
-          <a href="admin.html#archive"><button class="secondary">Archive</button></a>
+          <p style="color:var(--muted); line-height:1.7;">
+            Designed to support Afreximbank’s mandate of promoting intra-African trade and economic development,
+            the portal brings together key stakeholders across the investment ecosystem to accelerate deal-making,
+            strengthen partnerships, and unlock Africa’s growth potential.
+          </p>
+
+          <p style="color:var(--muted); line-height:1.7; margin-bottom:0;">
+            Through the portal, users gain access to curated investment opportunities, structured networking
+            engagements, project promotion tools, and investor engagement platforms that enable efficient capital
+            mobilization and investment facilitation across the continent.
+          </p>
+        </div>
+
+        <div>
+          <!-- IMAGE SLOT (use one of your screenshots or an Afreximbank visual) -->
+          <div class="imgSlot">
+            <!-- Replace src with your image file -->
+            <!-- Example: assets/afsic-hero.jpg or assets/atimp-hero.jpg -->
+            <img src="assets/atimp-hero.jpg" alt="ATIMP hero image" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;><b>IMAGE SLOT</b><br/>Place your hero image here.<br/><br/>Save an image as:<br/><code>assets/atimp-hero.jpg</code><br/>and it will appear automatically.</div>';">
+          </div>
+          <div style="height:8px;"></div>
+          <div class="imgHint">
+            Suggested: use one of the AFSIC-style screenshots you sent (Register / Deal Room / Profile Deals) or an Afreximbank banner.
+          </div>
         </div>
       </div>
     </div>
 
-    <div style="height:16px;"></div>
-
-    <div class="card">
-      <h2 style="margin-bottom:6px;">Instant connections between investors and opportunity promoters</h2>
-      <p style="margin-top:0; color:var(--muted); line-height:1.6;">
-        This demo shows the user experience. The real build adds SSO/RBAC, database storage, email automation,
-        and integrations (CRM/ATG) with full audit logs.
+    <!-- KEY FEATURES -->
+    <div class="card" style="margin-top:14px;">
+      <h2 style="margin-top:0;">Key Features</h2>
+      <p style="color:var(--muted); line-height:1.7; margin-top:0;">
+        ATIMP is built to move stakeholders from “interest” to “transactions” — discovery → engagement → meetings → deal tracking.
       </p>
+
+      <div class="featureGrid">
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Investment Opportunity Showcase</b>
+            <span class="tag ok">Discover</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-showcase.jpg" alt="Showcase" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-showcase.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            A curated marketplace of investment opportunities with filters by country, sector, ticket size, and readiness level.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Deal Room</b>
+            <span class="tag warn">Match</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-dealroom.jpg" alt="Deal Room" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-dealroom.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Smart matchmaking between investors and opportunities, with meeting requests, follow-ups, and engagement signals.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Investment Engagement Hub</b>
+            <span class="tag ok">Engage</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-engagement.jpg" alt="Engagement Hub" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-engagement.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            A structured space for messaging, document sharing (prospectus/deal packs), and tracking investor interest.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Investment Forums</b>
+            <span class="tag muted">Events</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-forums.jpg" alt="Forums" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-forums.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Event pages for registration, agenda, speakers, downloads, and post-event recordings to sustain deal momentum.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Roadshows</b>
+            <span class="tag muted">Mobilize</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-roadshows.jpg" alt="Roadshows" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-roadshows.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Roadshow modules to promote opportunities by region, schedule sessions, and connect promoters to target investor pools.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Pitching of Investments</b>
+            <span class="tag warn">Quickfire</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-pitching.jpg" alt="Pitching" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-pitching.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Pitch-ready tools (timers, checklists, and document prompts) so opportunities present consistently and professionally.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Region Profile</b>
+            <span class="tag ok">Segment</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-region.jpg" alt="Region profile" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-region.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Region-specific views to highlight priorities, pipelines, and curated opportunities by geography and strategy.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Investment Opportunity Submission</b>
+            <span class="tag muted">Onboard</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-submission.jpg" alt="Submission" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-submission.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Guided submission workflow to capture project details, readiness, documents, and approvals before publishing.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Investor Access</b>
+            <span class="tag ok">Trusted</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-access.jpg" alt="Investor access" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-access.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Tiered access for institutional investors, banks, dealmakers, and partners — aligned to user roles and permissions.
+          </p>
+        </div>
+
+        <div class="card featureCard" style="margin:0;">
+          <div class="featureTop">
+            <b>Security & Data Protection</b>
+            <span class="tag warn">Secure</span>
+          </div>
+          <div class="featureImg">
+            <img src="assets/feature-security.jpg" alt="Security" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-security.jpg</code></div>';">
+          </div>
+          <p style="color:var(--muted); line-height:1.6; margin:0;">
+            Security-by-design approach: authentication, audit trails, secure document handling, and privacy controls.
+          </p>
+        </div>
+
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="ctaRow">
+        <a href="public.html"><button>Explore Opportunities</button></a>
+        <a href="public.html#dealroom"><button class="secondary">Open Deal Room</button></a>
+        <a href="admin.html"><button class="secondary">Admin Console</button></a>
+      </div>
     </div>
 
     <div style="height:18px;"></div>
@@ -139,6 +335,7 @@
   <script src="util.js"></script>
   <script src="app.js"></script>
   <script>
+    // Fill region selector (keeps your existing behavior)
     const regionSel = document.getElementById("regionSel");
     if (window.TIMP_REGIONS && regionSel){
       TIMP_REGIONS.forEach(r=>{
