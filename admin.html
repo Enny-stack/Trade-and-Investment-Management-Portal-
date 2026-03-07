@@ -269,7 +269,7 @@
 
             <div class="row-actions">
               <button class="secondary" onclick="copyInviteLink()">Copy registration link</button>
-              <button class="secondary" onclick="downloadInviteList()">Download invite list (CSV)</button>
+             <button class="secondary" onclick="downloadInviteList()">Download invite list (CSV)</button>
               <button class="secondary" onclick="openMailClient()">Open email draft</button>
             </div>
 
@@ -1145,6 +1145,48 @@
 
     window.addEventListener("hashchange", route);
     route();
+    function downloadInviteList(){
+  const evId = ($("#evId")?.value || "").trim();
+  if(!evId) return setToast("Select event", "Click Edit on an event first, then download.");
+
+  const events = getEvents();
+  const ev = events.find(e=>e.id===evId);
+
+  const regs = getRegistrations().filter(r => r.event_id === evId);
+
+  const rows = regs.map(r=>{
+    // support old data that used r.name
+    const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+    const first = r.first_name || nm?.first_name || "";
+    const last  = r.last_name  || nm?.last_name  || "";
+
+    return {
+      Event: ev ? ev.title : evId,
+      Salutation: r.salutation || "",
+      FirstName: first,
+      LastName: last,
+      Organisation: r.org || "",
+      Position: r.position || r.title || "",
+      Email: r.email || "",
+      Phone: r.phone || "",
+      Status: r.state || "Pending"
+    };
+  });
+
+  const headers = ["Event","Salutation","FirstName","LastName","Organisation","Position","Email","Phone","Status"];
+  const csv = [
+    headers.join(","),
+    ...rows.map(o=>headers.map(h=>`"${String(o[h]||"").replace(/"/g,'""')}"`).join(","))
+  ].join("\n");
+
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `invite_list_${(ev?.title||evId).replace(/\s+/g,"_")}.csv`;
+  a.click();
+
+  setToast("Downloaded", "Invite list CSV downloaded (open with Excel).");
+}
   </script>
 </body>
 </html>
