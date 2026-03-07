@@ -1,3 +1,4 @@
+<!-- public.html (UPDATED) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -78,6 +79,70 @@
     }
     function safeDeals(){
       return (typeof getDeals === "function") ? getDeals() : ((window.TIMP_DATA && TIMP_DATA.deals) || []);
+    }
+
+    // ✅ NEW: fallbacks so Public sees Admin changes saved to localStorage
+    window.getEvents = window.getEvents || function(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_events") || "null");
+        if(Array.isArray(x)) return x;
+      }catch(e){}
+      return ((window.TIMP_DATA && TIMP_DATA.events) || []);
+    };
+
+    window.getDeals = window.getDeals || function(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_deals") || "null");
+        if(Array.isArray(x)) return x;
+      }catch(e){}
+      return ((window.TIMP_DATA && TIMP_DATA.deals) || []);
+    };
+
+    window.getBooths = window.getBooths || function(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
+        if(Array.isArray(x)) return x;
+      }catch(e){}
+      return ((window.TIMP_DATA && TIMP_DATA.booths) || []);
+    };
+
+    function safeBooths(){
+      return (typeof getBooths === "function") ? getBooths() : ((window.TIMP_DATA && TIMP_DATA.booths) || []);
+    }
+
+    // ✅ helper: download a stored dataURL as a file
+    function downloadDataUrl(dataUrl, filename){
+      if(!dataUrl) return;
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = filename || "download";
+      a.click();
+    }
+
+    // ✅ Public download: Prospectus for a deal
+    function downloadDealProspectus(dealId){
+      const d = safeDeals().find(x => x.id === dealId);
+      if(!d || !d.prospectus_name){
+        return setToast("No prospectus", "This deal has no prospectus attached yet.");
+      }
+      if(!d.prospectus_data){
+        return setToast("Demo limit", "Prospectus name exists, but PDF data wasn’t stored (file too large in demo).");
+      }
+      downloadDataUrl(d.prospectus_data, d.prospectus_name);
+    }
+
+    // (optional but useful) keep “request” signal
+    function requestProspectus(dealId){
+      const d = safeDeals().find(x => x.id === dealId);
+      const log = JSON.parse(localStorage.getItem("timp_prospectus_requests") || "[]");
+      log.push({
+        id: "pr" + Date.now(),
+        deal_id: dealId,
+        deal_label: d ? `${d.country} • ${d.sector}` : dealId,
+        at: new Date().toISOString()
+      });
+      localStorage.setItem("timp_prospectus_requests", JSON.stringify(log));
+      setToast("Requested", "Prospectus request recorded (demo signal). If available, use Download.");
     }
 
     // Use util.js versions if they exist; otherwise fallback here
@@ -197,6 +262,14 @@
             updateRegStatus();
           }, 0);
         }
+      }
+      // ✅ NEW: keep public views synced with Admin changes
+      if(e.key === "timp_deals"){
+        if(location.hash.startsWith("#dealroom")) renderDealRoom();
+        if(location.hash.startsWith("#opps")) renderOpps();
+      }
+      if(e.key === "timp_booths"){
+        if(location.hash.startsWith("#expo")) renderExpo();
       }
     });
 
@@ -484,6 +557,11 @@
           ? rec.map(r=>`<li><b>${r.name}</b><br><small>${(r.focus||[]).join(", ")} • ${fmtMoney(r.ticket_min)}–${fmtMoney(r.ticket_max)}</small></li>`).join("")
           : `<li><small>No exact match in demo dataset.</small></li>`;
 
+        const prospectusBtns = d.prospectus_name
+          ? `<button class="secondary" onclick="downloadDealProspectus('${d.id}')">Download Prospectus</button>
+             <button class="secondary" onclick="requestProspectus('${d.id}')">Request (signal)</button>`
+          : `<button class="secondary" onclick="requestProspectus('${d.id}')">Request Prospectus</button>`;
+
         return `
           <div class="card">
             <h3>${d.country} • ${d.sector} <span style="float:right">${badgeWarmth(d.warmth)}</span></h3>
@@ -494,7 +572,7 @@
             <div class="hr"></div>
             <div class="row-actions">
               <button onclick="schedule('${d.id}')">Schedule 1:1</button>
-              <button class="secondary" onclick="setToast('Prospectus requested', 'Demo: This becomes an engagement signal (“warm lead”).')">Request Prospectus</button>
+              ${prospectusBtns}
             </div>
           </div>
         `;
@@ -729,25 +807,63 @@
     }
 
     // -----------------------------
-    // EXHIBITION
+    // EXHIBITION (UPDATED)
     // -----------------------------
+    function isBoothVisibleOnPublic(b){
+      if(!b || typeof b !== "object") return false;
+      if(!("status" in b)) return true;
+      return b.status !== "Draft";
+    }
+
+    function viewBoothCatalog(boothKey){
+      const booths = safeBooths();
+      let b = null;
+
+      if(String(boothKey || "").startsWith("idx_")){
+        const idx = parseInt(String(boothKey).replace("idx_",""), 10);
+        b = booths[idx];
+      } else {
+        b = booths.find(x => x.id === boothKey);
+      }
+
+      if(!b) return setToast("Not found", "Booth not found (demo).");
+
+      const name = b.catalog_name || b.catalog || "";
+      const data = b.catalog_data || "";
+
+      if(!name){
+        return setToast("No catalog", "This booth has no catalog attached yet.");
+      }
+      if(!data){
+        return setToast("Demo limit", "Catalog name exists, but PDF data wasn’t stored (file too large in demo).");
+      }
+      downloadDataUrl(data, name);
+    }
+
     function renderExpo(){
       setActive("exhibition");
       $("#pageTitle").textContent = t("exhibition");
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Persistent digital stands (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Upload catalog', 'Demo: In real build, exhibitors upload catalogs + offerings.')">Upload Catalog</button>`;
+      $("#pageActions").innerHTML = ``;
 
-      const booths = filterByRegion((window.TIMP_DATA && TIMP_DATA.booths) ? TIMP_DATA.booths : []);
-      const cards = booths.map(b=>`
-        <div class="card">
-          <h3>${b.org}</h3>
-          <p><b>Catalog:</b> ${b.catalog}<br><b>Offers:</b> ${b.offers}</p>
-          <div class="row-actions">
-            <button class="secondary" onclick="setToast('Catalog opened', 'Demo: Secure download / viewer.')">View catalog</button>
-            <button onclick="setToast('Inquiry sent', 'Demo: Follow-up analytics track inquiries and conversion.')">Send inquiry</button>
+      const boothsRaw = filterByRegion(safeBooths()).filter(isBoothVisibleOnPublic);
+
+      const cards = boothsRaw.map((b,i)=>{
+        const key = b.id ? b.id : ("idx_" + i);
+        const catalogLabel = b.catalog_name || b.catalog || "Not attached";
+        const offersLabel = b.offers || "";
+
+        return `
+          <div class="card">
+            <h3>${b.org || "Exhibitor"}</h3>
+            <p><b>Catalog:</b> ${catalogLabel}<br><b>Offers:</b> ${offersLabel}</p>
+            <div class="row-actions">
+              <button class="secondary" onclick="viewBoothCatalog('${key}')">View catalog</button>
+              <button onclick="setToast('Inquiry sent', 'Demo: Follow-up analytics track inquiries and conversion.')">Send inquiry</button>
+            </div>
           </div>
-        </div>
-      `).join("");
+        `;
+      }).join("");
 
       $("#pageBody").innerHTML = `<div class="grid cols-2">${cards || `<div class="card"><small>No booths for this region in demo.</small></div>`}</div>`;
     }
