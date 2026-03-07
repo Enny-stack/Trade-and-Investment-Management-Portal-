@@ -36,20 +36,14 @@
         <a href="#dashboard" data-nav="dashboard"><span>Dashboard</span></a>
         <a href="#events" data-nav="events"><span class="i18n" data-key="create_event">Create / Edit Event</span></a>
         <a href="#regs" data-nav="registrations"><span class="i18n" data-key="registrations">Registrations</span><span class="badge" id="regCount"></span></a>
-
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
-
-        <!-- ✅ NEW: Virtual Exhibition Admin -->
-        <a href="#expoadmin" data-nav="expoadmin"><span class="i18n" data-key="exhibition">Virtual Exhibition</span></a>
-
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
         <a href="#regionprofiles" data-nav="region_profiles"><span class="i18n" data-key="region_profiles">Region Profiles</span></a>
         <a href="#rbac" data-nav="users_rbac"><span class="i18n" data-key="users_rbac">Users & RBAC</span></a>
         <a href="#analytics" data-nav="analytics"><span class="i18n" data-key="analytics">Analytics</span></a>
         <a href="#archive" data-nav="archive"><span class="i18n" data-key="archive">Archive</span></a>
       </nav>
-
       <div class="navtitle">Shortcut</div>
       <nav class="nav">
         <a href="public.html"><span>Switch to Public</span><span class="badge">demo</span></a>
@@ -78,9 +72,75 @@
   <script src="app.js"></script>
 
   <script>
-    // -----------------------------
-    // Region selector
-    // -----------------------------
+    /* =========================================================
+       Safety fallbacks (so demo works even if util.js not updated)
+       ========================================================= */
+    if(typeof getEvents !== "function"){
+      function getEvents(){
+        const x = JSON.parse(localStorage.getItem("timp_events") || "null");
+        return Array.isArray(x) ? x : (TIMP_DATA.events || []);
+      }
+    }
+    if(typeof saveEvents !== "function"){
+      function saveEvents(evs){
+        localStorage.setItem("timp_events", JSON.stringify(evs || []));
+      }
+    }
+    if(typeof getDeals !== "function"){
+      function getDeals(){
+        const x = JSON.parse(localStorage.getItem("timp_deals") || "null");
+        return Array.isArray(x) ? x : (TIMP_DATA.deals || []);
+      }
+    }
+    if(typeof saveDeals !== "function"){
+      function saveDeals(deals){
+        localStorage.setItem("timp_deals", JSON.stringify(deals || []));
+      }
+    }
+    if(typeof getRegistrations !== "function"){
+      function getRegistrations(){
+        const x = JSON.parse(localStorage.getItem("timp_regs") || "null");
+        return Array.isArray(x) ? x : (TIMP_DATA.registrations || []);
+      }
+    }
+    if(typeof saveRegistrations !== "function"){
+      function saveRegistrations(r){
+        localStorage.setItem("timp_regs", JSON.stringify(r || []));
+      }
+    }
+
+    /* =========================
+       Small helpers
+       ========================= */
+    function escapeHtml(s){
+      return String(s || "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#39;");
+    }
+
+    function splitName(full){
+      const t = String(full || "").trim().replace(/\s+/g, " ");
+      if(!t) return { first_name:"", last_name:"" };
+      const parts = t.split(" ");
+      if(parts.length === 1) return { first_name: parts[0], last_name: "" };
+      return { first_name: parts.slice(0, -1).join(" "), last_name: parts.slice(-1)[0] };
+    }
+
+    function humanFileSize(bytes){
+      const b = Number(bytes || 0);
+      if(!b) return "0 B";
+      const u = ["B","KB","MB","GB"];
+      let i = 0, x = b;
+      while(x >= 1024 && i < u.length-1){ x/=1024; i++; }
+      return `${x.toFixed(i===0?0:1)} ${u[i]}`;
+    }
+
+    /* =========================
+       Topbar init
+       ========================= */
     const regionSel = document.getElementById("regionSel");
     TIMP_REGIONS.forEach(r=>{
       const opt = document.createElement("option");
@@ -100,35 +160,9 @@
       return filterByRegion(items);
     }
 
-    // -----------------------------
-    // ✅ Fallback storage helpers (if util.js doesn't have them)
-    // -----------------------------
-    window.getBooths = window.getBooths || function(){
-      try{
-        const x = JSON.parse(localStorage.getItem("timp_booths"));
-        if(Array.isArray(x)) return x;
-      }catch(e){}
-      return (window.TIMP_DATA && TIMP_DATA.booths) ? TIMP_DATA.booths : [];
-    };
-
-    window.saveBooths = window.saveBooths || function(rows){
-      localStorage.setItem("timp_booths", JSON.stringify(rows));
-    };
-
-    // Helper: download from dataUrl
-    function downloadDataUrl(filename, dataUrl){
-      if(!dataUrl) return setToast("Missing", "No file stored (demo).");
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = filename || "download.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
-
-    // -----------------------------
-    // DASHBOARD
-    // -----------------------------
+    /* =========================
+       Dashboard
+       ========================= */
     function renderDashboard(){
       setActive("dashboard");
       $("#pageTitle").textContent = "Admin Dashboard";
@@ -159,7 +193,7 @@
           <div class="card">
             <div class="mini"><div><div class="label">Registrations</div><div class="big">${regs.length}</div></div><span class="tag warn">Workflow</span></div>
             <div class="hr"></div>
-            <small>Approve/reject; then unlock controlled materials access (demo).</small>
+            <small>Approve/reject; send automated alerts when materials are published.</small>
           </div>
           <div class="card">
             <div class="mini"><div><div class="label">Active opportunities</div><div class="big">${deals.length}</div></div><span class="tag ok">Pipeline</span></div>
@@ -183,7 +217,7 @@
 
           <div class="card">
             <h2>Security posture (demo)</h2>
-            <p>RBAC controls publishing, approvals, uploads, and access to sensitive pitch decks.</p>
+            <p>RBAC controls who can publish events, approve registrations, upload materials, and access sensitive pitch decks.</p>
             <div class="hr"></div>
             <span class="tag ok">RBAC</span>
             <span class="tag ok">Secure data rooms</span>
@@ -193,9 +227,9 @@
       `;
     }
 
-    // -----------------------------
-    // EVENTS (kept as-is from your file)
-    // -----------------------------
+    /* =========================
+       Event Manager
+       ========================= */
     function renderEventManager(){
       setActive("events");
       $("#pageTitle").textContent = t("create_event");
@@ -254,8 +288,32 @@
 
             <div class="hr"></div>
 
+            <label>Event Banner (image)</label>
+            <input type="file" id="evBanner" accept="image/*" />
+            <small class="muted">Demo: stored in browser and can be shown on Public.</small>
+
+            <div style="height:10px"></div>
+            <label>Invitation Email (demo template)</label>
+            <textarea id="evInviteTpl" rows="4" style="width:100%" placeholder="Subject + Body... (demo template)"></textarea>
+
+            <div class="row-actions">
+              <button class="secondary" onclick="copyInviteLink()">Copy registration link</button>
+              <button class="secondary" onclick="downloadInviteList()">Download invite list (CSV)</button>
+              <button class="secondary" onclick="openMailClient()">Open email draft</button>
+            </div>
+
+            <div class="hr"></div>
+            <h3 style="margin:0 0 8px 0;">Event Materials</h3>
+            <label>Programme (PDF)</label><input type="file" id="evProgramme" accept="application/pdf" />
+            <div style="height:10px"></div>
+            <label>Presentations (PDF)</label><input type="file" id="evDeck" accept="application/pdf" />
+            <div style="height:10px"></div>
+            <label>Recording link (URL)</label><input id="evRecordingUrl" placeholder="https://..." style="width:100%" />
+
+            <div class="hr"></div>
             <div class="row-actions">
               <button class="secondary" onclick="saveEvent()">Save draft</button>
+              <button class="ghost" onclick="clearEventForm()">Clear</button>
             </div>
           </div>
 
@@ -271,12 +329,29 @@
 
       const defaultRegion = (pickRegion() === "non_reg") ? "north" : pickRegion();
       if ($("#evRegion")) $("#evRegion").value = defaultRegion;
+      if ($("#evId")) $("#evId").value = "";
+    }
+
+    function clearEventForm(){
+      $("#evId").value = "";
+      $("#evTitle").value = "";
+      $("#evVenue").value = "";
+      $("#evTheme").value = "";
+      $("#evType").value = "Investment Forum";
+      $("#evDate").value = "";
+      $("#evTime").value = "";
+      $("#evInviteTpl").value = "";
+      $("#evRecordingUrl").value = "";
+      if($("#evBanner")) $("#evBanner").value = "";
+      if($("#evProgramme")) $("#evProgramme").value = "";
+      if($("#evDeck")) $("#evDeck").value = "";
+      setToast("Cleared", "Event form reset (demo).");
     }
 
     function saveEvent(){
       const id = ($("#evId").value || "").trim();
 
-      const newEvent = {
+      const base = {
         id: id || ("e" + Date.now()),
         region: $("#evRegion").value,
         title: ($("#evTitle").value || "").trim(),
@@ -284,30 +359,51 @@
         venue: ($("#evVenue").value || "").trim(),
         date: $("#evDate").value,
         time: ($("#evTime").value || "").trim(),
-        theme: ($("#evTheme").value || "").trim()
+        theme: ($("#evTheme").value || "").trim(),
+        invite_tpl: ($("#evInviteTpl").value || "").trim(),
+        recording_url: ($("#evRecordingUrl").value || "").trim(),
+        programme_name: $("#evProgramme")?.files?.[0]?.name || "",
+        deck_name: $("#evDeck")?.files?.[0]?.name || ""
       };
 
-      if(!newEvent.title || !newEvent.venue || !newEvent.date){
+      if(!base.title || !base.venue || !base.date){
         setToast("Missing fields", "Title, Venue and Date are required.");
         return;
       }
 
+      const bannerFile = $("#evBanner")?.files?.[0] || null;
+
       const events = getEvents();
-      const idx = events.findIndex(e=>e.id===newEvent.id);
+      const idx = events.findIndex(e=>e.id===base.id);
+      const existing = (idx >= 0) ? events[idx] : null;
 
-      const existingStatus = (idx >= 0 && events[idx].status) ? events[idx].status : "Draft";
-      const status = existingStatus === "Published" ? "Published" : "Draft";
+      const existingStatus = existing?.status ? existing.status : "Draft";
+      const status = (existingStatus === "Published") ? "Published" : "Draft";
 
-      const eventToSave = { ...newEvent, status };
+      function finalizeSave(bannerDataUrl){
+        const eventToSave = {
+          ...existing,
+          ...base,
+          status,
+          banner_data_url: bannerDataUrl || existing?.banner_data_url || ""
+        };
 
-      if(idx >= 0) events[idx] = { ...events[idx], ...eventToSave };
-      else events.push(eventToSave);
+        if(idx >= 0) events[idx] = eventToSave;
+        else events.push(eventToSave);
 
-      saveEvents(events);
+        saveEvents(events);
+        setToast("Saved", `Event saved (${status}).`);
+        renderEventManager();
+        editEvent(eventToSave.id);
+      }
 
-      setToast("Saved", `Event saved (${status}).`);
-      renderEventManager();
-      editEvent(eventToSave.id);
+      if(bannerFile){
+        const reader = new FileReader();
+        reader.onload = ()=> finalizeSave(String(reader.result || ""));
+        reader.readAsDataURL(bannerFile);
+      } else {
+        finalizeSave(null);
+      }
     }
 
     function publishEvent(){
@@ -316,7 +412,7 @@
 
       const events = getEvents();
       const i = events.findIndex(e=>e.id===id);
-      if(i<0) return setToast("Not found", "Event not found.");
+      if(i < 0) return setToast("Not found", "Event not found.");
 
       events[i].status = "Published";
       saveEvents(events);
@@ -338,6 +434,10 @@
       $("#evType").value = e.type || "Investment Forum";
       $("#evDate").value = e.date || "";
       $("#evTime").value = e.time || "";
+      $("#evInviteTpl").value = e.invite_tpl || "";
+      $("#evRecordingUrl").value = e.recording_url || "";
+
+      setToast("Editing", "Loaded event into editor.");
     }
 
     function deleteEvent(id){
@@ -347,9 +447,84 @@
       renderEventManager();
     }
 
-    // -----------------------------
-    // REGISTRATIONS (kept from your file)
-    // -----------------------------
+    /* Simple invite helpers (demo) */
+    function copyInviteLink(){
+      const id = ($("#evId").value || "").trim();
+      const link = "public.html#events"; // demo route
+      const text = `${link} (event id: ${id || "not saved yet"})`;
+
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(()=>{
+          setToast("Copied", "Invite link copied (demo).");
+        }).catch(()=>{
+          setToast("Copy failed", text);
+        });
+      } else {
+        setToast("Copy link", text);
+      }
+    }
+
+    // ✅ UPDATED: exports registrations for the selected event (the real "invite list")
+    function downloadInviteList(){
+      const evId = ($("#evId")?.value || "").trim();
+      if(!evId) return setToast("Select event", "Click Edit on an event first, then download.");
+
+      const events = getEvents();
+      const ev = events.find(e=>e.id===evId);
+
+      const regs = getRegistrations().filter(r => r.event_id === evId);
+
+      const rows = regs.map(r=>{
+        // support old data that used r.name
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last  = r.last_name  || nm?.last_name  || "";
+
+        return {
+          Event: ev ? ev.title : evId,
+          Salutation: r.salutation || "",
+          FirstName: first,
+          LastName: last,
+          Organisation: r.org || "",
+          Position: r.position || r.title || "",
+          Email: r.email || "",
+          Phone: r.phone || "",
+          Status: r.state || "Pending"
+        };
+      });
+
+      const headers = ["Event","Salutation","FirstName","LastName","Organisation","Position","Email","Phone","Status"];
+      const csv = [
+        headers.join(","),
+        ...rows.map(o=>headers.map(h=>`"${String(o[h]||"").replace(/"/g,'""')}"`).join(","))
+      ].join("\n");
+
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `invite_list_${(ev?.title||evId).replace(/\s+/g,"_")}.csv`;
+      a.click();
+
+      setToast("Downloaded", "Invite list CSV downloaded (open with Excel).");
+    }
+
+    function openMailClient(){
+      const id = ($("#evId").value || "").trim();
+      const title = ($("#evTitle").value || "Event").trim();
+      const tpl = ($("#evInviteTpl").value || "").trim();
+
+      const subject = encodeURIComponent(`Invitation: ${title}`);
+      const body = encodeURIComponent(
+        (tpl ? tpl : `Dear [Name],\n\nYou are invited to ${title}.\n\nRegister here: public.html#events\n\nRegards,\nTIMP Admin`)
+        + (id ? `\n\n(Event ID: ${id})` : "")
+      );
+
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    }
+
+    /* =========================
+       Registrations
+       ========================= */
     function renderRegistrations(){
       setActive("registrations");
       $("#pageTitle").textContent = t("registrations");
@@ -371,24 +546,31 @@
         const ev = events.find(e=>e.id===r.event_id);
         const evTitle = ev ? ev.title : r.event_id;
 
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last  = r.last_name  || nm?.last_name  || "";
+        const sal = (r.salutation || "").trim();
+        const displayName = [sal, first, last].filter(Boolean).join(" ").trim() || (r.name || "");
+
+        const state = (r.state || "Pending");
         const stateClass =
-          r.state==="Approved" ? "ok" :
-          r.state==="Pending" ? "warn" :
-          r.state==="Rejected" ? "muted" : "muted";
+          state==="Approved" ? "ok" :
+          state==="Pending" ? "warn" :
+          state==="Rejected" ? "muted" : "muted";
 
-        const disableApprove = r.state === "Approved";
-        const disableReject = r.state === "Rejected";
-
-        const name = (r.first_name || r.name || "") + (r.last_name ? (" " + r.last_name) : "");
-        const org = r.org || "";
-        const pos = r.position || r.title || "";
+        const disableApprove = state === "Approved";
+        const disableReject = state === "Rejected";
 
         return `
           <tr>
-            <td><b>${name.trim()}</b><br><small>${org} • ${pos}</small></td>
-            <td><small>${r.email || ""}</small></td>
-            <td>${evTitle}</td>
-            <td><span class="tag ${stateClass}">${r.state || "Pending"}</span></td>
+            <td>
+              <b>${escapeHtml(displayName)}</b><br>
+              <small>${escapeHtml(r.org || "")} • ${escapeHtml(r.position || r.title || "")}</small>
+              ${r.phone ? `<br><small class="muted">${escapeHtml(r.phone)}</small>` : ``}
+            </td>
+            <td><small>${escapeHtml(r.email || "")}</small></td>
+            <td>${escapeHtml(evTitle)}</td>
+            <td><span class="tag ${stateClass}">${escapeHtml(state)}</span></td>
             <td class="row-actions">
               <button ${disableApprove ? "disabled" : ""} onclick="approve('${r.id}')">Approve</button>
               <button class="danger" ${disableReject ? "disabled" : ""} onclick="reject('${r.id}')">Reject</button>
@@ -400,7 +582,7 @@
       $("#pageBody").innerHTML = `
         <div class="card">
           <h2>Registration Queue</h2>
-          <p>Admin can approve/reject. Public users instantly see the updated status (same browser demo).</p>
+          <p>Admin can approve/reject, then participants gain controlled access to published materials and recordings.</p>
           <table class="table">
             <thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>${rows || `<tr><td colspan="5"><small>No registrations found for this region.</small></td></tr>`}</tbody>
@@ -421,20 +603,26 @@
 
       const rows = regs.map(r=>{
         const ev = events.find(e=>e.id===r.event_id);
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last  = r.last_name  || nm?.last_name  || "";
         return {
           Event: ev ? ev.title : r.event_id,
           Salutation: r.salutation || "",
-          FirstName: r.first_name || "",
-          LastName: r.last_name || "",
-          Organisation: r.org||"",
+          FirstName: first,
+          LastName: last,
+          Organisation: r.org || "",
           Position: r.position || r.title || "",
-          Email: r.email||"",
+          Email: r.email || "",
           Phone: r.phone || "",
-          Status: r.state||"Pending"
+          Status: r.state || "Pending"
         };
       });
 
-      const headers = Object.keys(rows[0]||{Event:"",Salutation:"",FirstName:"",LastName:"",Organisation:"",Position:"",Email:"",Phone:"",Status:""});
+      const headers = Object.keys(rows[0]||{
+        Event:"",Salutation:"",FirstName:"",LastName:"",Organisation:"",Position:"",Email:"",Phone:"",Status:""
+      });
+
       const csv = [
         headers.join(","),
         ...rows.map(o=>headers.map(h=>`"${String(o[h] ?? "").replace(/"/g,'""')}"`).join(","))
@@ -453,53 +641,30 @@
       const r = getRegistrations();
       const i = r.findIndex(x=>x.id===id);
       if(i < 0) return setToast("Not found", "Registration not found.");
+
       r[i].state = "Approved";
       saveRegistrations(r);
       setToast("Approved", "Participant approved (demo).");
       renderRegistrations();
+      renderDashboard();
     }
 
     function reject(id){
       const r = getRegistrations();
       const i = r.findIndex(x=>x.id===id);
       if(i < 0) return setToast("Not found", "Registration not found.");
+
       r[i].state = "Rejected";
       saveRegistrations(r);
       setToast("Rejected", "Participant rejected (demo).");
       renderRegistrations();
+      renderDashboard();
     }
 
-    // -----------------------------
-    // DEAL BOOK (kept minimal)
-    // -----------------------------
+    /* =========================
+       Deal Book (cap 40 + download HTML)
+       ========================= */
     let LAST_DEALBOOK = null;
-
-    function downloadDealBookHtml(list, title){
-      const html = `
-<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head>
-<body style="font-family:Arial">
-  <h1>${title}</h1>
-  <p>Generated: ${new Date().toISOString()}</p>
-  <hr/>
-  ${list.map((d,i)=>`
-    <h3>${i+1}. ${d.country || ""} – ${d.sector || ""} (${fmtMoney(d.ticket_usd_m)})</h3>
-    <p><b>Stage:</b> ${d.stage || ""}<br/>${d.summary || ""}</p>
-    <hr/>
-  `).join("")}
-  <p><small>Demo: Use Print → Save as PDF.</small></p>
-</body></html>`;
-
-      const blob = new Blob([html], {type:"text/html"});
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = title.replace(/\s+/g,"_") + ".html";
-      a.click();
-    }
-
-    function downloadLastDealBook(){
-      if(!LAST_DEALBOOK) return setToast("Missing", "Generate a deal book first.");
-      downloadDealBookHtml(LAST_DEALBOOK.list, LAST_DEALBOOK.title);
-    }
 
     function renderDealBook(){
       setActive("dealbook");
@@ -518,25 +683,38 @@
         <div class="grid cols-2">
           <div class="card">
             <h2>Deal Book Generator</h2>
-            <p>Aggregates verified opportunities into a branded PDF/digital book (demo).</p>
+            <p>Instantly aggregates verified opportunities into a branded PDF/digital book (demo action).</p>
             <div class="hr"></div>
+
             <label>Filter: Country</label>
             <select id="country" style="width:100%">
               <option value="">All</option>
               ${countries.map(c=>`<option>${c}</option>`).join("")}
             </select>
+
             <div style="height:10px"></div>
+
             <label>Filter: Sector</label>
             <select id="sector" style="width:100%">
               <option value="">All</option>
               ${sectors.map(s=>`<option>${s}</option>`).join("")}
             </select>
+
+            <div style="height:10px"></div>
+
+            <label>Include rich media</label><br>
+            <label><input type="checkbox" checked /> Embed video pitches + secure links (demo)</label>
+
             <div class="hr"></div>
+
             <button onclick="genDealBook()">Generate Deal Book</button>
             <button class="secondary" onclick="downloadLastDealBook()">Download (HTML)</button>
+            <button class="secondary" onclick="setToast('Shared', 'Demo: Share access link with selected investor groups without full onboarding.')">Share investor link</button>
+
             <div class="hr"></div>
-            <small class="muted">Open HTML → Print → Save as PDF.</small>
+            <small class="muted">Demo tip: after download, open the HTML then Print → Save as PDF.</small>
           </div>
+
           <div class="card">
             <h2>Preview (demo)</h2>
             <div id="dealPreview"><small>Select filters then click Generate.</small></div>
@@ -549,6 +727,7 @@
       const deals = adminFilter(getDeals());
       const c = ($("#country")?.value || "");
       const s = ($("#sector")?.value || "");
+
       const outAll = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
       const out = outAll.slice(0, 40);
 
@@ -563,17 +742,48 @@
         <p><b>Generated:</b> ${out.length} opportunities</p>
         ${truncatedMsg}
         <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
-          ${out.map(d=>`<li>${d.country || ""} • ${d.sector || ""} • ${fmtMoney(d.ticket_usd_m)}</li>`).join("") || "<li>No matches.</li>"}
+          ${out.map(d=>`<li>${escapeHtml(d.country || "")} • ${escapeHtml(d.sector || "")} • ${fmtMoney(d.ticket_usd_m)}${d.video ? " • "+escapeHtml(d.video) : ""}</li>`).join("") || "<li>No matches.</li>"}
         </ul>
         <div class="hr"></div>
         <button onclick="downloadLastDealBook()">Download Deal Book (HTML)</button>
+        <p style="margin-top:10px"><small>Real build: export branded PDF + tracking for downloads and investor engagement.</small></p>
       `;
-      setToast("Generated", "Deal book ready. Download HTML → Print → Save as PDF.");
+
+      setToast("Deal Book generated (demo)", "Open downloaded HTML → Print → Save as PDF.");
     }
 
-    // -----------------------------
-    // ✅ DEALS MANAGER (with Prospectus upload + download)
-    // -----------------------------
+    function downloadDealBookHtml(list, title){
+      const html = `
+      <html><head><meta charset="utf-8"><title>${title}</title></head>
+      <body style="font-family:Arial; padding:18px;">
+        <h1>${escapeHtml(title.replace(/_/g," "))}</h1>
+        <p>Generated: ${new Date().toISOString()}</p>
+        <hr/>
+        ${list.map((d,i)=>`
+          <h3>${i+1}. ${escapeHtml(d.country||"")} – ${escapeHtml(d.sector||"")} (${fmtMoney(d.ticket_usd_m)})</h3>
+          <p><b>Stage:</b> ${escapeHtml(d.stage||"")}<br/>${escapeHtml(d.summary||"")}</p>
+          <hr/>
+        `).join("")}
+        <p><small>Demo: Use Print → Save as PDF.</small></p>
+      </body></html>`;
+
+      const blob = new Blob([html], {type:"text/html"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = title.replace(/\s+/g,"_") + ".html";
+      a.click();
+    }
+
+    function downloadLastDealBook(){
+      if(!LAST_DEALBOOK || !Array.isArray(LAST_DEALBOOK.list)){
+        return setToast("Nothing to download", "Click Generate first.");
+      }
+      downloadDealBookHtml(LAST_DEALBOOK.list, LAST_DEALBOOK.title || "Deal_Book");
+    }
+
+    /* =========================
+       Deals Manager + Prospectus upload + Bulk CSV Import
+       ========================= */
     function renderDealsManager(){
       setActive("deals");
       $("#pageTitle").textContent = "Deals Manager";
@@ -588,10 +798,18 @@
 
       const rows = deals.map(d=>`
         <tr>
-          <td><b>${d.country}</b><br><small>${d.sector}</small></td>
+          <td>
+            <b>${escapeHtml(d.country)}</b><br>
+            <small>${escapeHtml(d.sector)}</small><br>
+            ${
+              d.prospectus_name
+                ? `<small class="tag ok">Prospectus: ${escapeHtml(d.prospectus_name)}</small>`
+                : `<small class="tag muted">Prospectus: not attached</small>`
+            }
+          </td>
           <td>${regionLabel(d.region)}</td>
           <td>${fmtMoney(d.ticket_usd_m)}</td>
-          <td>${d.stage}</td>
+          <td>${escapeHtml(d.stage)}</td>
           <td>${badgeWarmth(d.warmth)}</td>
           <td class="row-actions">
             <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
@@ -606,22 +824,29 @@
         <div class="grid cols-2">
           <div class="card">
             <h2>Deal Entry</h2>
-            <p>Use this to add opportunities. Data is saved in your browser (localStorage).</p>
+            <p>Use this to add opportunities for the demo. Data is saved in your browser (localStorage).</p>
+
+            <div class="hr"></div>
+            <h3 style="margin:0 0 8px 0;">Bulk Upload (CSV)</h3>
+            <input type="file" id="bulkDeals" accept=".csv" />
+            <button class="secondary" onclick="importDealsCsv()">Import</button>
+            <div style="height:6px"></div>
+            <small class="muted">Columns: country, sector, ticket_usd_m, stage, summary, region</small>
+
             <div class="hr"></div>
 
             <input type="hidden" id="dealId" value="" />
-            <input type="hidden" id="dealProspectusRemove" value="0" />
 
             <label>Region</label>
             <select id="dealRegion" style="width:100%">${regionOpts}</select>
             <div style="height:10px"></div>
 
             <label>Country</label>
-            <input id="dealCountry" placeholder="e.g., Nigeria" style="width:100%" />
+            <input id="dealCountry" placeholder="e.g., Nigéria" style="width:100%" />
             <div style="height:10px"></div>
 
             <label>Sector</label>
-            <input id="dealSector" placeholder="e.g., Energy" style="width:100%" />
+            <input id="dealSector" placeholder="e.g., Énergie" style="width:100%" />
             <div style="height:10px"></div>
 
             <label>Ticket size (USD millions)</label>
@@ -664,14 +889,14 @@
 
             <div class="hr"></div>
 
-            <!-- ✅ NEW: Prospectus upload -->
-            <label>Prospectus / Deal Pack (PDF)</label>
+            <h3 style="margin:0 0 8px 0;">Prospectus / Deal Pack (PDF)</h3>
             <input type="file" id="dealProspectus" accept="application/pdf" />
-            <div style="height:8px"></div>
-            <div id="prospectusInfo"><small class="muted">No prospectus uploaded.</small></div>
+            <div style="height:6px"></div>
+            <div id="dealProspectusStatus"><small class="muted">No prospectus attached.</small></div>
+            <div style="height:10px"></div>
             <div class="row-actions">
-              <button class="secondary" onclick="downloadCurrentProspectus()">Download current</button>
-              <button class="ghost" onclick="removeCurrentProspectus()">Remove</button>
+              <button class="secondary" onclick="attachProspectus()">Attach prospectus</button>
+              <button class="secondary" onclick="downloadProspectus()">Download prospectus</button>
             </div>
 
             <div class="hr"></div>
@@ -694,16 +919,139 @@
 
       const r = pickRegion();
       $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
+      updateProspectusStatusUi();
     }
 
-    function updateProspectusInfo(deal){
-      const info = $("#prospectusInfo");
-      if(!info) return;
-      if(deal && deal.prospectus && deal.prospectus.name){
-        info.innerHTML = `<small class="tag ok">Stored: ${deal.prospectus.name}</small>`;
-      } else {
-        info.innerHTML = `<small class="muted">No prospectus uploaded.</small>`;
+    function updateProspectusStatusUi(){
+      const statusEl = $("#dealProspectusStatus");
+      if(!statusEl) return;
+
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id){
+        statusEl.innerHTML = `<small class="muted">Save the deal first, then attach a prospectus.</small>`;
+        return;
       }
+
+      const d = getDeals().find(x=>x.id===id);
+      if(d && d.prospectus_name){
+        const stored = d.prospectus_data ? "stored" : "name only";
+        const sizeTxt = d.prospectus_size ? ` • ${humanFileSize(d.prospectus_size)}` : "";
+        statusEl.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(d.prospectus_name)} (${stored}${sizeTxt})</small>`;
+      } else {
+        statusEl.innerHTML = `<small class="muted">No prospectus attached.</small>`;
+      }
+    }
+
+    function attachProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("Save first", "Save the deal first, then attach a prospectus.");
+
+      const f = $("#dealProspectus")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a PDF file first.");
+
+      if(f.type !== "application/pdf"){
+        return setToast("Invalid file", "Please upload a PDF prospectus.");
+      }
+
+      // Demo guardrail for localStorage size
+      const MAX_STORE_BYTES = 1_500_000; // ~1.5MB safe-ish
+      const deals = getDeals();
+      const idx = deals.findIndex(x=>x.id===id);
+      if(idx < 0) return setToast("Not found", "Deal not found.");
+
+      deals[idx].prospectus_name = f.name;
+      deals[idx].prospectus_mime = f.type;
+      deals[idx].prospectus_size = f.size;
+      deals[idx].prospectus_updated_at = new Date().toISOString();
+
+      if(f.size > MAX_STORE_BYTES){
+        deals[idx].prospectus_data = ""; // store name only
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        deals[idx].prospectus_data = String(reader.result || ""); // data:application/pdf;base64,...
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        setToast("Attached", "Prospectus stored and ready for Public download (demo).");
+      };
+      reader.onerror = ()=>{
+        setToast("Error", "Could not read the PDF (demo).");
+      };
+      reader.readAsDataURL(f);
+    }
+
+    function downloadProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("No deal", "Load a deal first.");
+
+      const d = getDeals().find(x=>x.id===id);
+      if(!d || !d.prospectus_name){
+        return setToast("None", "No prospectus attached to this deal.");
+      }
+
+      if(!d.prospectus_data){
+        return setToast("Demo limit", "Prospectus filename exists but PDF data was not stored (file too large).");
+      }
+
+      const a = document.createElement("a");
+      a.href = d.prospectus_data;
+      a.download = d.prospectus_name || ("prospectus_" + id + ".pdf");
+      a.click();
+    }
+
+    function importDealsCsv(){
+      const f = $("#bulkDeals")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a CSV file.");
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        const text = String(reader.result||"").trim();
+        const lines = text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+        if(lines.length < 2) return setToast("Invalid", "CSV has no data rows.");
+
+        const headers = lines.shift().split(",").map(x=>x.trim().toLowerCase());
+
+        const deals = getDeals();
+        let added = 0;
+
+        lines.forEach(line=>{
+          const cols = line.split(",");
+          const obj = {};
+          headers.forEach((h,i)=> obj[h] = (cols[i]||"").trim());
+
+          if(!obj.country || !obj.sector) return;
+
+          deals.push({
+            id: "d" + Date.now() + Math.floor(Math.random()*100000),
+            country: obj.country,
+            sector: obj.sector,
+            ticket_usd_m: Number(obj.ticket_usd_m||0),
+            stage: obj.stage || "Origination",
+            summary: obj.summary || "",
+            region: obj.region || pickRegion(),
+            status: "Draft",
+            warmth: "Warm",
+
+            // prospectus fields
+            prospectus_name: "",
+            prospectus_data: "",
+            prospectus_mime: "",
+            prospectus_size: 0,
+            prospectus_updated_at: ""
+          });
+          added += 1;
+        });
+
+        saveDeals(deals);
+        setToast("Imported", `${added} deals imported (demo).`);
+        renderDealsManager();
+      };
+      reader.readAsText(f);
     }
 
     function clearDealForm(){
@@ -716,9 +1064,8 @@
       $("#dealVideo").value = "";
       $("#dealStage").value = "Origination";
       $("#dealWarmth").value = "Cold";
-      $("#dealProspectusRemove").value = "0";
       if($("#dealProspectus")) $("#dealProspectus").value = "";
-      updateProspectusInfo(null);
+      updateProspectusStatusUi();
       setToast("Cleared", "Deal form reset (demo).");
     }
 
@@ -735,38 +1082,15 @@
       $("#dealOwner").value = d.owner || "";
       $("#dealSummary").value = d.summary || "";
       $("#dealVideo").value = d.video || "";
-      $("#dealProspectusRemove").value = "0";
       if($("#dealProspectus")) $("#dealProspectus").value = "";
-      updateProspectusInfo(d);
+      updateProspectusStatusUi();
       setToast("Loaded", "Deal loaded for editing (demo).");
-    }
-
-    function removeCurrentProspectus(){
-      $("#dealProspectusRemove").value = "1";
-      setToast("Marked", "Prospectus will be removed on Save.");
-    }
-
-    function downloadCurrentProspectus(){
-      const id = ($("#dealId").value || "").trim();
-      if(!id) return setToast("Missing", "Load a deal first.");
-      const d = getDeals().find(x=>x.id===id);
-      if(!d || !d.prospectus || !d.prospectus.dataUrl) return setToast("Missing", "No prospectus stored for this deal.");
-      downloadDataUrl(d.prospectus.name || "prospectus.pdf", d.prospectus.dataUrl);
-    }
-
-    function finalizeSaveDeal(deal){
-      const deals = getDeals();
-      const idx = deals.findIndex(x=>x.id===deal.id);
-      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
-      saveDeals(deals);
-      setToast("Saved", "Deal saved. Prospectus (if uploaded) is now downloadable on Public.");
-      renderDealsManager();
-      loadDeal(deal.id);
     }
 
     function saveDeal(){
       const id = ($("#dealId").value || "").trim();
-      const existing = id ? (getDeals().find(x=>x.id===id) || null) : null;
+      const deals = getDeals();
+      const existing = id ? deals.find(x=>x.id===id) : null;
 
       const deal = {
         id: id || ("d" + Date.now()),
@@ -779,8 +1103,13 @@
         owner: ($("#dealOwner").value || "").trim(),
         summary: ($("#dealSummary").value || "").trim(),
         video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)",
-        status: (existing && existing.status) ? existing.status : "Published",
-        prospectus: (existing && existing.prospectus) ? existing.prospectus : null
+
+        // keep prospectus fields if already attached
+        prospectus_name: existing?.prospectus_name || "",
+        prospectus_data: existing?.prospectus_data || "",
+        prospectus_mime: existing?.prospectus_mime || "",
+        prospectus_size: existing?.prospectus_size || 0,
+        prospectus_updated_at: existing?.prospectus_updated_at || ""
       };
 
       if(!deal.country || !deal.sector || !deal.ticket_usd_m){
@@ -788,25 +1117,13 @@
         return;
       }
 
-      // remove prospectus if marked
-      if($("#dealProspectusRemove").value === "1"){
-        deal.prospectus = null;
-      }
+      const idx = deals.findIndex(x=>x.id===deal.id);
+      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
+      saveDeals(deals);
 
-      // if a new PDF is selected, store it as dataUrl
-      const f = $("#dealProspectus")?.files?.[0];
-      if(f){
-        const reader = new FileReader();
-        reader.onload = ()=>{
-          deal.prospectus = { name: f.name, dataUrl: String(reader.result || "") };
-          $("#dealProspectusRemove").value = "0";
-          finalizeSaveDeal(deal);
-        };
-        reader.readAsDataURL(f);
-        return;
-      }
-
-      finalizeSaveDeal(deal);
+      setToast("Saved", "Deal saved. Prospectus can be attached below.");
+      renderDealsManager();
+      loadDeal(deal.id);
     }
 
     function deleteDeal(id){
@@ -827,193 +1144,167 @@
       renderDealsManager();
     }
 
-    // -----------------------------
-    // ✅ NEW: VIRTUAL EXHIBITION ADMIN (Booths)
-    // -----------------------------
-    function renderExpoAdmin(){
-      setActive("expoadmin");
-      $("#pageTitle").textContent = t("exhibition");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Manage booths + catalogs (demo)</span>`;
-      $("#pageActions").innerHTML = `<button onclick="newBooth()">Add Booth</button>`;
-
-      const boothsAll = getBooths();
-      const booths = adminFilter(boothsAll);
-
-      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
-
-      const rows = booths.map(b=>{
-        const stCls = (b.status==="Published") ? "ok" : "warn";
-        const cat = (b.catalog_file && b.catalog_file.name) ? `<small class="tag ok">${b.catalog_file.name}</small>` : `<small class="tag muted">No catalog</small>`;
-        return `
-          <tr>
-            <td><b>${b.org || ""}</b><br><small>${regionLabel(b.region || "")}</small></td>
-            <td>${cat}</td>
-            <td><span class="tag ${stCls}">${b.status || "Draft"}</span></td>
-            <td class="row-actions">
-              <button class="secondary" onclick="editBooth('${b.id}')">Edit</button>
-              <button class="secondary" onclick="downloadBoothCatalog('${b.id}')">Download</button>
-              <button class="danger" onclick="deleteBooth('${b.id}')">Delete</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
+    /* =========================
+       Matchmaking / RegionProfiles / RBAC / Analytics / Archive
+       (unchanged from your version)
+       ========================= */
+    function renderMatchmaking(){
+      setActive("matchmaking");
+      $("#pageTitle").textContent = t("matchmaking");
+      $("#pageMeta").innerHTML = `<span class="tag ok">AI-enhanced</span> <span class="tag muted">Rules + tracking (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Rules saved', 'Demo: Matchmaking parameters stored and tuned over time.')">Save rules</button>`;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
           <div class="card">
-            <h2>Booth Editor</h2>
-            <p>Create or update a booth. Catalog upload becomes “View Catalog” on Public.</p>
+            <h2>Matchmaking Rules</h2>
+            <p>Recommend connections between investors and project owners based on sector + ticket size (demo).</p>
             <div class="hr"></div>
-
-            <input type="hidden" id="boothId" value="" />
-
-            <label>Region</label>
-            <select id="boothRegion" style="width:100%">${regionOpts}</select>
-            <div style="height:10px"></div>
-
-            <label>Organisation / Exhibitor</label>
-            <input id="boothOrg" style="width:100%" placeholder="e.g., ABC Manufacturing Ltd" />
-            <div style="height:10px"></div>
-
-            <label>Offers</label>
-            <textarea id="boothOffers" rows="3" style="width:100%" placeholder="Products/services..."></textarea>
-
-            <div class="hr"></div>
-
-            <label>Catalog (PDF)</label>
-            <input type="file" id="boothCatalog" accept="application/pdf" />
-            <div style="height:8px"></div>
-            <div id="boothCatalogInfo"><small class="muted">No catalog uploaded.</small></div>
-
-            <div style="height:10px"></div>
-            <label>Status</label>
-            <select id="boothStatus" style="width:100%">
-              <option>Draft</option>
-              <option>Published</option>
+            <label>Primary match fields</label>
+            <select style="width:100%" multiple size="4">
+              <option selected>Sector</option>
+              <option selected>Ticket size</option>
+              <option>Geography / region</option>
+              <option>Impact theme</option>
             </select>
-
+            <div style="height:10px"></div>
+            <label>Lead warmth signals</label><br>
+            <label><input type="checkbox" checked /> Prospectus request</label><br>
+            <label><input type="checkbox" checked /> Deal book download</label><br>
+            <label><input type="checkbox" /> Time spent on deal page</label><br>
             <div class="hr"></div>
-            <div class="row-actions">
-              <button onclick="saveBooth()">Save Booth</button>
-              <button class="ghost" onclick="clearBoothForm()">Clear</button>
-            </div>
+            <button onclick="setToast('Preview generated', 'Demo: shows sample recommendations.')">Preview recommendations</button>
           </div>
-
           <div class="card">
-            <h2>Booths (Current Region)</h2>
-            <table class="table">
-              <thead><tr><th>Exhibitor</th><th>Catalog</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>${rows || `<tr><td colspan="4"><small>No booths in this region yet.</small></td></tr>`}</tbody>
-            </table>
+            <h2>Meeting Scheduling</h2>
+            <p>Integrated calendar for 1:1 meetings (physical or virtual).</p>
+            <div class="hr"></div>
+            <button class="secondary" onclick="setToast('Calendar', 'Demo: integrate with Outlook/Teams or internal scheduling service.')">Open calendar integration</button>
+            <button class="secondary" onclick="setToast('Virtual meeting', 'Demo: generate Teams link + send to attendees.')">Generate meeting link</button>
           </div>
         </div>
       `;
-
-      const r = pickRegion();
-      $("#boothRegion").value = (r==="non_reg") ? "north" : r;
     }
 
-    function setBoothCatalogInfo(booth){
-      const el = $("#boothCatalogInfo");
-      if(!el) return;
-      if(booth && booth.catalog_file && booth.catalog_file.name){
-        el.innerHTML = `<small class="tag ok">Stored: ${booth.catalog_file.name}</small>`;
-      } else {
-        el.innerHTML = `<small class="muted">No catalog uploaded.</small>`;
-      }
+    function renderRegionProfiles(){
+      setActive("region_profiles");
+      $("#pageTitle").textContent = t("region_profiles");
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Macro/regulatory context + stakeholders (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Saved', 'Demo: region profile stored for planning and investor briefings.')">Save profile</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Operating Environment</h2>
+            <label>Macro overview</label>
+            <textarea rows="5" style="width:100%" placeholder="National/regional macro summary (demo)"></textarea>
+            <div style="height:10px"></div>
+            <label>Regulatory environment</label>
+            <textarea rows="5" style="width:100%" placeholder="Key regulations relevant to trade & investment (demo)"></textarea>
+          </div>
+          <div class="card">
+            <h2>Existing Opportunities</h2>
+            <label>Key driving sectors</label>
+            <input style="width:100%" placeholder="e.g., energy, logistics, manufacturing" />
+            <div style="height:10px"></div>
+            <label>Key projects</label>
+            <textarea rows="5" style="width:100%" placeholder="List priority national/regional projects (demo)"></textarea>
+            <div style="height:10px"></div>
+            <label>Key stakeholders</label>
+            <textarea rows="4" style="width:100%" placeholder="List key players/partners (demo)"></textarea>
+          </div>
+        </div>
+      `;
     }
 
-    function clearBoothForm(){
-      $("#boothId").value = "";
-      $("#boothOrg").value = "";
-      $("#boothOffers").value = "";
-      $("#boothStatus").value = "Draft";
-      if($("#boothCatalog")) $("#boothCatalog").value = "";
-      setBoothCatalogInfo(null);
+    function renderRBAC(){
+      setActive("users_rbac");
+      $("#pageTitle").textContent = t("users_rbac");
+      $("#pageMeta").innerHTML = `<span class="tag ok">RBAC</span> <span class="tag muted">Role-based access control (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Roles updated', 'Demo: In real build, connect to SSO and identity management.')">Update roles</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Roles (from concept note)</h2>
+          <p>Admin rights granted to specific roles across Regional Comms, Regional Staff, Client Relations, TFIP, and Digital Business (demo).</p>
+          <div class="hr"></div>
+          <table class="table">
+            <thead><tr><th>Role</th><th>Count (indicative)</th><th>Key Permissions</th></tr></thead>
+            <tbody>
+              <tr><td>Regional Comms Manager</td><td>1</td><td>Publish events, manage content</td></tr>
+              <tr><td>Regional Staff</td><td>1</td><td>Event support, uploads</td></tr>
+              <tr><td>Client Relations</td><td>2</td><td>Investor onboarding, follow-up</td></tr>
+              <tr><td>Trade & Investment Promotion</td><td>3</td><td>Deal curation, deal book, matchmaking</td></tr>
+              <tr><td>Digital Business</td><td>2</td><td>Platform admin, integrations</td></tr>
+            </tbody>
+          </table>
+          <div class="hr"></div>
+          <p><small>Public rights: verified users can register, view allowed materials, and amend their profiles.</small></p>
+        </div>
+      `;
     }
 
-    function newBooth(){
-      clearBoothForm();
-      setToast("New booth", "Fill the form and click Save.");
+    function renderAnalytics(){
+      setActive("analytics");
+      $("#pageTitle").textContent = t("analytics");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Reporting</span> <span class="tag muted">Engagement + downloads + conversion (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Exported', 'Demo: export analytics for post-event reports.')">Export report</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-3">
+          <div class="card"><div class="mini"><div><div class="label">Attendance rate</div><div class="big">78%</div></div><span class="tag ok">Events</span></div><div class="progress"><div style="width:78%"></div></div></div>
+          <div class="card"><div class="mini"><div><div class="label">Deal book downloads</div><div class="big">134</div></div><span class="tag warn">Content</span></div><div class="progress"><div style="width:62%"></div></div></div>
+          <div class="card"><div class="mini"><div><div class="label">Prospectus requests</div><div class="big">21</div></div><span class="tag ok">Signals</span></div><div class="progress"><div style="width:35%"></div></div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>What gets measured</h2>
+            <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
+              <li>Attendance and participation rates</li>
+              <li>Engagement (polls, Q&A, chat)</li>
+              <li>Content access (recordings/decks)</li>
+              <li>Deal book downloads</li>
+              <li>Investor interactions per project (warmth)</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h2>Follow-up prioritization</h2>
+            <p>Real build uses analytics to rank “warm leads” and automate personalized follow-up sequences.</p>
+            <div class="hr"></div>
+            <button onclick="setToast('Follow-up queued', 'Demo: in real build, this triggers sequences and assigns owners.')">Generate follow-up list</button>
+          </div>
+        </div>
+      `;
     }
 
-    function editBooth(id){
-      const b = getBooths().find(x=>x.id===id);
-      if(!b) return;
-      $("#boothId").value = b.id;
-      $("#boothRegion").value = b.region || ((pickRegion()==="non_reg") ? "north" : pickRegion());
-      $("#boothOrg").value = b.org || "";
-      $("#boothOffers").value = b.offers || "";
-      $("#boothStatus").value = b.status || "Draft";
-      if($("#boothCatalog")) $("#boothCatalog").value = "";
-      setBoothCatalogInfo(b);
+    function renderArchive(){
+      setActive("archive");
+      $("#pageTitle").textContent = t("archive");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Institutional Memory</span> <span class="tag muted">Audit-ready searchable repository (demo)</span>`;
+      $("#pageActions").innerHTML = ``;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Archive Search</h2>
+            <input id="q" placeholder="Search keywords (e.g., Lagos, Manufacturing, Deal Book)" style="width:100%" />
+            <div style="height:10px"></div>
+            <button onclick="doSearch()">Search</button>
+            <div class="hr"></div>
+            <div id="results"><small>Try “Manufacturing”.</small></div>
+          </div>
+          <div class="card">
+            <h2>Audit & Governance</h2>
+            <p>Real build keeps logs for publishing, approvals, access to sensitive documents, and exports.</p>
+            <div class="hr"></div>
+            <span class="tag ok">Audit ready</span>
+            <span class="tag ok">Controlled access</span>
+            <span class="tag warn">GDPR controls</span>
+          </div>
+        </div>
+      `;
     }
-
-    function saveBooth(){
-      const id = ($("#boothId").value || "").trim();
-      const booths = getBooths();
-      const existing = id ? (booths.find(x=>x.id===id) || null) : null;
-
-      const booth = {
-        id: id || ("b" + Date.now()),
-        region: $("#boothRegion").value,
-        org: ($("#boothOrg").value || "").trim(),
-        offers: ($("#boothOffers").value || "").trim(),
-        status: $("#boothStatus").value,
-        catalog_file: existing ? (existing.catalog_file || null) : null
-      };
-
-      if(!booth.org){
-        return setToast("Missing", "Organisation is required.");
-      }
-
-      const f = $("#boothCatalog")?.files?.[0];
-      if(f){
-        const reader = new FileReader();
-        reader.onload = ()=>{
-          booth.catalog_file = { name: f.name, dataUrl: String(reader.result || "") };
-          const idx = booths.findIndex(x=>x.id===booth.id);
-          if(idx>=0) booths[idx] = booth; else booths.push(booth);
-          saveBooths(booths);
-          setToast("Saved", "Booth saved (catalog stored). Public can now View Catalog.");
-          renderExpoAdmin();
-          editBooth(booth.id);
-        };
-        reader.readAsDataURL(f);
-        return;
-      }
-
-      const idx = booths.findIndex(x=>x.id===booth.id);
-      if(idx>=0) booths[idx] = booth; else booths.push(booth);
-      saveBooths(booths);
-      setToast("Saved", "Booth saved.");
-      renderExpoAdmin();
-      editBooth(booth.id);
-    }
-
-    function deleteBooth(id){
-      const booths = getBooths().filter(b=>b.id!==id);
-      saveBooths(booths);
-      setToast("Deleted", "Booth removed (demo).");
-      renderExpoAdmin();
-    }
-
-    function downloadBoothCatalog(id){
-      const b = getBooths().find(x=>x.id===id);
-      if(!b || !b.catalog_file || !b.catalog_file.dataUrl){
-        return setToast("Missing", "No catalog stored for this booth.");
-      }
-      downloadDataUrl(b.catalog_file.name || "catalog.pdf", b.catalog_file.dataUrl);
-    }
-
-    // -----------------------------
-    // OTHER PAGES (unchanged)
-    // -----------------------------
-    function renderMatchmaking(){ setActive("matchmaking"); $("#pageTitle").textContent=t("matchmaking"); $("#pageMeta").innerHTML=`<span class="tag ok">AI-enhanced</span> <span class="tag muted">Rules + tracking (demo)</span>`; $("#pageActions").innerHTML=`<button class="secondary" onclick="setToast('Rules saved', 'Demo: Matchmaking parameters stored and tuned over time.')">Save rules</button>`; $("#pageBody").innerHTML=`<div class="grid cols-2"><div class="card"><h2>Matchmaking Rules</h2><p>Recommend connections between investors and project owners based on sector + ticket size (demo).</p><div class="hr"></div><label>Primary match fields</label><select style="width:100%" multiple size="4"><option selected>Sector</option><option selected>Ticket size</option><option>Geography / region</option><option>Impact theme</option></select><div style="height:10px"></div><label>Lead warmth signals</label><br><label><input type="checkbox" checked /> Prospectus request</label><br><label><input type="checkbox" checked /> Deal book download</label><br><label><input type="checkbox" /> Time spent on deal page</label><br><div class="hr"></div><button onclick="setToast('Preview generated', 'Demo: shows sample recommendations.')">Preview recommendations</button></div><div class="card"><h2>Meeting Scheduling</h2><p>Integrated calendar for 1:1 meetings (physical or virtual).</p><div class="hr"></div><button class="secondary" onclick="setToast('Calendar', 'Demo: integrate with Outlook/Teams or internal scheduling service.')">Open calendar integration</button><button class="secondary" onclick="setToast('Virtual meeting', 'Demo: generate Teams link + send to attendees.')">Generate meeting link</button></div></div>`; }
-    function renderRegionProfiles(){ setActive("region_profiles"); $("#pageTitle").textContent=t("region_profiles"); $("#pageMeta").innerHTML=`<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Macro/regulatory context + stakeholders (demo)</span>`; $("#pageActions").innerHTML=`<button class="secondary" onclick="setToast('Saved', 'Demo: region profile stored for planning and investor briefings.')">Save profile</button>`; $("#pageBody").innerHTML=`<div class="grid cols-2"><div class="card"><h2>Operating Environment</h2><label>Macro overview</label><textarea rows="5" style="width:100%" placeholder="National/regional macro summary (demo)"></textarea><div style="height:10px"></div><label>Regulatory environment</label><textarea rows="5" style="width:100%" placeholder="Key regulations relevant to trade & investment (demo)"></textarea></div><div class="card"><h2>Existing Opportunities</h2><label>Key driving sectors</label><input style="width:100%" placeholder="e.g., energy, logistics, manufacturing" /><div style="height:10px"></div><label>Key projects</label><textarea rows="5" style="width:100%" placeholder="List priority national/regional projects (demo)"></textarea><div style="height:10px"></div><label>Key stakeholders</label><textarea rows="4" style="width:100%" placeholder="List key players/partners (demo)"></textarea></div></div>`; }
-    function renderRBAC(){ setActive("users_rbac"); $("#pageTitle").textContent=t("users_rbac"); $("#pageMeta").innerHTML=`<span class="tag ok">RBAC</span> <span class="tag muted">Role-based access control (demo)</span>`; $("#pageActions").innerHTML=`<button class="secondary" onclick="setToast('Roles updated', 'Demo: In real build, connect to SSO and identity management.')">Update roles</button>`; $("#pageBody").innerHTML=`<div class="card"><h2>Roles (from concept note)</h2><p>Admin rights granted to specific roles across teams (demo).</p><div class="hr"></div><table class="table"><thead><tr><th>Role</th><th>Count (indicative)</th><th>Key Permissions</th></tr></thead><tbody><tr><td>Regional Comms Manager</td><td>1</td><td>Publish events, manage content</td></tr><tr><td>Regional Staff</td><td>1</td><td>Event support, uploads</td></tr><tr><td>Client Relations</td><td>2</td><td>Investor onboarding, follow-up</td></tr><tr><td>Trade & Investment Promotion</td><td>3</td><td>Deal curation, deal book, matchmaking</td></tr><tr><td>Digital Business</td><td>2</td><td>Platform admin, integrations</td></tr></tbody></table><div class="hr"></div><p><small>Public rights: verified users can register and view allowed materials.</small></p></div>`; }
-    function renderAnalytics(){ setActive("analytics"); $("#pageTitle").textContent=t("analytics"); $("#pageMeta").innerHTML=`<span class="tag ok">Reporting</span> <span class="tag muted">Engagement + downloads + conversion (demo)</span>`; $("#pageActions").innerHTML=`<button class="secondary" onclick="setToast('Exported', 'Demo: export analytics for post-event reports.')">Export report</button>`; $("#pageBody").innerHTML=`<div class="grid cols-3"><div class="card"><div class="mini"><div><div class="label">Attendance rate</div><div class="big">78%</div></div><span class="tag ok">Events</span></div><div class="progress"><div style="width:78%"></div></div></div><div class="card"><div class="mini"><div><div class="label">Deal book downloads</div><div class="big">134</div></div><span class="tag warn">Content</span></div><div class="progress"><div style="width:62%"></div></div></div><div class="card"><div class="mini"><div><div class="label">Prospectus requests</div><div class="big">21</div></div><span class="tag ok">Signals</span></div><div class="progress"><div style="width:35%"></div></div></div></div>`; }
-    function renderArchive(){ setActive("archive"); $("#pageTitle").textContent=t("archive"); $("#pageMeta").innerHTML=`<span class="tag ok">Institutional Memory</span> <span class="tag muted">Audit-ready searchable repository (demo)</span>`; $("#pageActions").innerHTML=``; $("#pageBody").innerHTML=`<div class="grid cols-2"><div class="card"><h2>Archive Search</h2><input id="q" placeholder="Search keywords (e.g., Lagos, Manufacturing, Deal Book)" style="width:100%" /><div style="height:10px"></div><button onclick="doSearch()">Search</button><div class="hr"></div><div id="results"><small>Try “Manufacturing”.</small></div></div><div class="card"><h2>Audit & Governance</h2><p>Real build keeps logs for publishing, approvals, access to sensitive documents, and exports.</p><div class="hr"></div><span class="tag ok">Audit ready</span><span class="tag ok">Controlled access</span><span class="tag warn">GDPR controls</span></div></div>`; }
 
     function doSearch(){
       const q = ($("#q").value || "").toLowerCase().trim();
@@ -1034,13 +1325,10 @@
       });
 
       $("#results").innerHTML = hits.length
-        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>`
+        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${escapeHtml(h.type)}:</b> ${escapeHtml(h.label)}</li>`).join("")}</ul>`
         : `<small>No results.</small>`;
     }
 
-    // -----------------------------
-    // ROUTER
-    // -----------------------------
     function route(){
       const h = location.hash || "#dashboard";
       if(h.startsWith("#dashboard")) renderDashboard();
@@ -1048,7 +1336,6 @@
       else if(h.startsWith("#regs")) renderRegistrations();
       else if(h.startsWith("#dealbook")) renderDealBook();
       else if(h.startsWith("#deals")) renderDealsManager();
-      else if(h.startsWith("#expoadmin")) renderExpoAdmin();     // ✅ NEW
       else if(h.startsWith("#matchmaking")) renderMatchmaking();
       else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
       else if(h.startsWith("#rbac")) renderRBAC();
