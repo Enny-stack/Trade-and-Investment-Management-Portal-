@@ -121,3 +121,41 @@ function markNotifRead(id){
 function unreadCount(targetPrefix){
   return getNotifications().filter(n => !n.read && (!targetPrefix || String(n.target).startsWith(targetPrefix))).length;
 }
+// =========================
+// Registrations (localStorage)
+// =========================
+function getRegistrations(){
+  const x = JSON.parse(localStorage.getItem("timp_regs") || "null");
+  return Array.isArray(x) ? x : (TIMP_DATA.registrations || []);
+}
+function saveRegistrations(r){
+  localStorage.setItem("timp_regs", JSON.stringify(r || []));
+}
+
+// =========================
+// Profile (single "current user" profile for demo)
+// =========================
+function getMyProfile(){
+  const p = JSON.parse(localStorage.getItem("timp_profile") || "null");
+  return p || {
+    salutation: "Mr",
+    first_name: "",
+    last_name: "",
+    org: "",
+    position: "",
+    email: "",
+    phone: ""
+  };
+}
+function saveMyProfile(p){
+  localStorage.setItem("timp_profile", JSON.stringify(p || {}));
+  if (p?.email) localStorage.setItem("timp_user_email", p.email);
+}
+
+// small helper (for older regs that only have "name")
+function splitName(full){
+  const s = String(full || "").trim().replace(/\s+/g, " ");
+  if(!s) return { first_name:"", last_name:"" };
+  const parts = s.split(" ");
+  return { first_name: parts[0] || "", last_name: parts.slice(1).join(" ") || "" };
+}
