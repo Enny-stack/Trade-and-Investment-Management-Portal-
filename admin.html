@@ -216,7 +216,30 @@
 
       <label>Theme</label><input id="evTheme" value="Capital mobilisation + value chains" style="width:100%" />
       <div style="height:10px"></div>
+<div class="hr"></div>
 
+<label>Event Banner (image)</label>
+<input type="file" id="evBanner" accept="image/*" />
+<small class="muted">Demo: stored in browser (localStorage) and shows on Public.</small>
+
+<div style="height:10px"></div>
+<label>Invitation Email (demo template)</label>
+<textarea id="evInviteTpl" rows="4" style="width:100%"
+  placeholder="Subject + Body... (demo template)"></textarea>
+
+<div class="row-actions">
+  <button class="secondary" onclick="copyInviteLink()">Copy registration link</button>
+  <button class="secondary" onclick="downloadInviteList()">Download invite list (CSV)</button>
+  <button class="secondary" onclick="openMailClient()">Open email draft</button>
+</div>
+
+<div class="hr"></div>
+<h3 style="margin:0 0 8px 0;">Event Materials</h3>
+<label>Programme (PDF)</label><input type="file" id="evProgramme" accept="application/pdf" />
+<div style="height:10px"></div>
+<label>Presentations (PDF)</label><input type="file" id="evDeck" accept="application/pdf" />
+<div style="height:10px"></div>
+<label>Recording link (URL)</label><input id="evRecordingUrl" placeholder="https://..." style="width:100%" />
       <div class="row-actions">
         <button class="secondary" onclick="saveEvent()">Save draft</button>
         <button class="secondary" onclick="setToast('Materials uploaded', 'Demo: files stored in a secure library with access control.')">Upload materials</button>
