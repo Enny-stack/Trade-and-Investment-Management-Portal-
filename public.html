@@ -93,7 +93,7 @@
       localStorage.setItem("timp_regs", JSON.stringify(rows || []));
     };
 
-    // ✅ NEW: profile fields for registration capture
+    // ✅ Profile fields for registration capture
     window.getMyProfile = window.getMyProfile || function(){
       try{
         const p = JSON.parse(localStorage.getItem("timp_profile"));
@@ -115,7 +115,7 @@
       if(p && p.email) localStorage.setItem("timp_user_email", p.email);
     };
 
-    // Backward-compatible wrappers (your older code used getProfile/saveProfile)
+    // Backward-compatible wrappers (older code used getProfile/saveProfile)
     window.getProfile = window.getProfile || function(){
       const p = getMyProfile();
       return {
@@ -132,7 +132,6 @@
     };
 
     window.saveProfile = window.saveProfile || function(pCompat){
-      // accept either compat or full profile
       const prev = getMyProfile();
       const next = {
         salutation: pCompat.salutation || prev.salutation || "Mr",
@@ -145,6 +144,25 @@
       };
       saveMyProfile(next);
     };
+
+    // ✅ Virtual Exhibition booths (Admin-managed)
+    window.getBooths = window.getBooths || function(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_booths"));
+        if(Array.isArray(x)) return x;
+      }catch(e){}
+      return ((window.TIMP_DATA && TIMP_DATA.booths) || []);
+    };
+
+    function downloadDataUrl(filename, dataUrl){
+      if(!dataUrl) return setToast("Missing", "No file available (demo).");
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = filename || "download.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
 
     function getDealBooks(){
       try{
@@ -179,7 +197,7 @@
       return `<span class="tag ${cls}">${s}</span>`;
     }
 
-    // Auto-refresh Public when Admin approves/rejects (other tab / same browser)
+    // Auto-refresh Public when Admin updates localStorage (other tab / same browser)
     window.addEventListener("storage", (e)=>{
       if(e.key === "timp_regs"){
         if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID);
@@ -191,12 +209,19 @@
       if(e.key === "timp_profile"){
         if(location.hash.startsWith("#profile")) renderProfile();
         if(OPEN_EVENT_ID) {
-          // keep registration form in sync
           setTimeout(()=>{
             fillRegFromProfile();
             updateRegStatus();
           }, 0);
         }
+      }
+      // ✅ NEW: refresh when Admin updates booths/deals
+      if(e.key === "timp_booths" && location.hash.startsWith("#expo")){
+        renderExpo();
+      }
+      if(e.key === "timp_deals"){
+        if(location.hash.startsWith("#dealroom")) renderDealRoom();
+        if(location.hash.startsWith("#opps")) renderOpps();
       }
     });
 
@@ -219,7 +244,7 @@
     }
 
     // -----------------------------
-    // ✅ NEW: Registration helpers
+    // Registration helpers
     // -----------------------------
     function fillRegFromProfile(){
       const p = getMyProfile();
@@ -255,11 +280,10 @@
       const ev = events.find(e=>e.id===id);
       if(!ev) return setToast("Missing event", "Event not found.");
 
-      // pull values from the form
       const reg = {
         id: "r" + Date.now(),
         event_id: ev.id,
-        region: ev.region,                 // IMPORTANT (helps admin counts)
+        region: ev.region,
         state: "Pending",
 
         salutation: ($("#regSalutation").value || "Mr").trim(),
@@ -276,7 +300,6 @@
         return setToast("Missing fields", "Fill First name, Last name, Organisation, Position, and Email.");
       }
 
-      // Save/update profile for convenience
       saveMyProfile({
         salutation: reg.salutation,
         first_name: reg.first_name,
@@ -289,7 +312,6 @@
 
       const regs = getRegistrations();
 
-      // Prevent duplicates: same email + same event
       const exists = regs.find(x =>
         x.event_id===reg.event_id &&
         String(x.email||"").toLowerCase().trim()===reg.email.toLowerCase().trim()
@@ -317,7 +339,6 @@
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
       $("#pageActions").innerHTML = ``;
 
-      // Show ONLY Published events
       const evs = filterByRegion(safeEvents()).filter(e => e.status === "Published");
       $("#evCount").textContent = evs.length;
 
@@ -356,15 +377,13 @@
 
     function openEvent(eventId){
       OPEN_EVENT_ID = eventId;
-      window.CURRENT_EVENT_ID = eventId; // ✅ required by the new flow
+      window.CURRENT_EVENT_ID = eventId;
 
       const e = safeEvents().find(x=>x.id===eventId);
       if(!e){
         setToast("Not found", "Event not found (demo).");
         return;
       }
-
-      const my = myRegForEvent(e.id);
 
       $("#pageTitle").textContent = e.title;
       $("#pageMeta").innerHTML = `
@@ -390,7 +409,6 @@
           </div>
 
           <div style="display:grid; gap:14px">
-            <!-- ✅ NEW Registration Card -->
             <div class="card">
               <h2>Register</h2>
               <div class="hr"></div>
@@ -427,7 +445,6 @@
               <small class="muted">Admin will approve/reject — your status updates here.</small>
             </div>
 
-            <!-- Feedback stays demo -->
             <div class="card">
               <h2>Feedback</h2>
               <p>Post-event survey captures rating + recommendations + product-fit, plus comments (demo).</p>
@@ -450,18 +467,25 @@
         </div>
       `;
 
-      // ✅ Must be after innerHTML is set
       fillRegFromProfile();
       updateRegStatus();
     }
 
     // -----------------------------
-    // DEAL ROOM (Public)
+    // ✅ DEAL ROOM (Public) — Prospectus Download becomes real
     // -----------------------------
+    function downloadProspectus(dealId){
+      const d = safeDeals().find(x=>x.id===dealId);
+      if(!d || !d.prospectus || !d.prospectus.dataUrl){
+        return setToast("Not available", "No prospectus uploaded for this deal yet.");
+      }
+      downloadDataUrl(d.prospectus.name || "prospectus.pdf", d.prospectus.dataUrl);
+    }
+
     function renderDealRoom(){
       setActive("deal_room");
       $("#pageTitle").textContent = t("deal_room");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">AI-style recommendations (demo logic)</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Deal profiles + prospectus access (demo)</span>`;
       $("#pageActions").innerHTML = `
         <button class="secondary" onclick="setToast('Meeting request', 'Demo: Scheduling integrates with calendar + meeting links in the real build.')">Request 1:1</button>
         <button class="secondary" onclick="renderPitching()">Pitching</button>
@@ -484,6 +508,11 @@
           ? rec.map(r=>`<li><b>${r.name}</b><br><small>${(r.focus||[]).join(", ")} • ${fmtMoney(r.ticket_min)}–${fmtMoney(r.ticket_max)}</small></li>`).join("")
           : `<li><small>No exact match in demo dataset.</small></li>`;
 
+        const hasPros = !!(d.prospectus && d.prospectus.dataUrl);
+        const prosBtn = hasPros
+          ? `<button class="secondary" onclick="downloadProspectus('${d.id}')">Download Prospectus</button>`
+          : `<button class="secondary" onclick="setToast('Prospectus requested', 'Demo: request logged; Admin can upload and grant access.')">Request Prospectus</button>`;
+
         return `
           <div class="card">
             <h3>${d.country} • ${d.sector} <span style="float:right">${badgeWarmth(d.warmth)}</span></h3>
@@ -494,7 +523,7 @@
             <div class="hr"></div>
             <div class="row-actions">
               <button onclick="schedule('${d.id}')">Schedule 1:1</button>
-              <button class="secondary" onclick="setToast('Prospectus requested', 'Demo: This becomes an engagement signal (“warm lead”).')">Request Prospectus</button>
+              ${prosBtn}
             </div>
           </div>
         `;
@@ -569,7 +598,7 @@
             <label><input type="checkbox" /> Visual support</label><br>
             <div class="hr"></div>
             <button class="secondary" onclick="setToast('Ready', 'Demo: Checklist stored per deal/pitch in real build.')">Mark ready</button>
-            <button onclick="setToast('Prospectus requested', 'Demo: Investors can click “Request for Prospectus” during live pitch.')">Request for Prospectus</button>
+            <button onclick="setToast('Prospectus requested', 'Demo: Investors can request prospectus during live pitch.')">Request for Prospectus</button>
           </div>
         </div>
       `;
@@ -729,27 +758,41 @@
     }
 
     // -----------------------------
-    // EXHIBITION
+    // ✅ VIRTUAL EXHIBITION (Public) — Admin editor + real catalog download
     // -----------------------------
+    function openCatalog(boothId){
+      const b = getBooths().find(x=>x.id===boothId);
+      if(!b || !b.catalog_file || !b.catalog_file.dataUrl){
+        return setToast("Missing", "No catalog uploaded for this booth.");
+      }
+      downloadDataUrl(b.catalog_file.name || "catalog.pdf", b.catalog_file.dataUrl);
+    }
+
     function renderExpo(){
       setActive("exhibition");
       $("#pageTitle").textContent = t("exhibition");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Persistent digital stands (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Upload catalog', 'Demo: In real build, exhibitors upload catalogs + offerings.')">Upload Catalog</button>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Browse booths + open catalogs (demo)</span>`;
+      $("#pageActions").innerHTML = ``;
 
-      const booths = filterByRegion((window.TIMP_DATA && TIMP_DATA.booths) ? TIMP_DATA.booths : []);
-      const cards = booths.map(b=>`
-        <div class="card">
-          <h3>${b.org}</h3>
-          <p><b>Catalog:</b> ${b.catalog}<br><b>Offers:</b> ${b.offers}</p>
-          <div class="row-actions">
-            <button class="secondary" onclick="setToast('Catalog opened', 'Demo: Secure download / viewer.')">View catalog</button>
-            <button onclick="setToast('Inquiry sent', 'Demo: Follow-up analytics track inquiries and conversion.')">Send inquiry</button>
+      // Only show Published booths
+      const booths = filterByRegion(getBooths()).filter(b => (b.status || "Draft") === "Published");
+
+      const cards = booths.map(b=>{
+        const hasCat = !!(b.catalog_file && b.catalog_file.dataUrl);
+        return `
+          <div class="card">
+            <h3>${b.org || ""}</h3>
+            <p><b>Offers:</b><br><small>${String(b.offers || "").replace(/</g,"&lt;")}</small></p>
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button class="secondary" ${hasCat ? "" : "disabled"} onclick="openCatalog('${b.id}')">View catalog</button>
+              <button onclick="setToast('Inquiry sent', 'Demo: in real build, this creates a tracked inquiry and assigns an owner.')">Send inquiry</button>
+            </div>
           </div>
-        </div>
-      `).join("");
+        `;
+      }).join("");
 
-      $("#pageBody").innerHTML = `<div class="grid cols-2">${cards || `<div class="card"><small>No booths for this region in demo.</small></div>`}</div>`;
+      $("#pageBody").innerHTML = `<div class="grid cols-2">${cards || `<div class="card"><small>No published booths for this region yet.</small></div>`}</div>`;
     }
 
     // -----------------------------
@@ -808,7 +851,7 @@
     }
 
     // -----------------------------
-    // ✅ UPDATED PROFILE (matches registration fields)
+    // PROFILE (matches registration fields)
     // -----------------------------
     function renderProfile(){
       setActive("profile");
