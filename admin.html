@@ -356,7 +356,7 @@ function deleteEvent(id){
   setActive("registrations");
   $("#pageTitle").textContent = t("registrations");
   $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject workflow (demo)</span>`;
-  $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Export', 'Demo: export registration list to Excel/PDF.')">Export</button>`;
+  $("#pageActions").innerHTML = `<button class="secondary" onclick="exportRegistrationsCsv()">Export (CSV)</button>`;
 
   const events = getEvents();
   const regsAll = getRegistrations();
@@ -407,6 +407,43 @@ function deleteEvent(id){
     </div>
   `;
 }
+    function exportRegistrationsCsv(){
+  const events = getEvents();
+  const regsAll = getRegistrations();
+
+  // export what admin is viewing (region logic)
+  const regs = regsAll.filter(r=>{
+    const ev = events.find(e=>e.id===r.event_id);
+    if(!ev) return (pickRegion()==="non_reg");
+    return (pickRegion()==="non_reg" || ev.region===pickRegion());
+  });
+
+  const rows = regs.map(r=>{
+    const ev = events.find(e=>e.id===r.event_id);
+    return {
+      Event: ev ? ev.title : r.event_id,
+      Name: r.name||"",
+      Organisation: r.org||"",
+      Title: r.title||"",
+      Email: r.email||"",
+      Status: r.state||"Pending"
+    };
+  });
+
+  const headers = Object.keys(rows[0]||{Event:"",Name:"",Organisation:"",Title:"",Email:"",Status:""});
+  const csv = [
+    headers.join(","),
+    ...rows.map(o=>headers.map(h=>`"${String(o[h] ?? "").replace(/"/g,'""')}"`).join(","))
+  ].join("\n");
+
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "registrations_export.csv";
+  a.click();
+
+  setToast("Exported", "CSV downloaded. Open with Excel.");
+}
    function approve(id){
   const r = getRegistrations();
   const i = r.findIndex(x=>x.id===id);
@@ -433,63 +470,102 @@ function reject(id){
   renderRegistrations();
 }
 
-    function renderDealBook(){
-      setActive("dealbook");
-      $("#pageTitle").textContent = t("dealbook");
-      $("#pageMeta").innerHTML = `<span class="tag ok">Branded</span> <span class="tag muted">Generate by country or sector (demo)</span>`;
-      $("#pageActions").innerHTML = `<button onclick="genDealBook()">Generate</button>`;
+   // keep this near the top of admin.html script
+let LAST_DEALBOOK = null;
 
-      const deals = adminFilter(getDeals());
-      const countries = Array.from(new Set(deals.map(d=>d.country))).sort();
-      const sectors = Array.from(new Set(deals.map(d=>d.sector))).sort();
+function renderDealBook(){
+  setActive("dealbook");
+  $("#pageTitle").textContent = t("dealbook");
+  $("#pageMeta").innerHTML = `<span class="tag ok">Branded</span> <span class="tag muted">Generate by country or sector (demo)</span>`;
 
-      $("#pageBody").innerHTML = `
-        <div class="grid cols-2">
-          <div class="card">
-            <h2>Deal Book Generator</h2>
-            <p>Instantly aggregates verified opportunities into a branded PDF/digital book (demo action).</p>
-            <div class="hr"></div>
-            <label>Filter: Country</label>
-            <select id="country" style="width:100%">
-              <option value="">All</option>
-              ${countries.map(c=>`<option>${c}</option>`).join("")}
-            </select>
-            <div style="height:10px"></div>
-            <label>Filter: Sector</label>
-            <select id="sector" style="width:100%">
-              <option value="">All</option>
-              ${sectors.map(s=>`<option>${s}</option>`).join("")}
-            </select>
-            <div style="height:10px"></div>
-            <label>Include rich media</label><br>
-            <label><input type="checkbox" checked /> Embed video pitches + secure links (demo)</label>
-            <div class="hr"></div>
-            <button onclick="genDealBook()">Generate Deal Book</button>
-            <button class="secondary" onclick="setToast('Shared', 'Demo: Share access link with selected investor groups without full onboarding.')">Share investor link</button>
-          </div>
-          <div class="card">
-            <h2>Preview (demo)</h2>
-            <div id="dealPreview"><small>Select filters then click Generate.</small></div>
-          </div>
-        </div>
-      `;
-    }
+  // ✅ add Download button (enabled after Generate)
+  $("#pageActions").innerHTML = `
+    <button onclick="genDealBook()">Generate</button>
+    <button class="secondary" onclick="downloadLastDealBook()">Download (HTML)</button>
+  `;
 
-    function genDealBook(){
-      const deals = adminFilter(getDeals());
-      const c = ($("#country")?.value || "");
-      const s = ($("#sector")?.value || "");
-      const out = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
-      $("#dealPreview").innerHTML = `
-        <p><b>Generated:</b> ${out.length} opportunities</p>
-        <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
-          ${out.map(d=>`<li>${d.country} • ${d.sector} • ${fmtMoney(d.ticket_usd_m)} • ${d.video}</li>`).join("") || "<li>No matches.</li>"}
-        </ul>
+  const deals = adminFilter(getDeals());
+  const countries = Array.from(new Set(deals.map(d=>d.country).filter(Boolean))).sort();
+  const sectors = Array.from(new Set(deals.map(d=>d.sector).filter(Boolean))).sort();
+
+  $("#pageBody").innerHTML = `
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Deal Book Generator</h2>
+        <p>Instantly aggregates verified opportunities into a branded PDF/digital book (demo action).</p>
         <div class="hr"></div>
-        <p><small>Real build: export branded PDF + tracking for downloads and investor engagement.</small></p>
-      `;
-      setToast("Deal Book generated (demo)", "In the real build this outputs a branded PDF and tracks downloads.");
-    }
+
+        <label>Filter: Country</label>
+        <select id="country" style="width:100%">
+          <option value="">All</option>
+          ${countries.map(c=>`<option>${c}</option>`).join("")}
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label>Filter: Sector</label>
+        <select id="sector" style="width:100%">
+          <option value="">All</option>
+          ${sectors.map(s=>`<option>${s}</option>`).join("")}
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label>Include rich media</label><br>
+        <label><input type="checkbox" checked /> Embed video pitches + secure links (demo)</label>
+
+        <div class="hr"></div>
+
+        <button onclick="genDealBook()">Generate Deal Book</button>
+        <button class="secondary" onclick="downloadLastDealBook()">Download (HTML)</button>
+        <button class="secondary" onclick="setToast('Shared', 'Demo: Share access link with selected investor groups without full onboarding.')">Share investor link</button>
+
+        <div class="hr"></div>
+        <small class="muted">Demo tip: after download, open the HTML then Print → Save as PDF.</small>
+      </div>
+
+      <div class="card">
+        <h2>Preview (demo)</h2>
+        <div id="dealPreview"><small>Select filters then click Generate.</small></div>
+      </div>
+    </div>
+  `;
+}
+
+function genDealBook(){
+  const deals = adminFilter(getDeals());
+  const c = ($("#country")?.value || "");
+  const s = ($("#sector")?.value || "");
+
+  // ✅ cap at 40
+  const outAll = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
+  const out = outAll.slice(0, 40);
+
+  const title = `${c || "All"}_${s || "All"}_Deal_Book`;
+
+  // save for download button
+  LAST_DEALBOOK = { list: out, title };
+
+  const truncatedMsg = outAll.length > 40
+    ? `<p><small class="muted">Showing first 40 of ${outAll.length} matches (demo cap).</small></p>`
+    : ``;
+
+  $("#dealPreview").innerHTML = `
+    <p><b>Generated:</b> ${out.length} opportunities</p>
+    ${truncatedMsg}
+    <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
+      ${
+        out.map(d=>`<li>${d.country || ""} • ${d.sector || ""} • ${fmtMoney(d.ticket_usd_m)}${d.video ? " • "+d.video : ""}</li>`).join("")
+        || "<li>No matches.</li>"
+      }
+    </ul>
+    <div class="hr"></div>
+    <button onclick="downloadLastDealBook()">Download Deal Book (HTML)</button>
+    <p style="margin-top:10px"><small>Real build: export branded PDF + tracking for downloads and investor engagement.</small></p>
+  `;
+
+  setToast("Deal Book generated (demo)", "Downloaded version: open HTML → Print → Save as PDF.");
+}
 
     /* =========================
        FIX: Deals Manager Page
