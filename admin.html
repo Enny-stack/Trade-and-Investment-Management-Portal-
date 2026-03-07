@@ -110,6 +110,35 @@
     }
 
     /* =========================
+       Small helpers
+       ========================= */
+    function escapeHtml(s){
+      return String(s || "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#39;");
+    }
+
+    function splitName(full){
+      const t = String(full || "").trim().replace(/\s+/g, " ");
+      if(!t) return { first_name:"", last_name:"" };
+      const parts = t.split(" ");
+      if(parts.length === 1) return { first_name: parts[0], last_name: "" };
+      return { first_name: parts.slice(0, -1).join(" "), last_name: parts.slice(-1)[0] };
+    }
+
+    function humanFileSize(bytes){
+      const b = Number(bytes || 0);
+      if(!b) return "0 B";
+      const u = ["B","KB","MB","GB"];
+      let i = 0, x = b;
+      while(x >= 1024 && i < u.length-1){ x/=1024; i++; }
+      return `${x.toFixed(i===0?0:1)} ${u[i]}`;
+    }
+
+    /* =========================
        Topbar init
        ========================= */
     const regionSel = document.getElementById("regionSel");
@@ -269,7 +298,7 @@
 
             <div class="row-actions">
               <button class="secondary" onclick="copyInviteLink()">Copy registration link</button>
-             <button class="secondary" onclick="downloadInviteList()">Download invite list (CSV)</button>
+              <button class="secondary" onclick="downloadInviteList()">Download invite list (CSV)</button>
               <button class="secondary" onclick="openMailClient()">Open email draft</button>
             </div>
 
@@ -435,19 +464,48 @@
       }
     }
 
+    // ✅ UPDATED: exports registrations for the selected event (the real "invite list")
     function downloadInviteList(){
-      // demo CSV template (you can later fill from a real invite list)
+      const evId = ($("#evId")?.value || "").trim();
+      if(!evId) return setToast("Select event", "Click Edit on an event first, then download.");
+
+      const events = getEvents();
+      const ev = events.find(e=>e.id===evId);
+
+      const regs = getRegistrations().filter(r => r.event_id === evId);
+
+      const rows = regs.map(r=>{
+        // support old data that used r.name
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last  = r.last_name  || nm?.last_name  || "";
+
+        return {
+          Event: ev ? ev.title : evId,
+          Salutation: r.salutation || "",
+          FirstName: first,
+          LastName: last,
+          Organisation: r.org || "",
+          Position: r.position || r.title || "",
+          Email: r.email || "",
+          Phone: r.phone || "",
+          Status: r.state || "Pending"
+        };
+      });
+
+      const headers = ["Event","Salutation","FirstName","LastName","Organisation","Position","Email","Phone","Status"];
       const csv = [
-        "Name,Organisation,Title,Email",
-        "\"\",\"\",\"\",\"\""
+        headers.join(","),
+        ...rows.map(o=>headers.map(h=>`"${String(o[h]||"").replace(/"/g,'""')}"`).join(","))
       ].join("\n");
 
       const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "invite_list_template.csv";
+      a.download = `invite_list_${(ev?.title||evId).replace(/\s+/g,"_")}.csv`;
       a.click();
-      setToast("Downloaded", "Invite list template downloaded (CSV).");
+
+      setToast("Downloaded", "Invite list CSV downloaded (open with Excel).");
     }
 
     function openMailClient(){
@@ -488,6 +546,12 @@
         const ev = events.find(e=>e.id===r.event_id);
         const evTitle = ev ? ev.title : r.event_id;
 
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last  = r.last_name  || nm?.last_name  || "";
+        const sal = (r.salutation || "").trim();
+        const displayName = [sal, first, last].filter(Boolean).join(" ").trim() || (r.name || "");
+
         const state = (r.state || "Pending");
         const stateClass =
           state==="Approved" ? "ok" :
@@ -499,10 +563,14 @@
 
         return `
           <tr>
-            <td><b>${r.name || ""}</b><br><small>${r.org || ""} • ${r.title || ""}</small></td>
-            <td><small>${r.email || ""}</small></td>
-            <td>${evTitle}</td>
-            <td><span class="tag ${stateClass}">${state}</span></td>
+            <td>
+              <b>${escapeHtml(displayName)}</b><br>
+              <small>${escapeHtml(r.org || "")} • ${escapeHtml(r.position || r.title || "")}</small>
+              ${r.phone ? `<br><small class="muted">${escapeHtml(r.phone)}</small>` : ``}
+            </td>
+            <td><small>${escapeHtml(r.email || "")}</small></td>
+            <td>${escapeHtml(evTitle)}</td>
+            <td><span class="tag ${stateClass}">${escapeHtml(state)}</span></td>
             <td class="row-actions">
               <button ${disableApprove ? "disabled" : ""} onclick="approve('${r.id}')">Approve</button>
               <button class="danger" ${disableReject ? "disabled" : ""} onclick="reject('${r.id}')">Reject</button>
@@ -535,17 +603,26 @@
 
       const rows = regs.map(r=>{
         const ev = events.find(e=>e.id===r.event_id);
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last  = r.last_name  || nm?.last_name  || "";
         return {
           Event: ev ? ev.title : r.event_id,
-          Name: r.name||"",
-          Organisation: r.org||"",
-          Title: r.title||"",
-          Email: r.email||"",
-          Status: r.state||"Pending"
+          Salutation: r.salutation || "",
+          FirstName: first,
+          LastName: last,
+          Organisation: r.org || "",
+          Position: r.position || r.title || "",
+          Email: r.email || "",
+          Phone: r.phone || "",
+          Status: r.state || "Pending"
         };
       });
 
-      const headers = Object.keys(rows[0]||{Event:"",Name:"",Organisation:"",Title:"",Email:"",Status:""});
+      const headers = Object.keys(rows[0]||{
+        Event:"",Salutation:"",FirstName:"",LastName:"",Organisation:"",Position:"",Email:"",Phone:"",Status:""
+      });
+
       const csv = [
         headers.join(","),
         ...rows.map(o=>headers.map(h=>`"${String(o[h] ?? "").replace(/"/g,'""')}"`).join(","))
@@ -569,7 +646,7 @@
       saveRegistrations(r);
       setToast("Approved", "Participant approved (demo).");
       renderRegistrations();
-      renderDashboard(); // keeps KPI fresh if user goes back
+      renderDashboard();
     }
 
     function reject(id){
@@ -652,7 +729,7 @@
       const s = ($("#sector")?.value || "");
 
       const outAll = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
-      const out = outAll.slice(0, 40); // ✅ cap 40
+      const out = outAll.slice(0, 40);
 
       const title = `${c || "All"}_${s || "All"}_Deal_Book`;
       LAST_DEALBOOK = { list: out, title };
@@ -665,7 +742,7 @@
         <p><b>Generated:</b> ${out.length} opportunities</p>
         ${truncatedMsg}
         <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
-          ${out.map(d=>`<li>${d.country || ""} • ${d.sector || ""} • ${fmtMoney(d.ticket_usd_m)}${d.video ? " • "+d.video : ""}</li>`).join("") || "<li>No matches.</li>"}
+          ${out.map(d=>`<li>${escapeHtml(d.country || "")} • ${escapeHtml(d.sector || "")} • ${fmtMoney(d.ticket_usd_m)}${d.video ? " • "+escapeHtml(d.video) : ""}</li>`).join("") || "<li>No matches.</li>"}
         </ul>
         <div class="hr"></div>
         <button onclick="downloadLastDealBook()">Download Deal Book (HTML)</button>
@@ -679,12 +756,12 @@
       const html = `
       <html><head><meta charset="utf-8"><title>${title}</title></head>
       <body style="font-family:Arial; padding:18px;">
-        <h1>${title.replace(/_/g," ")}</h1>
+        <h1>${escapeHtml(title.replace(/_/g," "))}</h1>
         <p>Generated: ${new Date().toISOString()}</p>
         <hr/>
         ${list.map((d,i)=>`
-          <h3>${i+1}. ${(d.country||"")} – ${(d.sector||"")} (${fmtMoney(d.ticket_usd_m)})</h3>
-          <p><b>Stage:</b> ${(d.stage||"")}<br/>${(d.summary||"")}</p>
+          <h3>${i+1}. ${escapeHtml(d.country||"")} – ${escapeHtml(d.sector||"")} (${fmtMoney(d.ticket_usd_m)})</h3>
+          <p><b>Stage:</b> ${escapeHtml(d.stage||"")}<br/>${escapeHtml(d.summary||"")}</p>
           <hr/>
         `).join("")}
         <p><small>Demo: Use Print → Save as PDF.</small></p>
@@ -705,7 +782,7 @@
     }
 
     /* =========================
-       Deals Manager + Bulk CSV Import
+       Deals Manager + Prospectus upload + Bulk CSV Import
        ========================= */
     function renderDealsManager(){
       setActive("deals");
@@ -721,10 +798,18 @@
 
       const rows = deals.map(d=>`
         <tr>
-          <td><b>${d.country}</b><br><small>${d.sector}</small></td>
+          <td>
+            <b>${escapeHtml(d.country)}</b><br>
+            <small>${escapeHtml(d.sector)}</small><br>
+            ${
+              d.prospectus_name
+                ? `<small class="tag ok">Prospectus: ${escapeHtml(d.prospectus_name)}</small>`
+                : `<small class="tag muted">Prospectus: not attached</small>`
+            }
+          </td>
           <td>${regionLabel(d.region)}</td>
           <td>${fmtMoney(d.ticket_usd_m)}</td>
-          <td>${d.stage}</td>
+          <td>${escapeHtml(d.stage)}</td>
           <td>${badgeWarmth(d.warmth)}</td>
           <td class="row-actions">
             <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
@@ -803,6 +888,18 @@
             <input id="dealVideo" placeholder="e.g., Video pitch (demo)" style="width:100%" />
 
             <div class="hr"></div>
+
+            <h3 style="margin:0 0 8px 0;">Prospectus / Deal Pack (PDF)</h3>
+            <input type="file" id="dealProspectus" accept="application/pdf" />
+            <div style="height:6px"></div>
+            <div id="dealProspectusStatus"><small class="muted">No prospectus attached.</small></div>
+            <div style="height:10px"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="attachProspectus()">Attach prospectus</button>
+              <button class="secondary" onclick="downloadProspectus()">Download prospectus</button>
+            </div>
+
+            <div class="hr"></div>
             <div class="row-actions">
               <button class="secondary" onclick="saveDeal()">Save</button>
               <button class="ghost" onclick="clearDealForm()">Clear</button>
@@ -822,6 +919,89 @@
 
       const r = pickRegion();
       $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
+      updateProspectusStatusUi();
+    }
+
+    function updateProspectusStatusUi(){
+      const statusEl = $("#dealProspectusStatus");
+      if(!statusEl) return;
+
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id){
+        statusEl.innerHTML = `<small class="muted">Save the deal first, then attach a prospectus.</small>`;
+        return;
+      }
+
+      const d = getDeals().find(x=>x.id===id);
+      if(d && d.prospectus_name){
+        const stored = d.prospectus_data ? "stored" : "name only";
+        const sizeTxt = d.prospectus_size ? ` • ${humanFileSize(d.prospectus_size)}` : "";
+        statusEl.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(d.prospectus_name)} (${stored}${sizeTxt})</small>`;
+      } else {
+        statusEl.innerHTML = `<small class="muted">No prospectus attached.</small>`;
+      }
+    }
+
+    function attachProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("Save first", "Save the deal first, then attach a prospectus.");
+
+      const f = $("#dealProspectus")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a PDF file first.");
+
+      if(f.type !== "application/pdf"){
+        return setToast("Invalid file", "Please upload a PDF prospectus.");
+      }
+
+      // Demo guardrail for localStorage size
+      const MAX_STORE_BYTES = 1_500_000; // ~1.5MB safe-ish
+      const deals = getDeals();
+      const idx = deals.findIndex(x=>x.id===id);
+      if(idx < 0) return setToast("Not found", "Deal not found.");
+
+      deals[idx].prospectus_name = f.name;
+      deals[idx].prospectus_mime = f.type;
+      deals[idx].prospectus_size = f.size;
+      deals[idx].prospectus_updated_at = new Date().toISOString();
+
+      if(f.size > MAX_STORE_BYTES){
+        deals[idx].prospectus_data = ""; // store name only
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        deals[idx].prospectus_data = String(reader.result || ""); // data:application/pdf;base64,...
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        setToast("Attached", "Prospectus stored and ready for Public download (demo).");
+      };
+      reader.onerror = ()=>{
+        setToast("Error", "Could not read the PDF (demo).");
+      };
+      reader.readAsDataURL(f);
+    }
+
+    function downloadProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("No deal", "Load a deal first.");
+
+      const d = getDeals().find(x=>x.id===id);
+      if(!d || !d.prospectus_name){
+        return setToast("None", "No prospectus attached to this deal.");
+      }
+
+      if(!d.prospectus_data){
+        return setToast("Demo limit", "Prospectus filename exists but PDF data was not stored (file too large).");
+      }
+
+      const a = document.createElement("a");
+      a.href = d.prospectus_data;
+      a.download = d.prospectus_name || ("prospectus_" + id + ".pdf");
+      a.click();
     }
 
     function importDealsCsv(){
@@ -855,7 +1035,14 @@
             summary: obj.summary || "",
             region: obj.region || pickRegion(),
             status: "Draft",
-            warmth: "Warm"
+            warmth: "Warm",
+
+            // prospectus fields
+            prospectus_name: "",
+            prospectus_data: "",
+            prospectus_mime: "",
+            prospectus_size: 0,
+            prospectus_updated_at: ""
           });
           added += 1;
         });
@@ -877,6 +1064,8 @@
       $("#dealVideo").value = "";
       $("#dealStage").value = "Origination";
       $("#dealWarmth").value = "Cold";
+      if($("#dealProspectus")) $("#dealProspectus").value = "";
+      updateProspectusStatusUi();
       setToast("Cleared", "Deal form reset (demo).");
     }
 
@@ -893,11 +1082,16 @@
       $("#dealOwner").value = d.owner || "";
       $("#dealSummary").value = d.summary || "";
       $("#dealVideo").value = d.video || "";
+      if($("#dealProspectus")) $("#dealProspectus").value = "";
+      updateProspectusStatusUi();
       setToast("Loaded", "Deal loaded for editing (demo).");
     }
 
     function saveDeal(){
       const id = ($("#dealId").value || "").trim();
+      const deals = getDeals();
+      const existing = id ? deals.find(x=>x.id===id) : null;
+
       const deal = {
         id: id || ("d" + Date.now()),
         region: $("#dealRegion").value,
@@ -908,7 +1102,14 @@
         warmth: $("#dealWarmth").value,
         owner: ($("#dealOwner").value || "").trim(),
         summary: ($("#dealSummary").value || "").trim(),
-        video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)"
+        video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)",
+
+        // keep prospectus fields if already attached
+        prospectus_name: existing?.prospectus_name || "",
+        prospectus_data: existing?.prospectus_data || "",
+        prospectus_mime: existing?.prospectus_mime || "",
+        prospectus_size: existing?.prospectus_size || 0,
+        prospectus_updated_at: existing?.prospectus_updated_at || ""
       };
 
       if(!deal.country || !deal.sector || !deal.ticket_usd_m){
@@ -916,13 +1117,13 @@
         return;
       }
 
-      const deals = getDeals();
       const idx = deals.findIndex(x=>x.id===deal.id);
       if(idx >= 0) deals[idx] = deal; else deals.push(deal);
       saveDeals(deals);
 
-      setToast("Saved", "Deal saved. Now visible in Deal Room and Opportunities.");
+      setToast("Saved", "Deal saved. Prospectus can be attached below.");
       renderDealsManager();
+      loadDeal(deal.id);
     }
 
     function deleteDeal(id){
@@ -1124,7 +1325,7 @@
       });
 
       $("#results").innerHTML = hits.length
-        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>`
+        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${escapeHtml(h.type)}:</b> ${escapeHtml(h.label)}</li>`).join("")}</ul>`
         : `<small>No results.</small>`;
     }
 
@@ -1145,48 +1346,6 @@
 
     window.addEventListener("hashchange", route);
     route();
-    function downloadInviteList(){
-  const evId = ($("#evId")?.value || "").trim();
-  if(!evId) return setToast("Select event", "Click Edit on an event first, then download.");
-
-  const events = getEvents();
-  const ev = events.find(e=>e.id===evId);
-
-  const regs = getRegistrations().filter(r => r.event_id === evId);
-
-  const rows = regs.map(r=>{
-    // support old data that used r.name
-    const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
-    const first = r.first_name || nm?.first_name || "";
-    const last  = r.last_name  || nm?.last_name  || "";
-
-    return {
-      Event: ev ? ev.title : evId,
-      Salutation: r.salutation || "",
-      FirstName: first,
-      LastName: last,
-      Organisation: r.org || "",
-      Position: r.position || r.title || "",
-      Email: r.email || "",
-      Phone: r.phone || "",
-      Status: r.state || "Pending"
-    };
-  });
-
-  const headers = ["Event","Salutation","FirstName","LastName","Organisation","Position","Email","Phone","Status"];
-  const csv = [
-    headers.join(","),
-    ...rows.map(o=>headers.map(h=>`"${String(o[h]||"").replace(/"/g,'""')}"`).join(","))
-  ].join("\n");
-
-  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `invite_list_${(ev?.title||evId).replace(/\s+/g,"_")}.csv`;
-  a.click();
-
-  setToast("Downloaded", "Invite list CSV downloaded (open with Excel).");
-}
   </script>
 </body>
 </html>
