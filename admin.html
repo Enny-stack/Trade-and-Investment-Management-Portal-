@@ -1,3 +1,4 @@
+<!-- admin.html (UPDATED) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -38,6 +39,10 @@
         <a href="#regs" data-nav="registrations"><span class="i18n" data-key="registrations">Registrations</span><span class="badge" id="regCount"></span></a>
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
+
+        <!-- ✅ NEW: Virtual Exhibition Admin -->
+        <a href="#expo" data-nav="expo"><span>Virtual Exhibition</span></a>
+
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
         <a href="#regionprofiles" data-nav="region_profiles"><span class="i18n" data-key="region_profiles">Region Profiles</span></a>
         <a href="#rbac" data-nav="users_rbac"><span class="i18n" data-key="users_rbac">Users & RBAC</span></a>
@@ -106,6 +111,19 @@
     if(typeof saveRegistrations !== "function"){
       function saveRegistrations(r){
         localStorage.setItem("timp_regs", JSON.stringify(r || []));
+      }
+    }
+
+    // ✅ NEW: booths storage fallback (Virtual Exhibition)
+    if(typeof getBooths !== "function"){
+      function getBooths(){
+        const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
+        return Array.isArray(x) ? x : (TIMP_DATA.booths || []);
+      }
+    }
+    if(typeof saveBooths !== "function"){
+      function saveBooths(rows){
+        localStorage.setItem("timp_booths", JSON.stringify(rows || []));
       }
     }
 
@@ -1145,6 +1163,254 @@
     }
 
     /* =========================
+       ✅ NEW: Virtual Exhibition Admin Editor
+       ========================= */
+    function renderExpoAdmin(){
+      setActive("expo");
+      $("#pageTitle").textContent = "Virtual Exhibition";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Booths + catalogs (demo)</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="addBooth()">Add Booth</button>
+        <button class="secondary" onclick="resetBooths()">Reset</button>
+      `;
+
+      const booths = adminFilter(getBooths());
+      const allBooths = getBooths();
+
+      const rows = booths.map(b=>`
+        <tr>
+          <td>
+            <b>${escapeHtml(b.org || "")}</b><br>
+            <small>${escapeHtml(b.offers || "")}</small><br>
+            ${
+              (b.catalog_name || b.catalog)
+                ? `<small class="tag ok">Catalog: ${escapeHtml(b.catalog_name || b.catalog)}</small>`
+                : `<small class="tag muted">Catalog: not attached</small>`
+            }
+          </td>
+          <td>${regionLabel(b.region || pickRegion())}</td>
+          <td><span class="tag ${b.status==="Published" ? "ok" : "warn"}">${escapeHtml(b.status || "Published")}</span></td>
+          <td class="row-actions">
+            <button class="secondary" onclick="loadBooth('${b.id}')">Edit</button>
+            <button class="danger" onclick="deleteBooth('${b.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join("");
+
+      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Booth Editor</h2>
+            <p>Create exhibitor booths and attach PDF catalogs. Public will only see <b>Published</b> booths.</p>
+
+            <div class="hr"></div>
+
+            <input type="hidden" id="boothId" value="" />
+
+            <label>Region</label>
+            <select id="boothRegion" style="width:100%">${regionOpts}</select>
+            <div style="height:10px"></div>
+
+            <label>Organisation</label>
+            <input id="boothOrg" placeholder="e.g., Afreximbank" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Offers</label>
+            <input id="boothOffers" placeholder="e.g., Trade finance, Guarantees, Advisory" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Status</label>
+            <select id="boothStatus" style="width:100%">
+              <option>Published</option>
+              <option>Draft</option>
+            </select>
+
+            <div class="hr"></div>
+
+            <h3 style="margin:0 0 8px 0;">Catalog (PDF)</h3>
+            <input type="file" id="boothCatalog" accept="application/pdf" />
+            <div style="height:6px"></div>
+            <div id="boothCatalogStatus"><small class="muted">No catalog attached.</small></div>
+
+            <div style="height:10px"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="attachBoothCatalog()">Attach catalog</button>
+              <button class="secondary" onclick="downloadBoothCatalog()">Download catalog</button>
+            </div>
+
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="saveBooth()">Save</button>
+              <button class="ghost" onclick="clearBoothForm()">Clear</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Booths (Current Region View)</h2>
+            <p><small>Tip: set Region to “Non-Regional” to view and edit all booths.</small></p>
+            <table class="table">
+              <thead><tr><th>Booth</th><th>Region</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="4"><small>No booths in this region yet.</small></td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      const r = pickRegion();
+      $("#boothRegion").value = (r === "non_reg") ? (allBooths[0]?.region || "north") : r;
+      updateBoothCatalogStatusUi();
+    }
+
+    function updateBoothCatalogStatusUi(){
+      const el = $("#boothCatalogStatus");
+      if(!el) return;
+
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id){
+        el.innerHTML = `<small class="muted">Save the booth first, then attach a catalog.</small>`;
+        return;
+      }
+
+      const b = getBooths().find(x=>x.id===id);
+      if(b && (b.catalog_name || b.catalog)){
+        const name = b.catalog_name || b.catalog;
+        const stored = b.catalog_data ? "stored" : "name only";
+        const sizeTxt = b.catalog_size ? ` • ${humanFileSize(b.catalog_size)}` : "";
+        el.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(name)} (${stored}${sizeTxt})</small>`;
+      } else {
+        el.innerHTML = `<small class="muted">No catalog attached.</small>`;
+      }
+    }
+
+    function attachBoothCatalog(){
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id) return setToast("Save first", "Save the booth first, then attach a catalog.");
+
+      const f = $("#boothCatalog")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a PDF file first.");
+      if(f.type !== "application/pdf") return setToast("Invalid file", "Please upload a PDF catalog.");
+
+      const MAX_STORE_BYTES = 1_500_000;
+      const booths = getBooths();
+      const idx = booths.findIndex(x=>x.id===id);
+      if(idx < 0) return setToast("Not found", "Booth not found.");
+
+      booths[idx].catalog_name = f.name;
+      booths[idx].catalog_mime = f.type;
+      booths[idx].catalog_size = f.size;
+      booths[idx].catalog_updated_at = new Date().toISOString();
+
+      if(f.size > MAX_STORE_BYTES){
+        booths[idx].catalog_data = "";
+        saveBooths(booths);
+        updateBoothCatalogStatusUi();
+        return setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
+      }
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        booths[idx].catalog_data = String(reader.result || "");
+        saveBooths(booths);
+        updateBoothCatalogStatusUi();
+        setToast("Attached", "Catalog stored and ready for Public download (demo).");
+      };
+      reader.onerror = ()=> setToast("Error", "Could not read the PDF (demo).");
+      reader.readAsDataURL(f);
+    }
+
+    function downloadBoothCatalog(){
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id) return setToast("No booth", "Load a booth first.");
+
+      const b = getBooths().find(x=>x.id===id);
+      const name = b?.catalog_name || b?.catalog || "";
+      if(!b || !name) return setToast("None", "No catalog attached to this booth.");
+      if(!b.catalog_data) return setToast("Demo limit", "Catalog filename exists but PDF data was not stored (file too large).");
+
+      const a = document.createElement("a");
+      a.href = b.catalog_data;
+      a.download = name || ("catalog_" + id + ".pdf");
+      a.click();
+    }
+
+    function clearBoothForm(){
+      $("#boothId").value = "";
+      $("#boothOrg").value = "";
+      $("#boothOffers").value = "";
+      $("#boothStatus").value = "Published";
+      if($("#boothCatalog")) $("#boothCatalog").value = "";
+      updateBoothCatalogStatusUi();
+      setToast("Cleared", "Booth form reset (demo).");
+    }
+
+    function addBooth(){
+      clearBoothForm();
+      setToast("New booth", "Fill the form and click Save.");
+    }
+
+    function loadBooth(id){
+      const b = getBooths().find(x=>x.id===id);
+      if(!b) return;
+
+      $("#boothId").value = b.id;
+      $("#boothRegion").value = b.region || pickRegion();
+      $("#boothOrg").value = b.org || "";
+      $("#boothOffers").value = b.offers || "";
+      $("#boothStatus").value = b.status || "Published";
+      if($("#boothCatalog")) $("#boothCatalog").value = "";
+      updateBoothCatalogStatusUi();
+      setToast("Loaded", "Booth loaded for editing (demo).");
+    }
+
+    function saveBooth(){
+      const id = ($("#boothId").value || "").trim();
+      const booths = getBooths();
+      const existing = id ? booths.find(x=>x.id===id) : null;
+
+      const booth = {
+        id: id || ("b" + Date.now()),
+        region: $("#boothRegion").value,
+        org: ($("#boothOrg").value || "").trim(),
+        offers: ($("#boothOffers").value || "").trim(),
+        status: $("#boothStatus").value,
+
+        // keep catalog fields if already attached
+        catalog_name: existing?.catalog_name || existing?.catalog || "",
+        catalog_data: existing?.catalog_data || "",
+        catalog_mime: existing?.catalog_mime || "",
+        catalog_size: existing?.catalog_size || 0,
+        catalog_updated_at: existing?.catalog_updated_at || ""
+      };
+
+      if(!booth.org){
+        return setToast("Missing fields", "Organisation is required.");
+      }
+
+      const idx = booths.findIndex(x=>x.id===booth.id);
+      if(idx >= 0) booths[idx] = booth; else booths.push(booth);
+      saveBooths(booths);
+
+      setToast("Saved", "Booth saved. Catalog can be attached below.");
+      renderExpoAdmin();
+      loadBooth(booth.id);
+    }
+
+    function deleteBooth(id){
+      const booths = getBooths().filter(b=>b.id!==id);
+      saveBooths(booths);
+      setToast("Deleted", "Booth removed (demo).");
+      renderExpoAdmin();
+    }
+
+    function resetBooths(){
+      localStorage.removeItem("timp_booths");
+      setToast("Reset", "Booths reset to sample dataset.");
+      renderExpoAdmin();
+    }
+
+    /* =========================
        Matchmaking / RegionProfiles / RBAC / Analytics / Archive
        (unchanged from your version)
        ========================= */
@@ -1336,6 +1602,7 @@
       else if(h.startsWith("#regs")) renderRegistrations();
       else if(h.startsWith("#dealbook")) renderDealBook();
       else if(h.startsWith("#deals")) renderDealsManager();
+      else if(h.startsWith("#expo")) renderExpoAdmin();     // ✅ NEW
       else if(h.startsWith("#matchmaking")) renderMatchmaking();
       else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
       else if(h.startsWith("#rbac")) renderRBAC();
