@@ -90,19 +90,60 @@
     };
 
     window.saveRegistrations = window.saveRegistrations || function(rows){
-      localStorage.setItem("timp_regs", JSON.stringify(rows));
+      localStorage.setItem("timp_regs", JSON.stringify(rows || []));
     };
 
-    window.getProfile = window.getProfile || function(){
+    // ✅ NEW: profile fields for registration capture
+    window.getMyProfile = window.getMyProfile || function(){
       try{
         const p = JSON.parse(localStorage.getItem("timp_profile"));
         if(p && typeof p === "object") return p;
       }catch(e){}
-      return { name:"Demo User", org:"Demo Organisation", title:"Participant", email:"demo.user@example.com" };
+      return {
+        salutation: "Mr",
+        first_name: "",
+        last_name: "",
+        org: "",
+        position: "",
+        email: "",
+        phone: ""
+      };
     };
 
-    window.saveProfile = window.saveProfile || function(p){
-      localStorage.setItem("timp_profile", JSON.stringify(p));
+    window.saveMyProfile = window.saveMyProfile || function(p){
+      localStorage.setItem("timp_profile", JSON.stringify(p || {}));
+      if(p && p.email) localStorage.setItem("timp_user_email", p.email);
+    };
+
+    // Backward-compatible wrappers (your older code used getProfile/saveProfile)
+    window.getProfile = window.getProfile || function(){
+      const p = getMyProfile();
+      return {
+        name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Demo User",
+        org: p.org || "",
+        title: p.position || "",
+        email: p.email || "",
+        phone: p.phone || "",
+        salutation: p.salutation || "Mr",
+        first_name: p.first_name || "",
+        last_name: p.last_name || "",
+        position: p.position || ""
+      };
+    };
+
+    window.saveProfile = window.saveProfile || function(pCompat){
+      // accept either compat or full profile
+      const prev = getMyProfile();
+      const next = {
+        salutation: pCompat.salutation || prev.salutation || "Mr",
+        first_name: pCompat.first_name || (pCompat.name ? String(pCompat.name).split(" ")[0] : prev.first_name) || "",
+        last_name:  pCompat.last_name  || (pCompat.name ? String(pCompat.name).split(" ").slice(1).join(" ") : prev.last_name) || "",
+        org: pCompat.org || prev.org || "",
+        position: pCompat.position || pCompat.title || prev.position || "",
+        email: pCompat.email || prev.email || "",
+        phone: pCompat.phone || prev.phone || ""
+      };
+      saveMyProfile(next);
     };
 
     function getDealBooks(){
@@ -123,8 +164,8 @@
     }
 
     function myRegForEvent(eventId){
-      const p = getProfile();
-      const email = String(p.email || "").toLowerCase().trim();
+      const p = getMyProfile();
+      const email = String(p.email || localStorage.getItem("timp_user_email") || "").toLowerCase().trim();
       if(!email) return null;
       return getRegistrations().find(r =>
         r.event_id === eventId &&
@@ -138,7 +179,7 @@
       return `<span class="tag ${cls}">${s}</span>`;
     }
 
-    // Auto-refresh Public when Admin approves/rejects (same browser)
+    // Auto-refresh Public when Admin approves/rejects (other tab / same browser)
     window.addEventListener("storage", (e)=>{
       if(e.key === "timp_regs"){
         if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID);
@@ -146,6 +187,16 @@
       }
       if(e.key === "timp_events"){
         if(location.hash.startsWith("#events")) renderEvents();
+      }
+      if(e.key === "timp_profile"){
+        if(location.hash.startsWith("#profile")) renderProfile();
+        if(OPEN_EVENT_ID) {
+          // keep registration form in sync
+          setTimeout(()=>{
+            fillRegFromProfile();
+            updateRegStatus();
+          }, 0);
+        }
       }
     });
 
@@ -168,6 +219,96 @@
     }
 
     // -----------------------------
+    // ✅ NEW: Registration helpers
+    // -----------------------------
+    function fillRegFromProfile(){
+      const p = getMyProfile();
+      if($("#regSalutation")) $("#regSalutation").value = p.salutation || "Mr";
+      if($("#regFirst")) $("#regFirst").value = p.first_name || "";
+      if($("#regLast")) $("#regLast").value = p.last_name || "";
+      if($("#regOrg")) $("#regOrg").value = p.org || "";
+      if($("#regPosition")) $("#regPosition").value = p.position || "";
+      if($("#regEmail")) $("#regEmail").value = p.email || "";
+      if($("#regPhone")) $("#regPhone").value = p.phone || "";
+    }
+
+    function updateRegStatus(){
+      if(!window.CURRENT_EVENT_ID) return;
+      const regs = getRegistrations();
+      const email = ($("#regEmail")?.value || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
+      const r = regs.find(x =>
+        x.event_id === window.CURRENT_EVENT_ID &&
+        String(x.email||"").toLowerCase().trim() === email
+      );
+      if($("#regStatus")){
+        $("#regStatus").innerHTML = r
+          ? `<small>Status: <b>${r.state || "Pending"}</b></small>`
+          : `<small class="muted">Status: Not registered</small>`;
+      }
+    }
+
+    function registerForEvent(eventId){
+      const id = eventId || window.CURRENT_EVENT_ID;
+      if(!id) return setToast("Missing event", "Open an event first.");
+
+      const events = safeEvents();
+      const ev = events.find(e=>e.id===id);
+      if(!ev) return setToast("Missing event", "Event not found.");
+
+      // pull values from the form
+      const reg = {
+        id: "r" + Date.now(),
+        event_id: ev.id,
+        region: ev.region,                 // IMPORTANT (helps admin counts)
+        state: "Pending",
+
+        salutation: ($("#regSalutation").value || "Mr").trim(),
+        first_name: ($("#regFirst").value || "").trim(),
+        last_name: ($("#regLast").value || "").trim(),
+        org: ($("#regOrg").value || "").trim(),
+        position: ($("#regPosition").value || "").trim(),
+        email: ($("#regEmail").value || "").trim(),
+        phone: ($("#regPhone").value || "").trim(),
+        submitted_at: new Date().toISOString()
+      };
+
+      if(!reg.first_name || !reg.last_name || !reg.org || !reg.position || !reg.email){
+        return setToast("Missing fields", "Fill First name, Last name, Organisation, Position, and Email.");
+      }
+
+      // Save/update profile for convenience
+      saveMyProfile({
+        salutation: reg.salutation,
+        first_name: reg.first_name,
+        last_name: reg.last_name,
+        org: reg.org,
+        position: reg.position,
+        email: reg.email,
+        phone: reg.phone
+      });
+
+      const regs = getRegistrations();
+
+      // Prevent duplicates: same email + same event
+      const exists = regs.find(x =>
+        x.event_id===reg.event_id &&
+        String(x.email||"").toLowerCase().trim()===reg.email.toLowerCase().trim()
+      );
+
+      if(exists){
+        setToast("Already registered", "You already registered for this event. Check your status below.");
+        updateRegStatus();
+        return;
+      }
+
+      regs.push(reg);
+      saveRegistrations(regs);
+
+      setToast("Submitted", "Registration saved. Admin can now Approve/Reject.");
+      updateRegStatus();
+    }
+
+    // -----------------------------
     // EVENTS (Public)
     // -----------------------------
     function renderEvents(){
@@ -184,7 +325,7 @@
         const my = myRegForEvent(e.id);
         const actionRight = my
           ? regTag(my.state)
-          : `<button onclick="registerForEvent('${e.id}')">Register</button>`;
+          : `<button onclick="openEvent('${e.id}')">Register</button>`;
 
         return `
           <tr>
@@ -215,6 +356,8 @@
 
     function openEvent(eventId){
       OPEN_EVENT_ID = eventId;
+      window.CURRENT_EVENT_ID = eventId; // ✅ required by the new flow
+
       const e = safeEvents().find(x=>x.id===eventId);
       if(!e){
         setToast("Not found", "Event not found (demo).");
@@ -222,7 +365,6 @@
       }
 
       const my = myRegForEvent(e.id);
-      const p = getProfile();
 
       $("#pageTitle").textContent = e.title;
       $("#pageMeta").innerHTML = `
@@ -231,7 +373,6 @@
         <span class="tag muted">${e.venue} • ${e.date} • ${e.time || ""}</span>
       `;
       $("#pageActions").innerHTML = `
-        ${my ? regTag(my.state) : `<button onclick="registerForEvent('${e.id}')">Register</button>`}
         <button class="secondary" onclick="setHash('#events')">Back</button>
       `;
 
@@ -248,88 +389,70 @@
             </div>
           </div>
 
-          <div class="card">
-            <h2>Registration & Feedback</h2>
-            <div class="hr"></div>
+          <div style="display:grid; gap:14px">
+            <!-- ✅ NEW Registration Card -->
+            <div class="card">
+              <h2>Register</h2>
+              <div class="hr"></div>
 
-            <div style="margin-bottom:10px">
-              <small>Status:</small> ${my ? regTag(my.state) : regTag("Pending")}
+              <label>Salutation</label>
+              <select id="regSalutation" style="width:100%">
+                <option>Mr</option><option>Mrs</option><option>Ms</option><option>Dr</option>
+              </select>
+              <div style="height:10px"></div>
+
+              <div class="grid cols-2">
+                <div><label>First name</label><input id="regFirst" style="width:100%"></div>
+                <div><label>Last name</label><input id="regLast" style="width:100%"></div>
+              </div>
+              <div style="height:10px"></div>
+
+              <label>Organisation</label><input id="regOrg" style="width:100%">
+              <div style="height:10px"></div>
+
+              <label>Position</label><input id="regPosition" style="width:100%">
+              <div style="height:10px"></div>
+
+              <label>Email</label><input id="regEmail" style="width:100%">
+              <div style="height:10px"></div>
+
+              <label>Phone</label><input id="regPhone" style="width:100%">
+              <div style="height:10px"></div>
+
+              <button onclick="registerForEvent()">Submit registration</button>
+              <div style="height:10px"></div>
+              <div id="regStatus"><small class="muted">Status: Not registered</small></div>
+
+              <div class="hr"></div>
+              <small class="muted">Admin will approve/reject — your status updates here.</small>
             </div>
 
-            <label>Name</label><input id="regName" value="${(p.name||"").replace(/"/g,"&quot;")}" style="width:100%" />
-            <div style="height:10px"></div>
-            <label>Organisation</label><input id="regOrg" value="${(p.org||"").replace(/"/g,"&quot;")}" style="width:100%" />
-            <div style="height:10px"></div>
-            <label>Title/Position</label><input id="regTitle" value="${(p.title||"").replace(/"/g,"&quot;")}" style="width:100%" />
-            <div style="height:10px"></div>
-            <label>Email</label><input id="regEmail" value="${(p.email||"").replace(/"/g,"&quot;")}" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <button onclick="registerForEvent('${e.id}')">Register</button>
-
-            <div class="hr"></div>
-            <h3 style="margin:0 0 8px 0;">Feedback (demo)</h3>
-
-            <label>1) Rate overall delivery (1–5)</label>
-            <select style="width:100%"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
-            <div style="height:10px"></div>
-            <label>2) Recommend a future forum?</label>
-            <select style="width:100%"><option>Yes</option><option>No</option></select>
-            <div style="height:10px"></div>
-            <label>3) Do products meet expectations?</label>
-            <select style="width:100%"><option>Yes</option><option>No</option></select>
-            <div style="height:10px"></div>
-            <label>Additional comments (max 500 chars)</label>
-            <textarea rows="4" maxlength="500" placeholder="Your comments..." style="width:100%"></textarea>
-            <div style="height:10px"></div>
-            <button class="secondary" onclick="setToast('Feedback submitted', 'Thanks. In the real build this feeds analytics + reports.')">Submit feedback</button>
+            <!-- Feedback stays demo -->
+            <div class="card">
+              <h2>Feedback</h2>
+              <p>Post-event survey captures rating + recommendations + product-fit, plus comments (demo).</p>
+              <div class="hr"></div>
+              <label>1) Rate overall delivery (1–5)</label>
+              <select style="width:100%"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
+              <div style="height:10px"></div>
+              <label>2) Recommend a future forum?</label>
+              <select style="width:100%"><option>Yes</option><option>No</option></select>
+              <div style="height:10px"></div>
+              <label>3) Do products meet expectations?</label>
+              <select style="width:100%"><option>Yes</option><option>No</option></select>
+              <div style="height:10px"></div>
+              <label>Additional comments (max 500 chars)</label>
+              <textarea rows="4" maxlength="500" placeholder="Your comments..." style="width:100%"></textarea>
+              <div style="height:10px"></div>
+              <button class="secondary" onclick="setToast('Feedback submitted', 'Thanks. In the real build this feeds analytics + reports.')">Submit feedback</button>
+            </div>
           </div>
         </div>
       `;
-    }
 
-    function registerForEvent(eventId){
-      const e = safeEvents().find(x=>x.id===eventId);
-      if(!e) return setToast("Not found", "Event not found.");
-
-      // Prefer the form inputs if present (event page), else use profile
-      const name  = ($("#regName")?.value || "").trim() || String(getProfile().name || "").trim();
-      const org   = ($("#regOrg")?.value || "").trim()  || String(getProfile().org || "").trim();
-      const title = ($("#regTitle")?.value || "").trim()|| String(getProfile().title || "").trim();
-      const email = ($("#regEmail")?.value || "").trim()|| String(getProfile().email || "").trim();
-
-      if(!email){
-        setToast("Profile needed", "Please add your email in My Profile before registering.");
-        setHash("#profile");
-        return;
-      }
-
-      // Keep profile updated (nice for demo)
-      saveProfile({ name, org, title, email });
-
-      const regs = getRegistrations();
-      const exists = regs.some(r =>
-        r.event_id === eventId &&
-        String(r.email||"").toLowerCase().trim() === email.toLowerCase().trim()
-      );
-
-      if(exists){
-        setToast("Already registered", "You already registered (demo).");
-        openEvent(eventId);
-        return;
-      }
-
-      regs.push({
-        id: "r" + Date.now(),
-        event_id: eventId,
-        name, org, title, email,
-        state: "Pending",
-        submitted_at: new Date().toISOString()
-      });
-
-      saveRegistrations(regs);
-      setToast("Registration submitted", `${e.title} — status: Pending`);
-      openEvent(eventId);
+      // ✅ Must be after innerHTML is set
+      fillRegFromProfile();
+      updateRegStatus();
     }
 
     // -----------------------------
@@ -472,7 +595,6 @@
 
     // -----------------------------
     // OPPORTUNITIES (Public)
-    // Submit stays the same; remove Upload Deal Book from table
     // -----------------------------
     function renderOpps(){
       setActive("opportunities");
@@ -686,7 +808,7 @@
     }
 
     // -----------------------------
-    // PROFILE
+    // ✅ UPDATED PROFILE (matches registration fields)
     // -----------------------------
     function renderProfile(){
       setActive("profile");
@@ -694,24 +816,45 @@
       $("#pageMeta").innerHTML = `<span class="tag ok">Verified user (demo)</span> <span class="tag muted">Amend profile</span>`;
       $("#pageActions").innerHTML = ``;
 
-      const p = getProfile();
+      const p = getMyProfile();
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
           <div class="card">
             <h2>Profile</h2>
-            <label>Name</label><input id="pName" value="${(p.name||"").replace(/"/g,"&quot;")}" style="width:100%" />
+
+            <label>Salutation</label>
+            <select id="pSalutation" style="width:100%">
+              <option ${p.salutation==="Mr"?"selected":""}>Mr</option>
+              <option ${p.salutation==="Mrs"?"selected":""}>Mrs</option>
+              <option ${p.salutation==="Ms"?"selected":""}>Ms</option>
+              <option ${p.salutation==="Dr"?"selected":""}>Dr</option>
+            </select>
+            <div style="height:10px"></div>
+
+            <div class="grid cols-2">
+              <div><label>First name</label><input id="pFirst" value="${(p.first_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
+              <div><label>Last name</label><input id="pLast" value="${(p.last_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
+            </div>
+
             <div style="height:10px"></div>
             <label>Organisation</label><input id="pOrg" value="${(p.org||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
-            <label>Title/Position</label><input id="pTitle" value="${(p.title||"").replace(/"/g,"&quot;")}" style="width:100%" />
+
+            <label>Position</label><input id="pPosition" value="${(p.position||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
+
             <label>Email</label><input id="pEmail" value="${(p.email||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
+
+            <label>Phone</label><input id="pPhone" value="${(p.phone||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <div style="height:10px"></div>
+
             <button onclick="savePublicProfile()">Save</button>
             <div class="hr"></div>
-            <small>Registrations use this profile (demo).</small>
+            <small>Registrations will use this profile (demo).</small>
           </div>
+
           <div class="card">
             <h2>Notifications</h2>
             <p>Automated alerts when new materials, recordings, or deal packs are published.</p>
@@ -727,12 +870,15 @@
 
     function savePublicProfile(){
       const p = {
-        name: ($("#pName").value || "").trim(),
+        salutation: ($("#pSalutation").value || "Mr").trim(),
+        first_name: ($("#pFirst").value || "").trim(),
+        last_name: ($("#pLast").value || "").trim(),
         org: ($("#pOrg").value || "").trim(),
-        title: ($("#pTitle").value || "").trim(),
-        email: ($("#pEmail").value || "").trim()
+        position: ($("#pPosition").value || "").trim(),
+        email: ($("#pEmail").value || "").trim(),
+        phone: ($("#pPhone").value || "").trim()
       };
-      saveProfile(p);
+      saveMyProfile(p);
       setToast("Saved", "Profile saved (demo).");
     }
 
