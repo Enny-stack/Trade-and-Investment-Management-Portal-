@@ -1617,3 +1617,88 @@
   </script>
 </body>
 </html>
+<script>
+  function currentRegionId() {
+    // Use your existing region selector ID if different
+    const sel = document.getElementById("regionSel");
+    return sel ? sel.value : "non-regional";
+  }
+
+  function currentLang() {
+    // Use your existing language selector ID if different
+    const sel = document.getElementById("langSel");
+    return sel ? sel.value : "en";
+  }
+
+  function readRegionProfileForm() {
+    const tagsRaw = (document.getElementById("rpTags")?.value || "");
+    const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+
+    return {
+      title: document.getElementById("rpTitle")?.value || "",
+      subtitle: document.getElementById("rpSubtitle")?.value || "",
+      overview: document.getElementById("rpOverview")?.value || "",
+      keySectors: document.getElementById("rpKeySectors")?.value || "",
+      incentives: document.getElementById("rpIncentives")?.value || "",
+      risks: document.getElementById("rpRisks")?.value || "",
+      tags
+    };
+  }
+
+  function fillRegionProfileForm(profile, lang) {
+    const c = rp_pickLangContent(profile, lang) || {};
+
+    if (document.getElementById("rpTitle")) document.getElementById("rpTitle").value = c.title || "";
+    if (document.getElementById("rpSubtitle")) document.getElementById("rpSubtitle").value = c.subtitle || "";
+    if (document.getElementById("rpOverview")) document.getElementById("rpOverview").value = c.overview || "";
+    if (document.getElementById("rpKeySectors")) document.getElementById("rpKeySectors").value = c.keySectors || "";
+    if (document.getElementById("rpIncentives")) document.getElementById("rpIncentives").value = c.incentives || "";
+    if (document.getElementById("rpRisks")) document.getElementById("rpRisks").value = c.risks || "";
+    if (document.getElementById("rpTags")) document.getElementById("rpTags").value = (c.tags || []).join(", ");
+
+    // Optional status labels
+    if (document.getElementById("rpStatusLabel")) {
+      document.getElementById("rpStatusLabel").textContent = profile?.status || "draft";
+    }
+    if (document.getElementById("rpUpdatedLabel")) {
+      document.getElementById("rpUpdatedLabel").textContent = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
+    }
+  }
+
+  function loadForRegionAndLang() {
+    const regionId = currentRegionId();
+    const lang = currentLang();
+    const p = rp_get(regionId);
+    fillRegionProfileForm(p, lang);
+  }
+
+  // Button handlers
+  document.getElementById("saveDraftBtn")?.addEventListener("click", () => {
+    const regionId = currentRegionId();
+    const lang = currentLang();
+    const content = readRegionProfileForm();
+
+    const saved = rp_upsertContent(regionId, lang, content, { status: "draft" });
+    fillRegionProfileForm(saved, lang);
+    alert("Saved as draft (demo storage).");
+  });
+
+  document.getElementById("publishBtn")?.addEventListener("click", () => {
+    const regionId = currentRegionId();
+    const lang = currentLang();
+    const content = readRegionProfileForm();
+
+    // Ensure latest edits are saved, then publish
+    rp_upsertContent(regionId, lang, content, { status: "draft" });
+    const published = rp_publish(regionId);
+    fillRegionProfileForm(published, lang);
+    alert("Published! Public portal search will now show it (on this browser).");
+  });
+
+  // Reload when region/lang changes
+  document.getElementById("regionSel")?.addEventListener("change", loadForRegionAndLang);
+  document.getElementById("langSel")?.addEventListener("change", loadForRegionAndLang);
+
+  // Initial load
+  loadForRegionAndLang();
+</script>
