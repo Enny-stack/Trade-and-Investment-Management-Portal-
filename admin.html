@@ -1,4 +1,4 @@
-<!-- admin.html (UPDATED + Auth Gate + Region Profiles Editor Fixed + Valid HTML) -->
+<!-- admin.html (UPDATED) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,11 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>TIMP – Admin Console</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- ✅ Prevent UI flash until auth gate passes -->
-  <style id="authHide">html{display:none}</style>
 </head>
-
 <body>
   <div class="topbar">
     <div class="brand">
@@ -44,7 +40,7 @@
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
 
-        <!-- ✅ Virtual Exhibition Admin -->
+        <!-- ✅ NEW: Virtual Exhibition Admin -->
         <a href="#expo" data-nav="expo"><span>Virtual Exhibition</span></a>
 
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
@@ -53,16 +49,10 @@
         <a href="#analytics" data-nav="analytics"><span class="i18n" data-key="analytics">Analytics</span></a>
         <a href="#archive" data-nav="archive"><span class="i18n" data-key="archive">Archive</span></a>
       </nav>
-
       <div class="navtitle">Shortcut</div>
       <nav class="nav">
         <a href="public.html"><span>Switch to Public</span><span class="badge">demo</span></a>
         <a href="welcome.html"><span>Demo Script</span></a>
-        <!-- ✅ Logout -->
-        <a href="#"
-           onclick="(window.TIMP_AUTH && TIMP_AUTH.logout ? TIMP_AUTH.logout() : null); location.href='welcome.html'; return false;">
-          <span>Logout</span><span class="badge">demo</span>
-        </a>
       </nav>
     </aside>
 
@@ -82,32 +72,10 @@
     <div id="toastMsg"></div>
   </div>
 
-  <!-- =========================================================
-       ✅ AUTH GATE MUST LOAD FIRST (BEFORE portal scripts)
-       ========================================================= -->
-  <script src="auth.js"></script>
-  <script>
-    (function(){
-      try{
-        if(window.TIMP_AUTH && typeof TIMP_AUTH.requireAuth === "function"){
-          // Admin also requires auth (demo). Redirect to welcome if not authed.
-          if(!TIMP_AUTH.requireAuth("welcome.html")) return;
-        }
-      }catch(e){
-        console.warn("Auth gate warning:", e);
-        // demo fail-open
-      }
-      // show page if allowed
-      var st = document.getElementById("authHide");
-      if(st) st.remove();
-    })();
-  </script>
-
-  <!-- Portal scripts -->
   <script src="data.js"></script>
-  <script src="util.js"></script>
-  <script src="regionStore.js"></script>
-  <script src="app.js"></script>
+<script src="util.js"></script>
+<script src="regionStore.js"></script>
+<script src="app.js"></script>
 
   <script>
     /* =========================================================
@@ -116,7 +84,7 @@
     if(typeof getEvents !== "function"){
       function getEvents(){
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
-        return Array.isArray(x) ? x : (window.TIMP_DATA?.events || []);
+        return Array.isArray(x) ? x : (TIMP_DATA.events || []);
       }
     }
     if(typeof saveEvents !== "function"){
@@ -127,7 +95,7 @@
     if(typeof getDeals !== "function"){
       function getDeals(){
         const x = JSON.parse(localStorage.getItem("timp_deals") || "null");
-        return Array.isArray(x) ? x : (window.TIMP_DATA?.deals || []);
+        return Array.isArray(x) ? x : (TIMP_DATA.deals || []);
       }
     }
     if(typeof saveDeals !== "function"){
@@ -138,7 +106,7 @@
     if(typeof getRegistrations !== "function"){
       function getRegistrations(){
         const x = JSON.parse(localStorage.getItem("timp_regs") || "null");
-        return Array.isArray(x) ? x : (window.TIMP_DATA?.registrations || []);
+        return Array.isArray(x) ? x : (TIMP_DATA.registrations || []);
       }
     }
     if(typeof saveRegistrations !== "function"){
@@ -146,125 +114,18 @@
         localStorage.setItem("timp_regs", JSON.stringify(r || []));
       }
     }
-    // booths storage fallback (Virtual Exhibition)
+
+    // ✅ NEW: booths storage fallback (Virtual Exhibition)
     if(typeof getBooths !== "function"){
       function getBooths(){
         const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
-        return Array.isArray(x) ? x : (window.TIMP_DATA?.booths || []);
+        return Array.isArray(x) ? x : (TIMP_DATA.booths || []);
       }
     }
     if(typeof saveBooths !== "function"){
       function saveBooths(rows){
         localStorage.setItem("timp_booths", JSON.stringify(rows || []));
       }
-    }
-
-    /* =========================
-       Region Profiles storage (Admin authoring)
-       - Public portal reads this via keys:
-         timp_region_profiles / timp_regionprofiles / timp_regionStore
-       ========================= */
-    const RP_KEY = "timp_region_profiles";
-
-    function rp_all(){
-      try{
-        const x = JSON.parse(localStorage.getItem(RP_KEY) || "null");
-        return Array.isArray(x) ? x : [];
-      }catch(e){ return []; }
-    }
-    function rp_saveAll(rows){
-      localStorage.setItem(RP_KEY, JSON.stringify(rows || []));
-    }
-    function rp_normRegionKey(v){
-      const s = String(v || "").toLowerCase().trim();
-      if(!s) return "";
-      if(s === "south" || s.includes("southern")) return "southern";
-      if(s.includes("north")) return "north";
-      if(s.includes("west")) return "west";
-      if(s.includes("central") || s.includes("centre")) return "central";
-      if(s.includes("east")) return "east";
-      return s;
-    }
-    function rp_pickLangContent(profile, lang){
-      if(!profile || typeof profile !== "object") return {};
-      const c = profile.content || {};
-      if(c && typeof c === "object" && c[lang]) return c[lang];
-      if(c && typeof c === "object" && c.en) return c.en;
-      return {};
-    }
-    function rp_get(regionId){
-      const rid = rp_normRegionKey(regionId);
-      const all = rp_all();
-      return all.find(p => rp_normRegionKey(p.region || p.region_id || p.regionKey || p.id) === rid) || null;
-    }
-    function rp_upsertContent(regionId, lang, content, opts){
-      const rid = rp_normRegionKey(regionId);
-      const all = rp_all();
-      let p = rp_get(rid);
-
-      if(!p){
-        p = {
-          id: "rp_" + rid,
-          region: rid,
-          status: "Draft",
-          published: false,
-          visibility: "Private",
-          updatedAt: "",
-          content: { en:{}, fr:{}, ar:{}, pt:{} }
-        };
-        all.push(p);
-      }
-
-      p.region = rid;
-      p.content = p.content && typeof p.content === "object" ? p.content : { en:{}, fr:{}, ar:{}, pt:{} };
-      p.content[lang] = {
-        title: content.title || "",
-        subtitle: content.subtitle || "",
-        overview: content.overview || "",
-        keySectors: content.keySectors || "",
-        incentives: content.incentives || "",
-        risks: content.risks || "",
-        tags: Array.isArray(content.tags) ? content.tags : []
-      };
-
-      if(opts && opts.status){
-        p.status = opts.status;
-        // keep published flag consistent with status
-        if(String(opts.status).toLowerCase() === "published"){
-          p.published = true;
-          p.visibility = "Public";
-        }else{
-          p.published = false;
-          p.visibility = "Private";
-        }
-      }
-
-      p.updatedAt = new Date().toISOString();
-      rp_saveAll(all);
-      return p;
-    }
-    function rp_publish(regionId){
-      const rid = rp_normRegionKey(regionId);
-      const all = rp_all();
-      const p = rp_get(rid) || rp_upsertContent(rid, "en", {}, {status:"Draft"});
-      p.status = "Published";
-      p.published = true;
-      p.visibility = "Public";
-      p.updatedAt = new Date().toISOString();
-      rp_saveAll(all);
-      return p;
-    }
-    function rp_unpublish(regionId){
-      const rid = rp_normRegionKey(regionId);
-      const all = rp_all();
-      const p = rp_get(rid);
-      if(!p) return null;
-      p.status = "Draft";
-      p.published = false;
-      p.visibility = "Private";
-      p.updatedAt = new Date().toISOString();
-      rp_saveAll(all);
-      return p;
     }
 
     /* =========================
@@ -278,6 +139,7 @@
         .replace(/"/g,"&quot;")
         .replace(/'/g,"&#39;");
     }
+
     function splitName(full){
       const t = String(full || "").trim().replace(/\s+/g, " ");
       if(!t) return { first_name:"", last_name:"" };
@@ -285,6 +147,7 @@
       if(parts.length === 1) return { first_name: parts[0], last_name: "" };
       return { first_name: parts.slice(0, -1).join(" "), last_name: parts.slice(-1)[0] };
     }
+
     function humanFileSize(bytes){
       const b = Number(bytes || 0);
       if(!b) return "0 B";
@@ -295,24 +158,23 @@
     }
 
     /* =========================
-       Topbar init (safer)
+       Topbar init
        ========================= */
     const regionSel = document.getElementById("regionSel");
-    if(regionSel && window.TIMP_REGIONS && Array.isArray(TIMP_REGIONS)){
-      TIMP_REGIONS.forEach(r=>{
-        const opt = document.createElement("option");
-        opt.value = r.id;
-        opt.textContent = (r.name && (r.name[pickLang()] || r.name.en)) || r.id;
-        regionSel.appendChild(opt);
-      });
-    }
-    if(typeof initTopbar === "function") initTopbar();
+    TIMP_REGIONS.forEach(r=>{
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.name[pickLang()] || r.name.en;
+      regionSel.appendChild(opt);
+    });
+    initTopbar();
 
     function setActive(navKey){
       $$("#sidebarNav a").forEach(a=>a.classList.remove("active"));
       const match = $(`#sidebarNav a[data-nav="${navKey}"]`);
       if(match) match.classList.add("active");
     }
+
     function adminFilter(items){
       return filterByRegion(items);
     }
@@ -421,7 +283,7 @@
 
             <label>Region</label>
             <select id="evRegion" style="width:100%">
-              ${(window.TIMP_REGIONS||[]).map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("")}
+              ${TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("")}
             </select>
             <div style="height:10px"></div>
 
@@ -604,6 +466,7 @@
       renderEventManager();
     }
 
+    /* Simple invite helpers (demo) */
     function copyInviteLink(){
       const id = ($("#evId").value || "").trim();
       const link = "public.html#events"; // demo route
@@ -620,18 +483,22 @@
       }
     }
 
+    // ✅ UPDATED: exports registrations for the selected event (the real "invite list")
     function downloadInviteList(){
       const evId = ($("#evId")?.value || "").trim();
       if(!evId) return setToast("Select event", "Click Edit on an event first, then download.");
 
       const events = getEvents();
       const ev = events.find(e=>e.id===evId);
+
       const regs = getRegistrations().filter(r => r.event_id === evId);
 
       const rows = regs.map(r=>{
+        // support old data that used r.name
         const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
         const first = r.first_name || nm?.first_name || "";
         const last  = r.last_name  || nm?.last_name  || "";
+
         return {
           Event: ev ? ev.title : evId,
           Salutation: r.salutation || "",
@@ -841,7 +708,7 @@
             <label>Filter: Country</label>
             <select id="country" style="width:100%">
               <option value="">All</option>
-              ${countries.map(c=>`<option>${escapeHtml(c)}</option>`).join("")}
+              ${countries.map(c=>`<option>${c}</option>`).join("")}
             </select>
 
             <div style="height:10px"></div>
@@ -849,7 +716,7 @@
             <label>Filter: Sector</label>
             <select id="sector" style="width:100%">
               <option value="">All</option>
-              ${sectors.map(s=>`<option>${escapeHtml(s)}</option>`).join("")}
+              ${sectors.map(s=>`<option>${s}</option>`).join("")}
             </select>
 
             <div style="height:10px"></div>
@@ -935,12 +802,618 @@
 
     /* =========================
        Deals Manager + Prospectus upload + Bulk CSV Import
-       (UNCHANGED from your provided version)
        ========================= */
-    /* ... keep your Deals Manager + Prospectus + Expo Admin code exactly as-is here ... */
+    function renderDealsManager(){
+      setActive("deals");
+      $("#pageTitle").textContent = "Deals Manager";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Add/edit opportunities (stored in browser for demo)</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="addDeal()">Add Deal</button>
+        <button class="secondary" onclick="resetDeals()">Reset to sample</button>
+      `;
+
+      const deals = adminFilter(getDeals());
+      const allDeals = getDeals();
+
+      const rows = deals.map(d=>`
+        <tr>
+          <td>
+            <b>${escapeHtml(d.country)}</b><br>
+            <small>${escapeHtml(d.sector)}</small><br>
+            ${
+              d.prospectus_name
+                ? `<small class="tag ok">Prospectus: ${escapeHtml(d.prospectus_name)}</small>`
+                : `<small class="tag muted">Prospectus: not attached</small>`
+            }
+          </td>
+          <td>${regionLabel(d.region)}</td>
+          <td>${fmtMoney(d.ticket_usd_m)}</td>
+          <td>${escapeHtml(d.stage)}</td>
+          <td>${badgeWarmth(d.warmth)}</td>
+          <td class="row-actions">
+            <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
+            <button class="danger" onclick="deleteDeal('${d.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join("");
+
+      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Deal Entry</h2>
+            <p>Use this to add opportunities for the demo. Data is saved in your browser (localStorage).</p>
+
+            <div class="hr"></div>
+            <h3 style="margin:0 0 8px 0;">Bulk Upload (CSV)</h3>
+            <input type="file" id="bulkDeals" accept=".csv" />
+            <button class="secondary" onclick="importDealsCsv()">Import</button>
+            <div style="height:6px"></div>
+            <small class="muted">Columns: country, sector, ticket_usd_m, stage, summary, region</small>
+
+            <div class="hr"></div>
+
+            <input type="hidden" id="dealId" value="" />
+
+            <label>Region</label>
+            <select id="dealRegion" style="width:100%">${regionOpts}</select>
+            <div style="height:10px"></div>
+
+            <label>Country</label>
+            <input id="dealCountry" placeholder="e.g., Nigéria" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Sector</label>
+            <input id="dealSector" placeholder="e.g., Énergie" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Ticket size (USD millions)</label>
+            <input id="dealTicket" type="number" min="1" step="1" placeholder="e.g., 80" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <div class="grid cols-2">
+              <div>
+                <label>Stage</label>
+                <select id="dealStage" style="width:100%">
+                  <option>Origination</option>
+                  <option>Screening</option>
+                  <option>Due Diligence</option>
+                  <option>Term Sheet</option>
+                  <option>Approved</option>
+                  <option>Disbursed</option>
+                </select>
+              </div>
+              <div>
+                <label>Warmth</label>
+                <select id="dealWarmth" style="width:100%">
+                  <option>Cold</option>
+                  <option>Warm</option>
+                  <option>Hot</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+            <label>Owner / Sponsor</label>
+            <input id="dealOwner" placeholder="e.g., TFIP" style="width:100%" />
+
+            <div style="height:10px"></div>
+            <label>Short summary</label>
+            <textarea id="dealSummary" rows="4" maxlength="500" placeholder="What is the opportunity? (max 500 chars)" style="width:100%"></textarea>
+
+            <div style="height:10px"></div>
+            <label>Video / pitch label (optional)</label>
+            <input id="dealVideo" placeholder="e.g., Video pitch (demo)" style="width:100%" />
+
+            <div class="hr"></div>
+
+            <h3 style="margin:0 0 8px 0;">Prospectus / Deal Pack (PDF)</h3>
+            <input type="file" id="dealProspectus" accept="application/pdf" />
+            <div style="height:6px"></div>
+            <div id="dealProspectusStatus"><small class="muted">No prospectus attached.</small></div>
+            <div style="height:10px"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="attachProspectus()">Attach prospectus</button>
+              <button class="secondary" onclick="downloadProspectus()">Download prospectus</button>
+            </div>
+
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="saveDeal()">Save</button>
+              <button class="ghost" onclick="clearDealForm()">Clear</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Deals (Current Region View)</h2>
+            <p><small>Tip: set Region to “Non-Regional” to view and edit all deals.</small></p>
+            <table class="table">
+              <thead><tr><th>Deal</th><th>Region</th><th>Ticket</th><th>Stage</th><th>Lead</th><th>Actions</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="6"><small>No deals in this region yet.</small></td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      const r = pickRegion();
+      $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
+      updateProspectusStatusUi();
+    }
+
+    function updateProspectusStatusUi(){
+      const statusEl = $("#dealProspectusStatus");
+      if(!statusEl) return;
+
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id){
+        statusEl.innerHTML = `<small class="muted">Save the deal first, then attach a prospectus.</small>`;
+        return;
+      }
+
+      const d = getDeals().find(x=>x.id===id);
+      if(d && d.prospectus_name){
+        const stored = d.prospectus_data ? "stored" : "name only";
+        const sizeTxt = d.prospectus_size ? ` • ${humanFileSize(d.prospectus_size)}` : "";
+        statusEl.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(d.prospectus_name)} (${stored}${sizeTxt})</small>`;
+      } else {
+        statusEl.innerHTML = `<small class="muted">No prospectus attached.</small>`;
+      }
+    }
+
+    function attachProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("Save first", "Save the deal first, then attach a prospectus.");
+
+      const f = $("#dealProspectus")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a PDF file first.");
+
+      if(f.type !== "application/pdf"){
+        return setToast("Invalid file", "Please upload a PDF prospectus.");
+      }
+
+      // Demo guardrail for localStorage size
+      const MAX_STORE_BYTES = 1_500_000; // ~1.5MB safe-ish
+      const deals = getDeals();
+      const idx = deals.findIndex(x=>x.id===id);
+      if(idx < 0) return setToast("Not found", "Deal not found.");
+
+      deals[idx].prospectus_name = f.name;
+      deals[idx].prospectus_mime = f.type;
+      deals[idx].prospectus_size = f.size;
+      deals[idx].prospectus_updated_at = new Date().toISOString();
+
+      if(f.size > MAX_STORE_BYTES){
+        deals[idx].prospectus_data = ""; // store name only
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        deals[idx].prospectus_data = String(reader.result || ""); // data:application/pdf;base64,...
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        setToast("Attached", "Prospectus stored and ready for Public download (demo).");
+      };
+      reader.onerror = ()=>{
+        setToast("Error", "Could not read the PDF (demo).");
+      };
+      reader.readAsDataURL(f);
+    }
+
+    function downloadProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("No deal", "Load a deal first.");
+
+      const d = getDeals().find(x=>x.id===id);
+      if(!d || !d.prospectus_name){
+        return setToast("None", "No prospectus attached to this deal.");
+      }
+
+      if(!d.prospectus_data){
+        return setToast("Demo limit", "Prospectus filename exists but PDF data was not stored (file too large).");
+      }
+
+      const a = document.createElement("a");
+      a.href = d.prospectus_data;
+      a.download = d.prospectus_name || ("prospectus_" + id + ".pdf");
+      a.click();
+    }
+
+    function importDealsCsv(){
+      const f = $("#bulkDeals")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a CSV file.");
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        const text = String(reader.result||"").trim();
+        const lines = text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+        if(lines.length < 2) return setToast("Invalid", "CSV has no data rows.");
+
+        const headers = lines.shift().split(",").map(x=>x.trim().toLowerCase());
+
+        const deals = getDeals();
+        let added = 0;
+
+        lines.forEach(line=>{
+          const cols = line.split(",");
+          const obj = {};
+          headers.forEach((h,i)=> obj[h] = (cols[i]||"").trim());
+
+          if(!obj.country || !obj.sector) return;
+
+          deals.push({
+            id: "d" + Date.now() + Math.floor(Math.random()*100000),
+            country: obj.country,
+            sector: obj.sector,
+            ticket_usd_m: Number(obj.ticket_usd_m||0),
+            stage: obj.stage || "Origination",
+            summary: obj.summary || "",
+            region: obj.region || pickRegion(),
+            status: "Draft",
+            warmth: "Warm",
+
+            // prospectus fields
+            prospectus_name: "",
+            prospectus_data: "",
+            prospectus_mime: "",
+            prospectus_size: 0,
+            prospectus_updated_at: ""
+          });
+          added += 1;
+        });
+
+        saveDeals(deals);
+        setToast("Imported", `${added} deals imported (demo).`);
+        renderDealsManager();
+      };
+      reader.readAsText(f);
+    }
+
+    function clearDealForm(){
+      $("#dealId").value = "";
+      $("#dealCountry").value = "";
+      $("#dealSector").value = "";
+      $("#dealTicket").value = "";
+      $("#dealOwner").value = "";
+      $("#dealSummary").value = "";
+      $("#dealVideo").value = "";
+      $("#dealStage").value = "Origination";
+      $("#dealWarmth").value = "Cold";
+      if($("#dealProspectus")) $("#dealProspectus").value = "";
+      updateProspectusStatusUi();
+      setToast("Cleared", "Deal form reset (demo).");
+    }
+
+    function loadDeal(id){
+      const d = getDeals().find(x=>x.id===id);
+      if(!d) return;
+      $("#dealId").value = d.id;
+      $("#dealRegion").value = d.region;
+      $("#dealCountry").value = d.country;
+      $("#dealSector").value = d.sector;
+      $("#dealTicket").value = d.ticket_usd_m;
+      $("#dealStage").value = d.stage;
+      $("#dealWarmth").value = d.warmth;
+      $("#dealOwner").value = d.owner || "";
+      $("#dealSummary").value = d.summary || "";
+      $("#dealVideo").value = d.video || "";
+      if($("#dealProspectus")) $("#dealProspectus").value = "";
+      updateProspectusStatusUi();
+      setToast("Loaded", "Deal loaded for editing (demo).");
+    }
+
+    function saveDeal(){
+      const id = ($("#dealId").value || "").trim();
+      const deals = getDeals();
+      const existing = id ? deals.find(x=>x.id===id) : null;
+
+      const deal = {
+        id: id || ("d" + Date.now()),
+        region: $("#dealRegion").value,
+        country: ($("#dealCountry").value || "").trim(),
+        sector: ($("#dealSector").value || "").trim(),
+        ticket_usd_m: parseInt($("#dealTicket").value || "0", 10),
+        stage: $("#dealStage").value,
+        warmth: $("#dealWarmth").value,
+        owner: ($("#dealOwner").value || "").trim(),
+        summary: ($("#dealSummary").value || "").trim(),
+        video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)",
+
+        // keep prospectus fields if already attached
+        prospectus_name: existing?.prospectus_name || "",
+        prospectus_data: existing?.prospectus_data || "",
+        prospectus_mime: existing?.prospectus_mime || "",
+        prospectus_size: existing?.prospectus_size || 0,
+        prospectus_updated_at: existing?.prospectus_updated_at || ""
+      };
+
+      if(!deal.country || !deal.sector || !deal.ticket_usd_m){
+        setToast("Missing fields", "Country, sector and ticket size are required in this demo.");
+        return;
+      }
+
+      const idx = deals.findIndex(x=>x.id===deal.id);
+      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
+      saveDeals(deals);
+
+      setToast("Saved", "Deal saved. Prospectus can be attached below.");
+      renderDealsManager();
+      loadDeal(deal.id);
+    }
+
+    function deleteDeal(id){
+      const deals = getDeals().filter(d=>d.id!==id);
+      saveDeals(deals);
+      setToast("Deleted", "Deal removed (demo).");
+      renderDealsManager();
+    }
+
+    function addDeal(){
+      clearDealForm();
+      setToast("New deal", "Fill the form and click Save.");
+    }
+
+    function resetDeals(){
+      localStorage.removeItem("timp_deals");
+      setToast("Reset", "Deals reset to sample dataset.");
+      renderDealsManager();
+    }
 
     /* =========================
-       Matchmaking (unchanged)
+       ✅ NEW: Virtual Exhibition Admin Editor
+       ========================= */
+    function renderExpoAdmin(){
+      setActive("expo");
+      $("#pageTitle").textContent = "Virtual Exhibition";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Booths + catalogs (demo)</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="addBooth()">Add Booth</button>
+        <button class="secondary" onclick="resetBooths()">Reset</button>
+      `;
+
+      const booths = adminFilter(getBooths());
+      const allBooths = getBooths();
+
+      const rows = booths.map(b=>`
+        <tr>
+          <td>
+            <b>${escapeHtml(b.org || "")}</b><br>
+            <small>${escapeHtml(b.offers || "")}</small><br>
+            ${
+              (b.catalog_name || b.catalog)
+                ? `<small class="tag ok">Catalog: ${escapeHtml(b.catalog_name || b.catalog)}</small>`
+                : `<small class="tag muted">Catalog: not attached</small>`
+            }
+          </td>
+          <td>${regionLabel(b.region || pickRegion())}</td>
+          <td><span class="tag ${b.status==="Published" ? "ok" : "warn"}">${escapeHtml(b.status || "Published")}</span></td>
+          <td class="row-actions">
+            <button class="secondary" onclick="loadBooth('${b.id}')">Edit</button>
+            <button class="danger" onclick="deleteBooth('${b.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join("");
+
+      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Booth Editor</h2>
+            <p>Create exhibitor booths and attach PDF catalogs. Public will only see <b>Published</b> booths.</p>
+
+            <div class="hr"></div>
+
+            <input type="hidden" id="boothId" value="" />
+
+            <label>Region</label>
+            <select id="boothRegion" style="width:100%">${regionOpts}</select>
+            <div style="height:10px"></div>
+
+            <label>Organisation</label>
+            <input id="boothOrg" placeholder="e.g., Afreximbank" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Offers</label>
+            <input id="boothOffers" placeholder="e.g., Trade finance, Guarantees, Advisory" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Status</label>
+            <select id="boothStatus" style="width:100%">
+              <option>Published</option>
+              <option>Draft</option>
+            </select>
+
+            <div class="hr"></div>
+
+            <h3 style="margin:0 0 8px 0;">Catalog (PDF)</h3>
+            <input type="file" id="boothCatalog" accept="application/pdf" />
+            <div style="height:6px"></div>
+            <div id="boothCatalogStatus"><small class="muted">No catalog attached.</small></div>
+
+            <div style="height:10px"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="attachBoothCatalog()">Attach catalog</button>
+              <button class="secondary" onclick="downloadBoothCatalog()">Download catalog</button>
+            </div>
+
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="saveBooth()">Save</button>
+              <button class="ghost" onclick="clearBoothForm()">Clear</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Booths (Current Region View)</h2>
+            <p><small>Tip: set Region to “Non-Regional” to view and edit all booths.</small></p>
+            <table class="table">
+              <thead><tr><th>Booth</th><th>Region</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="4"><small>No booths in this region yet.</small></td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      const r = pickRegion();
+      $("#boothRegion").value = (r === "non_reg") ? (allBooths[0]?.region || "north") : r;
+      updateBoothCatalogStatusUi();
+    }
+
+    function updateBoothCatalogStatusUi(){
+      const el = $("#boothCatalogStatus");
+      if(!el) return;
+
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id){
+        el.innerHTML = `<small class="muted">Save the booth first, then attach a catalog.</small>`;
+        return;
+      }
+
+      const b = getBooths().find(x=>x.id===id);
+      if(b && (b.catalog_name || b.catalog)){
+        const name = b.catalog_name || b.catalog;
+        const stored = b.catalog_data ? "stored" : "name only";
+        const sizeTxt = b.catalog_size ? ` • ${humanFileSize(b.catalog_size)}` : "";
+        el.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(name)} (${stored}${sizeTxt})</small>`;
+      } else {
+        el.innerHTML = `<small class="muted">No catalog attached.</small>`;
+      }
+    }
+
+    function attachBoothCatalog(){
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id) return setToast("Save first", "Save the booth first, then attach a catalog.");
+
+      const f = $("#boothCatalog")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a PDF file first.");
+      if(f.type !== "application/pdf") return setToast("Invalid file", "Please upload a PDF catalog.");
+
+      const MAX_STORE_BYTES = 1_500_000;
+      const booths = getBooths();
+      const idx = booths.findIndex(x=>x.id===id);
+      if(idx < 0) return setToast("Not found", "Booth not found.");
+
+      booths[idx].catalog_name = f.name;
+      booths[idx].catalog_mime = f.type;
+      booths[idx].catalog_size = f.size;
+      booths[idx].catalog_updated_at = new Date().toISOString();
+
+      if(f.size > MAX_STORE_BYTES){
+        booths[idx].catalog_data = "";
+        saveBooths(booths);
+        updateBoothCatalogStatusUi();
+        return setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
+      }
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        booths[idx].catalog_data = String(reader.result || "");
+        saveBooths(booths);
+        updateBoothCatalogStatusUi();
+        setToast("Attached", "Catalog stored and ready for Public download (demo).");
+      };
+      reader.onerror = ()=> setToast("Error", "Could not read the PDF (demo).");
+      reader.readAsDataURL(f);
+    }
+
+    function downloadBoothCatalog(){
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id) return setToast("No booth", "Load a booth first.");
+
+      const b = getBooths().find(x=>x.id===id);
+      const name = b?.catalog_name || b?.catalog || "";
+      if(!b || !name) return setToast("None", "No catalog attached to this booth.");
+      if(!b.catalog_data) return setToast("Demo limit", "Catalog filename exists but PDF data was not stored (file too large).");
+
+      const a = document.createElement("a");
+      a.href = b.catalog_data;
+      a.download = name || ("catalog_" + id + ".pdf");
+      a.click();
+    }
+
+    function clearBoothForm(){
+      $("#boothId").value = "";
+      $("#boothOrg").value = "";
+      $("#boothOffers").value = "";
+      $("#boothStatus").value = "Published";
+      if($("#boothCatalog")) $("#boothCatalog").value = "";
+      updateBoothCatalogStatusUi();
+      setToast("Cleared", "Booth form reset (demo).");
+    }
+
+    function addBooth(){
+      clearBoothForm();
+      setToast("New booth", "Fill the form and click Save.");
+    }
+
+    function loadBooth(id){
+      const b = getBooths().find(x=>x.id===id);
+      if(!b) return;
+
+      $("#boothId").value = b.id;
+      $("#boothRegion").value = b.region || pickRegion();
+      $("#boothOrg").value = b.org || "";
+      $("#boothOffers").value = b.offers || "";
+      $("#boothStatus").value = b.status || "Published";
+      if($("#boothCatalog")) $("#boothCatalog").value = "";
+      updateBoothCatalogStatusUi();
+      setToast("Loaded", "Booth loaded for editing (demo).");
+    }
+
+    function saveBooth(){
+      const id = ($("#boothId").value || "").trim();
+      const booths = getBooths();
+      const existing = id ? booths.find(x=>x.id===id) : null;
+
+      const booth = {
+        id: id || ("b" + Date.now()),
+        region: $("#boothRegion").value,
+        org: ($("#boothOrg").value || "").trim(),
+        offers: ($("#boothOffers").value || "").trim(),
+        status: $("#boothStatus").value,
+
+        // keep catalog fields if already attached
+        catalog_name: existing?.catalog_name || existing?.catalog || "",
+        catalog_data: existing?.catalog_data || "",
+        catalog_mime: existing?.catalog_mime || "",
+        catalog_size: existing?.catalog_size || 0,
+        catalog_updated_at: existing?.catalog_updated_at || ""
+      };
+
+      if(!booth.org){
+        return setToast("Missing fields", "Organisation is required.");
+      }
+
+      const idx = booths.findIndex(x=>x.id===booth.id);
+      if(idx >= 0) booths[idx] = booth; else booths.push(booth);
+      saveBooths(booths);
+
+      setToast("Saved", "Booth saved. Catalog can be attached below.");
+      renderExpoAdmin();
+      loadBooth(booth.id);
+    }
+
+    function deleteBooth(id){
+      const booths = getBooths().filter(b=>b.id!==id);
+      saveBooths(booths);
+      setToast("Deleted", "Booth removed (demo).");
+      renderExpoAdmin();
+    }
+
+    function resetBooths(){
+      localStorage.removeItem("timp_booths");
+      setToast("Reset", "Booths reset to sample dataset.");
+      renderExpoAdmin();
+    }
+
+    /* =========================
+       Matchmaking / RegionProfiles / RBAC / Analytics / Archive
+       (unchanged from your version)
        ========================= */
     function renderMatchmaking(){
       setActive("matchmaking");
@@ -980,217 +1453,157 @@
       `;
     }
 
-    /* =========================
-       ✅ Region Profiles (Admin editor)
-       ========================= */
     function renderRegionProfiles(){
       setActive("region_profiles");
       $("#pageTitle").textContent = t("region_profiles");
-      $("#pageMeta").innerHTML = `<span class="tag ok">Authoring</span> <span class="tag muted">Draft → Publish to Public search (demo)</span>`;
-      $("#pageActions").innerHTML = `
-        <button class="secondary" onclick="rp_saveDraft()">Save draft</button>
-        <button onclick="rp_publishNow()">Publish</button>
-        <button class="ghost" onclick="rp_unpublishNow()">Unpublish</button>
-      `;
-
-      const lang = (document.getElementById("langSel")?.value || "en");
-      const current = (pickRegion()==="non_reg") ? "north" : pickRegion();
-      const profile = rp_get(current);
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Macro/regulatory context + stakeholders (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Saved', 'Demo: region profile stored for planning and investor briefings.')">Save profile</button>`;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
           <div class="card">
-            <h2>Region Profile Editor</h2>
-            <p style="color:var(--muted); margin-top:6px;">
-              You are editing the profile that Public users will discover in <b>Region Profiles</b> search.
-            </p>
-
-            <div class="hr"></div>
-
-            <label>Target Region</label>
-            <select id="rpRegionSel" style="width:100%">
-              <option value="north">North</option>
-              <option value="west">West</option>
-              <option value="central">Central</option>
-              <option value="east">East</option>
-              <option value="southern">Southern</option>
-            </select>
-
+            <h2>Operating Environment</h2>
+            <label>Macro overview</label>
+            <textarea rows="5" style="width:100%" placeholder="National/regional macro summary (demo)"></textarea>
             <div style="height:10px"></div>
-            <div class="grid cols-2">
-              <div>
-                <label>Status</label>
-                <div id="rpStatusLabel" class="tag muted" style="display:inline-block; margin-top:6px;">${escapeHtml(profile?.status || "Draft")}</div>
-              </div>
-              <div>
-                <label>Last updated</label>
-                <div id="rpUpdatedLabel" style="color:var(--muted); margin-top:6px;">${profile?.updatedAt ? escapeHtml(new Date(profile.updatedAt).toLocaleString()) : ""}</div>
-              </div>
-            </div>
-
-            <div class="hr"></div>
-
-            <label>Title (${escapeHtml(lang)})</label>
-            <input id="rpTitle" style="width:100%" placeholder="e.g., West Africa – Investment Snapshot" />
-
-            <div style="height:10px"></div>
-            <label>Subtitle</label>
-            <input id="rpSubtitle" style="width:100%" placeholder="Short framing line..." />
-
-            <div style="height:10px"></div>
-            <label>Overview</label>
-            <textarea id="rpOverview" rows="5" style="width:100%" placeholder="Macro/regulatory/investment overview..."></textarea>
-
-            <div style="height:10px"></div>
-            <label>Key sectors</label>
-            <textarea id="rpKeySectors" rows="3" style="width:100%" placeholder="e.g., energy, logistics, agro-processing"></textarea>
-
-            <div style="height:10px"></div>
-            <label>Incentives</label>
-            <textarea id="rpIncentives" rows="3" style="width:100%" placeholder="Tax incentives, zones, reforms..."></textarea>
-
-            <div style="height:10px"></div>
-            <label>Risks</label>
-            <textarea id="rpRisks" rows="3" style="width:100%" placeholder="FX, regulatory, security, execution..."></textarea>
-
-            <div style="height:10px"></div>
-            <label>Tags (comma separated)</label>
-            <input id="rpTags" style="width:100%" placeholder="e.g., energy, ports, PPP, manufacturing" />
-
-            <div class="hr"></div>
-            <div class="row-actions">
-              <button class="secondary" id="saveDraftBtn" onclick="rp_saveDraft()">Save Draft</button>
-              <button id="publishBtn" onclick="rp_publishNow()">Publish</button>
-              <button class="ghost" onclick="rp_unpublishNow()">Unpublish</button>
-            </div>
-
-            <small class="muted">Publishing makes it appear in Public portal search (this browser demo).</small>
+            <label>Regulatory environment</label>
+            <textarea rows="5" style="width:100%" placeholder="Key regulations relevant to trade & investment (demo)"></textarea>
           </div>
-
           <div class="card">
-            <h2>Preview (Public excerpt)</h2>
-            <div id="rpPreview"><small>Start typing to preview...</small></div>
+            <h2>Existing Opportunities</h2>
+            <label>Key driving sectors</label>
+            <input style="width:100%" placeholder="e.g., energy, logistics, manufacturing" />
+            <div style="height:10px"></div>
+            <label>Key projects</label>
+            <textarea rows="5" style="width:100%" placeholder="List priority national/regional projects (demo)"></textarea>
+            <div style="height:10px"></div>
+            <label>Key stakeholders</label>
+            <textarea rows="4" style="width:100%" placeholder="List key players/partners (demo)"></textarea>
           </div>
         </div>
       `;
-
-      // init region selector based on current topbar region
-      const rpRegionSel = document.getElementById("rpRegionSel");
-      rpRegionSel.value = current;
-
-      function currentRegionId(){
-        return rp_normRegionKey(document.getElementById("rpRegionSel")?.value || current);
-      }
-      function currentLang(){
-        return document.getElementById("langSel")?.value || "en";
-      }
-      function readForm(){
-        const tagsRaw = (document.getElementById("rpTags")?.value || "");
-        const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
-        return {
-          title: document.getElementById("rpTitle")?.value || "",
-          subtitle: document.getElementById("rpSubtitle")?.value || "",
-          overview: document.getElementById("rpOverview")?.value || "",
-          keySectors: document.getElementById("rpKeySectors")?.value || "",
-          incentives: document.getElementById("rpIncentives")?.value || "",
-          risks: document.getElementById("rpRisks")?.value || "",
-          tags
-        };
-      }
-      function fillForm(p){
-        const langNow = currentLang();
-        const c = rp_pickLangContent(p || {}, langNow) || {};
-        document.getElementById("rpTitle").value = c.title || "";
-        document.getElementById("rpSubtitle").value = c.subtitle || "";
-        document.getElementById("rpOverview").value = c.overview || "";
-        document.getElementById("rpKeySectors").value = c.keySectors || "";
-        document.getElementById("rpIncentives").value = c.incentives || "";
-        document.getElementById("rpRisks").value = c.risks || "";
-        document.getElementById("rpTags").value = (c.tags || []).join(", ");
-
-        document.getElementById("rpStatusLabel").textContent = (p?.status || "Draft");
-        document.getElementById("rpUpdatedLabel").textContent = p?.updatedAt ? new Date(p.updatedAt).toLocaleString() : "";
-        refreshPreview();
-      }
-      function refreshPreview(){
-        const langNow = currentLang();
-        const p = rp_get(currentRegionId());
-        const c = rp_pickLangContent(p || {}, langNow) || readForm();
-
-        const overview = String(c.overview || "");
-        const excerpt = overview.length > 260 ? (overview.slice(0,260) + "...") : overview;
-
-        document.getElementById("rpPreview").innerHTML = `
-          <div class="card" style="margin:0;">
-            <h3 style="margin:0 0 6px 0;">${escapeHtml(c.title || "Region Profile")}</h3>
-            ${c.subtitle ? `<div style="color:var(--muted); margin-bottom:8px;">${escapeHtml(c.subtitle)}</div>` : ""}
-            ${excerpt ? `<p style="color:var(--muted); line-height:1.55;">${escapeHtml(excerpt)}</p>` : `<p style="color:var(--muted);">No overview yet.</p>`}
-            ${(c.tags && c.tags.length) ? `
-              <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-                ${c.tags.map(t => `<span class="tag muted">${escapeHtml(t)}</span>`).join("")}
-              </div>` : ""
-            }
-          </div>
-        `;
-      }
-
-      // expose handlers to pageActions buttons
-      window.rp_saveDraft = function(){
-        const rid = currentRegionId();
-        const langNow = currentLang();
-        const content = readForm();
-        const saved = rp_upsertContent(rid, langNow, content, { status: "Draft" });
-        setToast("Saved", "Region profile saved as Draft (demo).");
-        fillForm(saved);
-      };
-      window.rp_publishNow = function(){
-        const rid = currentRegionId();
-        const langNow = currentLang();
-        // ensure latest edits saved first
-        rp_upsertContent(rid, langNow, readForm(), { status: "Draft" });
-        const pub = rp_publish(rid);
-        setToast("Published", "Region profile is now visible on Public search (demo).");
-        fillForm(pub);
-      };
-      window.rp_unpublishNow = function(){
-        const rid = currentRegionId();
-        const p = rp_unpublish(rid);
-        if(!p) return setToast("Not found", "No profile exists for this region yet.");
-        setToast("Unpublished", "Profile moved back to Draft (hidden from Public search).");
-        fillForm(p);
-      };
-
-      // events
-      ["rpTitle","rpSubtitle","rpOverview","rpKeySectors","rpIncentives","rpRisks","rpTags"].forEach(id=>{
-        const el = document.getElementById(id);
-        if(el) el.addEventListener("input", refreshPreview);
-      });
-      rpRegionSel.addEventListener("change", ()=> fillForm(rp_get(currentRegionId())));
-      document.getElementById("langSel")?.addEventListener("change", ()=> fillForm(rp_get(currentRegionId())));
-
-      // initial fill
-      fillForm(rp_get(current));
     }
 
-    /* =========================
-       RBAC / Analytics / Archive (your original versions)
-       ========================= */
-    function renderRBAC(){ /* keep your existing RBAC code here */ setActive("users_rbac"); $("#pageTitle").textContent=t("users_rbac"); $("#pageMeta").innerHTML=`<span class="tag ok">RBAC</span> <span class="tag muted">Role-based access control (demo)</span>`; $("#pageActions").innerHTML=`<button class="secondary" onclick="setToast('Roles updated', 'Demo: In real build, connect to SSO and identity management.')">Update roles</button>`; $("#pageBody").innerHTML=`<div class="card"><h2>Roles (from concept note)</h2><p>Admin rights granted to specific roles across Regional Comms, Regional Staff, Client Relations, TFIP, and Digital Business (demo).</p><div class="hr"></div><table class="table"><thead><tr><th>Role</th><th>Count (indicative)</th><th>Key Permissions</th></tr></thead><tbody><tr><td>Regional Comms Manager</td><td>1</td><td>Publish events, manage content</td></tr><tr><td>Regional Staff</td><td>1</td><td>Event support, uploads</td></tr><tr><td>Client Relations</td><td>2</td><td>Investor onboarding, follow-up</td></tr><tr><td>Trade & Investment Promotion</td><td>3</td><td>Deal curation, deal book, matchmaking</td></tr><tr><td>Digital Business</td><td>2</td><td>Platform admin, integrations</td></tr></tbody></table><div class="hr"></div><p><small>Public rights: verified users can register, view allowed materials, and amend their profiles.</small></p></div>`; }
-    function renderAnalytics(){ /* keep your existing Analytics code here */ setActive("analytics"); $("#pageTitle").textContent=t("analytics"); $("#pageMeta").innerHTML=`<span class="tag ok">Reporting</span> <span class="tag muted">Engagement + downloads + conversion (demo)</span>`; $("#pageActions").innerHTML=`<button class="secondary" onclick="setToast('Exported', 'Demo: export analytics for post-event reports.')">Export report</button>`; $("#pageBody").innerHTML=`<div class="grid cols-3"><div class="card"><div class="mini"><div><div class="label">Attendance rate</div><div class="big">78%</div></div><span class="tag ok">Events</span></div><div class="progress"><div style="width:78%"></div></div></div><div class="card"><div class="mini"><div><div class="label">Deal book downloads</div><div class="big">134</div></div><span class="tag warn">Content</span></div><div class="progress"><div style="width:62%"></div></div></div><div class="card"><div class="mini"><div><div class="label">Prospectus requests</div><div class="big">21</div></div><span class="tag ok">Signals</span></div><div class="progress"><div style="width:35%"></div></div></div></div>`; }
-    function renderArchive(){ /* keep your existing Archive code here */ setActive("archive"); $("#pageTitle").textContent=t("archive"); $("#pageMeta").innerHTML=`<span class="tag ok">Institutional Memory</span> <span class="tag muted">Audit-ready searchable repository (demo)</span>`; $("#pageActions").innerHTML=``; $("#pageBody").innerHTML=`<div class="grid cols-2"><div class="card"><h2>Archive Search</h2><input id="q" placeholder="Search keywords (e.g., Lagos, Manufacturing, Deal Book)" style="width:100%" /><div style="height:10px"></div><button onclick="doSearch()">Search</button><div class="hr"></div><div id="results"><small>Try “Manufacturing”.</small></div></div><div class="card"><h2>Audit & Governance</h2><p>Real build keeps logs for publishing, approvals, access to sensitive documents, and exports.</p><div class="hr"></div><span class="tag ok">Audit ready</span><span class="tag ok">Controlled access</span><span class="tag warn">GDPR controls</span></div></div>`; }
-    function doSearch(){ const q = ($("#q").value || "").toLowerCase().trim(); const hits=[]; const evs=adminFilter(getEvents()); evs.forEach(e=>{ if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)) hits.push({type:"Event",label:e.title+" • "+e.date}); }); const deals=adminFilter(getDeals()); deals.forEach(d=>{ if([d.country,d.sector,(d.summary||""),d.stage].join(" ").toLowerCase().includes(q)) hits.push({type:"Deal",label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)}); }); $("#results").innerHTML = hits.length ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${escapeHtml(h.type)}:</b> ${escapeHtml(h.label)}</li>`).join("")}</ul>` : `<small>No results.</small>`; }
+    function renderRBAC(){
+      setActive("users_rbac");
+      $("#pageTitle").textContent = t("users_rbac");
+      $("#pageMeta").innerHTML = `<span class="tag ok">RBAC</span> <span class="tag muted">Role-based access control (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Roles updated', 'Demo: In real build, connect to SSO and identity management.')">Update roles</button>`;
 
-    /* =========================
-       Routing
-       ========================= */
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Roles (from concept note)</h2>
+          <p>Admin rights granted to specific roles across Regional Comms, Regional Staff, Client Relations, TFIP, and Digital Business (demo).</p>
+          <div class="hr"></div>
+          <table class="table">
+            <thead><tr><th>Role</th><th>Count (indicative)</th><th>Key Permissions</th></tr></thead>
+            <tbody>
+              <tr><td>Regional Comms Manager</td><td>1</td><td>Publish events, manage content</td></tr>
+              <tr><td>Regional Staff</td><td>1</td><td>Event support, uploads</td></tr>
+              <tr><td>Client Relations</td><td>2</td><td>Investor onboarding, follow-up</td></tr>
+              <tr><td>Trade & Investment Promotion</td><td>3</td><td>Deal curation, deal book, matchmaking</td></tr>
+              <tr><td>Digital Business</td><td>2</td><td>Platform admin, integrations</td></tr>
+            </tbody>
+          </table>
+          <div class="hr"></div>
+          <p><small>Public rights: verified users can register, view allowed materials, and amend their profiles.</small></p>
+        </div>
+      `;
+    }
+
+    function renderAnalytics(){
+      setActive("analytics");
+      $("#pageTitle").textContent = t("analytics");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Reporting</span> <span class="tag muted">Engagement + downloads + conversion (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Exported', 'Demo: export analytics for post-event reports.')">Export report</button>`;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-3">
+          <div class="card"><div class="mini"><div><div class="label">Attendance rate</div><div class="big">78%</div></div><span class="tag ok">Events</span></div><div class="progress"><div style="width:78%"></div></div></div>
+          <div class="card"><div class="mini"><div><div class="label">Deal book downloads</div><div class="big">134</div></div><span class="tag warn">Content</span></div><div class="progress"><div style="width:62%"></div></div></div>
+          <div class="card"><div class="mini"><div><div class="label">Prospectus requests</div><div class="big">21</div></div><span class="tag ok">Signals</span></div><div class="progress"><div style="width:35%"></div></div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>What gets measured</h2>
+            <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
+              <li>Attendance and participation rates</li>
+              <li>Engagement (polls, Q&A, chat)</li>
+              <li>Content access (recordings/decks)</li>
+              <li>Deal book downloads</li>
+              <li>Investor interactions per project (warmth)</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h2>Follow-up prioritization</h2>
+            <p>Real build uses analytics to rank “warm leads” and automate personalized follow-up sequences.</p>
+            <div class="hr"></div>
+            <button onclick="setToast('Follow-up queued', 'Demo: in real build, this triggers sequences and assigns owners.')">Generate follow-up list</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderArchive(){
+      setActive("archive");
+      $("#pageTitle").textContent = t("archive");
+      $("#pageMeta").innerHTML = `<span class="tag ok">Institutional Memory</span> <span class="tag muted">Audit-ready searchable repository (demo)</span>`;
+      $("#pageActions").innerHTML = ``;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Archive Search</h2>
+            <input id="q" placeholder="Search keywords (e.g., Lagos, Manufacturing, Deal Book)" style="width:100%" />
+            <div style="height:10px"></div>
+            <button onclick="doSearch()">Search</button>
+            <div class="hr"></div>
+            <div id="results"><small>Try “Manufacturing”.</small></div>
+          </div>
+          <div class="card">
+            <h2>Audit & Governance</h2>
+            <p>Real build keeps logs for publishing, approvals, access to sensitive documents, and exports.</p>
+            <div class="hr"></div>
+            <span class="tag ok">Audit ready</span>
+            <span class="tag ok">Controlled access</span>
+            <span class="tag warn">GDPR controls</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function doSearch(){
+      const q = ($("#q").value || "").toLowerCase().trim();
+      const hits = [];
+
+      const evs = adminFilter(getEvents());
+      evs.forEach(e=>{
+        if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
+          hits.push({type:"Event", label:e.title+" • "+e.date});
+        }
+      });
+
+      const deals = adminFilter(getDeals());
+      deals.forEach(d=>{
+        if([d.country,d.sector,(d.summary||""),d.stage].join(" ").toLowerCase().includes(q)){
+          hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
+        }
+      });
+
+      $("#results").innerHTML = hits.length
+        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${escapeHtml(h.type)}:</b> ${escapeHtml(h.label)}</li>`).join("")}</ul>`
+        : `<small>No results.</small>`;
+    }
+
     function route(){
       const h = location.hash || "#dashboard";
       if(h.startsWith("#dashboard")) renderDashboard();
       else if(h.startsWith("#events")) renderEventManager();
       else if(h.startsWith("#regs")) renderRegistrations();
       else if(h.startsWith("#dealbook")) renderDealBook();
-      else if(h.startsWith("#deals")) renderDealsManager();     // NOTE: keep your full function in file
-      else if(h.startsWith("#expo")) renderExpoAdmin();         // NOTE: keep your full function in file
+      else if(h.startsWith("#deals")) renderDealsManager();
+      else if(h.startsWith("#expo")) renderExpoAdmin();     // ✅ NEW
       else if(h.startsWith("#matchmaking")) renderMatchmaking();
       else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
       else if(h.startsWith("#rbac")) renderRBAC();
@@ -1204,3 +1617,88 @@
   </script>
 </body>
 </html>
+<script>
+  function currentRegionId() {
+    // Use your existing region selector ID if different
+    const sel = document.getElementById("regionSel");
+    return sel ? sel.value : "non-regional";
+  }
+
+  function currentLang() {
+    // Use your existing language selector ID if different
+    const sel = document.getElementById("langSel");
+    return sel ? sel.value : "en";
+  }
+
+  function readRegionProfileForm() {
+    const tagsRaw = (document.getElementById("rpTags")?.value || "");
+    const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+
+    return {
+      title: document.getElementById("rpTitle")?.value || "",
+      subtitle: document.getElementById("rpSubtitle")?.value || "",
+      overview: document.getElementById("rpOverview")?.value || "",
+      keySectors: document.getElementById("rpKeySectors")?.value || "",
+      incentives: document.getElementById("rpIncentives")?.value || "",
+      risks: document.getElementById("rpRisks")?.value || "",
+      tags
+    };
+  }
+
+  function fillRegionProfileForm(profile, lang) {
+    const c = rp_pickLangContent(profile, lang) || {};
+
+    if (document.getElementById("rpTitle")) document.getElementById("rpTitle").value = c.title || "";
+    if (document.getElementById("rpSubtitle")) document.getElementById("rpSubtitle").value = c.subtitle || "";
+    if (document.getElementById("rpOverview")) document.getElementById("rpOverview").value = c.overview || "";
+    if (document.getElementById("rpKeySectors")) document.getElementById("rpKeySectors").value = c.keySectors || "";
+    if (document.getElementById("rpIncentives")) document.getElementById("rpIncentives").value = c.incentives || "";
+    if (document.getElementById("rpRisks")) document.getElementById("rpRisks").value = c.risks || "";
+    if (document.getElementById("rpTags")) document.getElementById("rpTags").value = (c.tags || []).join(", ");
+
+    // Optional status labels
+    if (document.getElementById("rpStatusLabel")) {
+      document.getElementById("rpStatusLabel").textContent = profile?.status || "draft";
+    }
+    if (document.getElementById("rpUpdatedLabel")) {
+      document.getElementById("rpUpdatedLabel").textContent = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
+    }
+  }
+
+  function loadForRegionAndLang() {
+    const regionId = currentRegionId();
+    const lang = currentLang();
+    const p = rp_get(regionId);
+    fillRegionProfileForm(p, lang);
+  }
+
+  // Button handlers
+  document.getElementById("saveDraftBtn")?.addEventListener("click", () => {
+    const regionId = currentRegionId();
+    const lang = currentLang();
+    const content = readRegionProfileForm();
+
+    const saved = rp_upsertContent(regionId, lang, content, { status: "draft" });
+    fillRegionProfileForm(saved, lang);
+    alert("Saved as draft (demo storage).");
+  });
+
+  document.getElementById("publishBtn")?.addEventListener("click", () => {
+    const regionId = currentRegionId();
+    const lang = currentLang();
+    const content = readRegionProfileForm();
+
+    // Ensure latest edits are saved, then publish
+    rp_upsertContent(regionId, lang, content, { status: "draft" });
+    const published = rp_publish(regionId);
+    fillRegionProfileForm(published, lang);
+    alert("Published! Public portal search will now show it (on this browser).");
+  });
+
+  // Reload when region/lang changes
+  document.getElementById("regionSel")?.addEventListener("change", loadForRegionAndLang);
+  document.getElementById("langSel")?.addEventListener("change", loadForRegionAndLang);
+
+  // Initial load
+  loadForRegionAndLang();
+</script>
