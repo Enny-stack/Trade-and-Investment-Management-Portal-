@@ -1,4 +1,4 @@
-<!-- admin.html (UPDATED) -->
+<!-- admin.html (FIXED STRUCTURE + REGION PROFILES STORAGE + CLEAN ROUTING) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -40,7 +40,7 @@
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
 
-        <!-- ✅ NEW: Virtual Exhibition Admin -->
+        <!-- ✅ Virtual Exhibition Admin -->
         <a href="#expo" data-nav="expo"><span>Virtual Exhibition</span></a>
 
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
@@ -73,9 +73,9 @@
   </div>
 
   <script src="data.js"></script>
-<script src="util.js"></script>
-<script src="regionStore.js"></script>
-<script src="app.js"></script>
+  <script src="util.js"></script>
+  <script src="regionStore.js"></script>
+  <script src="app.js"></script>
 
   <script>
     /* =========================================================
@@ -115,7 +115,7 @@
       }
     }
 
-    // ✅ NEW: booths storage fallback (Virtual Exhibition)
+    // ✅ booths storage fallback (Virtual Exhibition)
     if(typeof getBooths !== "function"){
       function getBooths(){
         const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
@@ -168,6 +168,10 @@
       regionSel.appendChild(opt);
     });
     initTopbar();
+
+    // ✅ Re-render current page when region/lang changes (keeps views in sync)
+    document.getElementById("regionSel")?.addEventListener("change", () => route());
+    document.getElementById("langSel")?.addEventListener("change", () => route());
 
     function setActive(navKey){
       $$("#sidebarNav a").forEach(a=>a.classList.remove("active"));
@@ -466,10 +470,9 @@
       renderEventManager();
     }
 
-    /* Simple invite helpers (demo) */
     function copyInviteLink(){
       const id = ($("#evId").value || "").trim();
-      const link = "public.html#events"; // demo route
+      const link = "public.html#events";
       const text = `${link} (event id: ${id || "not saved yet"})`;
 
       if(navigator.clipboard && navigator.clipboard.writeText){
@@ -483,7 +486,6 @@
       }
     }
 
-    // ✅ UPDATED: exports registrations for the selected event (the real "invite list")
     function downloadInviteList(){
       const evId = ($("#evId")?.value || "").trim();
       if(!evId) return setToast("Select event", "Click Edit on an event first, then download.");
@@ -494,7 +496,6 @@
       const regs = getRegistrations().filter(r => r.event_id === evId);
 
       const rows = regs.map(r=>{
-        // support old data that used r.name
         const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
         const first = r.first_name || nm?.first_name || "";
         const last  = r.last_name  || nm?.last_name  || "";
@@ -521,7 +522,7 @@
       const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `invite_list_${(ev?.title||evId).replace(/\s+/g,"_")}.csv`;
+      a.download = `invite_list_${(ev?.title||evId).replace(/[\\/:*?"<>|]+/g,"_").replace(/\s+/g,"_")}.csv`;
       a.click();
 
       setToast("Downloaded", "Invite list CSV downloaded (open with Excel).");
@@ -559,7 +560,7 @@
         return (pickRegion()==="non_reg" || ev.region===pickRegion());
       });
 
-      $("#regCount").textContent = regs.length;
+      if($("#regCount")) $("#regCount").textContent = regs.length;
 
       const rows = regs.map(r=>{
         const ev = events.find(e=>e.id===r.event_id);
@@ -972,8 +973,7 @@
         return setToast("Invalid file", "Please upload a PDF prospectus.");
       }
 
-      // Demo guardrail for localStorage size
-      const MAX_STORE_BYTES = 1_500_000; // ~1.5MB safe-ish
+      const MAX_STORE_BYTES = 1_500_000;
       const deals = getDeals();
       const idx = deals.findIndex(x=>x.id===id);
       if(idx < 0) return setToast("Not found", "Deal not found.");
@@ -984,7 +984,7 @@
       deals[idx].prospectus_updated_at = new Date().toISOString();
 
       if(f.size > MAX_STORE_BYTES){
-        deals[idx].prospectus_data = ""; // store name only
+        deals[idx].prospectus_data = "";
         saveDeals(deals);
         updateProspectusStatusUi();
         setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
@@ -993,14 +993,12 @@
 
       const reader = new FileReader();
       reader.onload = ()=>{
-        deals[idx].prospectus_data = String(reader.result || ""); // data:application/pdf;base64,...
+        deals[idx].prospectus_data = String(reader.result || "");
         saveDeals(deals);
         updateProspectusStatusUi();
         setToast("Attached", "Prospectus stored and ready for Public download (demo).");
       };
-      reader.onerror = ()=>{
-        setToast("Error", "Could not read the PDF (demo).");
-      };
+      reader.onerror = ()=> setToast("Error", "Could not read the PDF (demo).");
       reader.readAsDataURL(f);
     }
 
@@ -1038,6 +1036,8 @@
         const deals = getDeals();
         let added = 0;
 
+        const fallbackRegion = (pickRegion()==="non_reg") ? "north" : pickRegion();
+
         lines.forEach(line=>{
           const cols = line.split(",");
           const obj = {};
@@ -1052,11 +1052,9 @@
             ticket_usd_m: Number(obj.ticket_usd_m||0),
             stage: obj.stage || "Origination",
             summary: obj.summary || "",
-            region: obj.region || pickRegion(),
+            region: obj.region || fallbackRegion,
             status: "Draft",
             warmth: "Warm",
-
-            // prospectus fields
             prospectus_name: "",
             prospectus_data: "",
             prospectus_mime: "",
@@ -1122,8 +1120,6 @@
         owner: ($("#dealOwner").value || "").trim(),
         summary: ($("#dealSummary").value || "").trim(),
         video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)",
-
-        // keep prospectus fields if already attached
         prospectus_name: existing?.prospectus_name || "",
         prospectus_data: existing?.prospectus_data || "",
         prospectus_mime: existing?.prospectus_mime || "",
@@ -1164,7 +1160,7 @@
     }
 
     /* =========================
-       ✅ NEW: Virtual Exhibition Admin Editor
+       Virtual Exhibition Admin
        ========================= */
     function renderExpoAdmin(){
       setActive("expo");
@@ -1376,8 +1372,6 @@
         org: ($("#boothOrg").value || "").trim(),
         offers: ($("#boothOffers").value || "").trim(),
         status: $("#boothStatus").value,
-
-        // keep catalog fields if already attached
         catalog_name: existing?.catalog_name || existing?.catalog || "",
         catalog_data: existing?.catalog_data || "",
         catalog_mime: existing?.catalog_mime || "",
@@ -1412,8 +1406,7 @@
     }
 
     /* =========================
-       Matchmaking / RegionProfiles / RBAC / Analytics / Archive
-       (unchanged from your version)
+       Matchmaking / RBAC / Analytics / Archive (your version)
        ========================= */
     function renderMatchmaking(){
       setActive("matchmaking");
@@ -1453,35 +1446,216 @@
       `;
     }
 
+    /* =========================================================
+       ✅ Region Profiles (FIXED): UI + localStorage engine
+       ========================================================= */
+    const RP_STORE_KEY = "timp_region_profiles_v1";
+
+    function rp_loadAll(){
+      try{
+        const raw = localStorage.getItem(RP_STORE_KEY);
+        const obj = raw ? JSON.parse(raw) : {};
+        return (obj && typeof obj === "object") ? obj : {};
+      }catch(e){
+        return {};
+      }
+    }
+
+    function rp_saveAll(obj){
+      localStorage.setItem(RP_STORE_KEY, JSON.stringify(obj || {}));
+    }
+
+    function rp_get(regionId){
+      const all = rp_loadAll();
+      return all[regionId] || { regionId, status:"draft", updatedAt:"", content:{} };
+    }
+
+    function rp_pickLangContent(profile, lang){
+      const c = profile?.content || {};
+      return c[lang] || c.en || c.fr || c.ar || c.pt || {};
+    }
+
+    function rp_upsertContent(regionId, lang, content, meta){
+      const all = rp_loadAll();
+      const existing = all[regionId] || { regionId, status:"draft", updatedAt:"", content:{} };
+
+      const next = {
+        ...existing,
+        ...meta,
+        regionId,
+        updatedAt: new Date().toISOString(),
+        content: {
+          ...(existing.content || {}),
+          [lang]: {
+            ...(existing.content?.[lang] || {}),
+            ...content
+          }
+        }
+      };
+
+      all[regionId] = next;
+      rp_saveAll(all);
+      return next;
+    }
+
+    function rp_publish(regionId){
+      const all = rp_loadAll();
+      const existing = all[regionId] || { regionId, status:"draft", updatedAt:"", content:{} };
+      existing.status = "published";
+      existing.updatedAt = new Date().toISOString();
+      all[regionId] = existing;
+      rp_saveAll(all);
+      return existing;
+    }
+
+    function rp_currentRegionId(){
+      const sel = document.getElementById("regionSel");
+      return sel ? sel.value : (typeof pickRegion === "function" ? pickRegion() : "non_reg");
+    }
+
+    function rp_currentLang(){
+      const sel = document.getElementById("langSel");
+      return sel ? sel.value : (typeof pickLang === "function" ? pickLang() : "en");
+    }
+
+    function rp_readForm(){
+      const tagsRaw = (document.getElementById("rpTags")?.value || "");
+      const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+
+      return {
+        title: document.getElementById("rpTitle")?.value || "",
+        subtitle: document.getElementById("rpSubtitle")?.value || "",
+        overview: document.getElementById("rpOverview")?.value || "",
+        keySectors: document.getElementById("rpKeySectors")?.value || "",
+        incentives: document.getElementById("rpIncentives")?.value || "",
+        risks: document.getElementById("rpRisks")?.value || "",
+        tags
+      };
+    }
+
+    function rp_fillForm(profile, lang){
+      const c = rp_pickLangContent(profile, lang) || {};
+
+      if (document.getElementById("rpTitle")) document.getElementById("rpTitle").value = c.title || "";
+      if (document.getElementById("rpSubtitle")) document.getElementById("rpSubtitle").value = c.subtitle || "";
+      if (document.getElementById("rpOverview")) document.getElementById("rpOverview").value = c.overview || "";
+      if (document.getElementById("rpKeySectors")) document.getElementById("rpKeySectors").value = c.keySectors || "";
+      if (document.getElementById("rpIncentives")) document.getElementById("rpIncentives").value = c.incentives || "";
+      if (document.getElementById("rpRisks")) document.getElementById("rpRisks").value = c.risks || "";
+      if (document.getElementById("rpTags")) document.getElementById("rpTags").value = (c.tags || []).join(", ");
+
+      if (document.getElementById("rpStatusLabel")) {
+        document.getElementById("rpStatusLabel").textContent = profile?.status || "draft";
+      }
+      if (document.getElementById("rpUpdatedLabel")) {
+        document.getElementById("rpUpdatedLabel").textContent = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
+      }
+    }
+
+    function rp_reload(){
+      const regionId = rp_currentRegionId();
+      const lang = rp_currentLang();
+      const p = rp_get(regionId);
+      rp_fillForm(p, lang);
+    }
+
+    function rp_saveDraft(){
+      const regionId = rp_currentRegionId();
+      const lang = rp_currentLang();
+      const content = rp_readForm();
+      const saved = rp_upsertContent(regionId, lang, content, { status: "draft" });
+      rp_fillForm(saved, lang);
+      setToast("Saved", "Region profile saved as draft (demo storage).");
+    }
+
+    function rp_publishCurrent(){
+      const regionId = rp_currentRegionId();
+      const lang = rp_currentLang();
+      const content = rp_readForm();
+      rp_upsertContent(regionId, lang, content, { status: "draft" });
+      const published = rp_publish(regionId);
+      rp_fillForm(published, lang);
+      setToast("Published", "Region profile published (this browser demo).");
+    }
+
     function renderRegionProfiles(){
       setActive("region_profiles");
       $("#pageTitle").textContent = t("region_profiles");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Macro/regulatory context + stakeholders (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Saved', 'Demo: region profile stored for planning and investor briefings.')">Save profile</button>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Multi-language region briefs (demo)</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="rp_saveDraft()">Save Draft</button>
+        <button class="secondary" onclick="rp_publishCurrent()">Publish</button>
+      `;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
           <div class="card">
-            <h2>Operating Environment</h2>
-            <label>Macro overview</label>
-            <textarea rows="5" style="width:100%" placeholder="National/regional macro summary (demo)"></textarea>
+            <h2>Region Profile Content</h2>
+            <p><small class="muted">Language-specific fields. Switch language to edit translations.</small></p>
+
+            <div class="hr"></div>
+
+            <div class="grid cols-2">
+              <div><b>Status:</b> <span id="rpStatusLabel" class="tag warn">draft</span></div>
+              <div style="text-align:right"><small class="muted">Updated: <span id="rpUpdatedLabel"></span></small></div>
+            </div>
+
             <div style="height:10px"></div>
-            <label>Regulatory environment</label>
-            <textarea rows="5" style="width:100%" placeholder="Key regulations relevant to trade & investment (demo)"></textarea>
+
+            <label>Title</label>
+            <input id="rpTitle" style="width:100%" placeholder="e.g., West Africa – Trade & Investment Snapshot" />
+
+            <div style="height:10px"></div>
+
+            <label>Subtitle</label>
+            <input id="rpSubtitle" style="width:100%" placeholder="e.g., Policy, pipeline, investor notes" />
+
+            <div style="height:10px"></div>
+
+            <label>Overview</label>
+            <textarea id="rpOverview" rows="6" style="width:100%" placeholder="Macro/regulatory overview..."></textarea>
+
+            <div style="height:10px"></div>
+
+            <label>Key sectors</label>
+            <input id="rpKeySectors" style="width:100%" placeholder="e.g., Energy, Logistics, Manufacturing" />
+
+            <div style="height:10px"></div>
+
+            <label>Incentives / Programmes</label>
+            <textarea id="rpIncentives" rows="4" style="width:100%" placeholder="Key incentives, programmes, financing tools..."></textarea>
+
+            <div style="height:10px"></div>
+
+            <label>Risks / Constraints</label>
+            <textarea id="rpRisks" rows="4" style="width:100%" placeholder="Key risks, constraints, mitigations..."></textarea>
+
+            <div style="height:10px"></div>
+
+            <label>Tags (comma-separated)</label>
+            <input id="rpTags" style="width:100%" placeholder="e.g., ports, AfCFTA, mining" />
+
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button id="saveDraftBtn" onclick="rp_saveDraft()">Save Draft</button>
+              <button id="publishBtn" class="secondary" onclick="rp_publishCurrent()">Publish</button>
+            </div>
           </div>
+
           <div class="card">
-            <h2>Existing Opportunities</h2>
-            <label>Key driving sectors</label>
-            <input style="width:100%" placeholder="e.g., energy, logistics, manufacturing" />
-            <div style="height:10px"></div>
-            <label>Key projects</label>
-            <textarea rows="5" style="width:100%" placeholder="List priority national/regional projects (demo)"></textarea>
-            <div style="height:10px"></div>
-            <label>Key stakeholders</label>
-            <textarea rows="4" style="width:100%" placeholder="List key players/partners (demo)"></textarea>
+            <h2>How Public will use it (demo)</h2>
+            <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
+              <li>Searchable region briefs for investor onboarding</li>
+              <li>Localised content (EN/FR/AR/PT)</li>
+              <li>Supports event planning, deal curation, and briefs</li>
+            </ul>
+            <div class="hr"></div>
+            <button class="secondary" onclick="setToast('Demo note', 'In real build, profiles are stored in a database + audited.')">View governance note</button>
           </div>
         </div>
       `;
+
+      rp_reload();
     }
 
     function renderRBAC(){
@@ -1596,6 +1770,9 @@
         : `<small>No results.</small>`;
     }
 
+    /* =========================
+       Router
+       ========================= */
     function route(){
       const h = location.hash || "#dashboard";
       if(h.startsWith("#dashboard")) renderDashboard();
@@ -1603,7 +1780,7 @@
       else if(h.startsWith("#regs")) renderRegistrations();
       else if(h.startsWith("#dealbook")) renderDealBook();
       else if(h.startsWith("#deals")) renderDealsManager();
-      else if(h.startsWith("#expo")) renderExpoAdmin();     // ✅ NEW
+      else if(h.startsWith("#expo")) renderExpoAdmin();
       else if(h.startsWith("#matchmaking")) renderMatchmaking();
       else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
       else if(h.startsWith("#rbac")) renderRBAC();
@@ -1617,88 +1794,3 @@
   </script>
 </body>
 </html>
-<script>
-  function currentRegionId() {
-    // Use your existing region selector ID if different
-    const sel = document.getElementById("regionSel");
-    return sel ? sel.value : "non-regional";
-  }
-
-  function currentLang() {
-    // Use your existing language selector ID if different
-    const sel = document.getElementById("langSel");
-    return sel ? sel.value : "en";
-  }
-
-  function readRegionProfileForm() {
-    const tagsRaw = (document.getElementById("rpTags")?.value || "");
-    const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
-
-    return {
-      title: document.getElementById("rpTitle")?.value || "",
-      subtitle: document.getElementById("rpSubtitle")?.value || "",
-      overview: document.getElementById("rpOverview")?.value || "",
-      keySectors: document.getElementById("rpKeySectors")?.value || "",
-      incentives: document.getElementById("rpIncentives")?.value || "",
-      risks: document.getElementById("rpRisks")?.value || "",
-      tags
-    };
-  }
-
-  function fillRegionProfileForm(profile, lang) {
-    const c = rp_pickLangContent(profile, lang) || {};
-
-    if (document.getElementById("rpTitle")) document.getElementById("rpTitle").value = c.title || "";
-    if (document.getElementById("rpSubtitle")) document.getElementById("rpSubtitle").value = c.subtitle || "";
-    if (document.getElementById("rpOverview")) document.getElementById("rpOverview").value = c.overview || "";
-    if (document.getElementById("rpKeySectors")) document.getElementById("rpKeySectors").value = c.keySectors || "";
-    if (document.getElementById("rpIncentives")) document.getElementById("rpIncentives").value = c.incentives || "";
-    if (document.getElementById("rpRisks")) document.getElementById("rpRisks").value = c.risks || "";
-    if (document.getElementById("rpTags")) document.getElementById("rpTags").value = (c.tags || []).join(", ");
-
-    // Optional status labels
-    if (document.getElementById("rpStatusLabel")) {
-      document.getElementById("rpStatusLabel").textContent = profile?.status || "draft";
-    }
-    if (document.getElementById("rpUpdatedLabel")) {
-      document.getElementById("rpUpdatedLabel").textContent = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
-    }
-  }
-
-  function loadForRegionAndLang() {
-    const regionId = currentRegionId();
-    const lang = currentLang();
-    const p = rp_get(regionId);
-    fillRegionProfileForm(p, lang);
-  }
-
-  // Button handlers
-  document.getElementById("saveDraftBtn")?.addEventListener("click", () => {
-    const regionId = currentRegionId();
-    const lang = currentLang();
-    const content = readRegionProfileForm();
-
-    const saved = rp_upsertContent(regionId, lang, content, { status: "draft" });
-    fillRegionProfileForm(saved, lang);
-    alert("Saved as draft (demo storage).");
-  });
-
-  document.getElementById("publishBtn")?.addEventListener("click", () => {
-    const regionId = currentRegionId();
-    const lang = currentLang();
-    const content = readRegionProfileForm();
-
-    // Ensure latest edits are saved, then publish
-    rp_upsertContent(regionId, lang, content, { status: "draft" });
-    const published = rp_publish(regionId);
-    fillRegionProfileForm(published, lang);
-    alert("Published! Public portal search will now show it (on this browser).");
-  });
-
-  // Reload when region/lang changes
-  document.getElementById("regionSel")?.addEventListener("change", loadForRegionAndLang);
-  document.getElementById("langSel")?.addEventListener("change", loadForRegionAndLang);
-
-  // Initial load
-  loadForRegionAndLang();
-</script>
