@@ -47,10 +47,15 @@
       </nav>
 
       <div class="navtitle">Shortcut</div>
-      <nav class="nav">
-        <a href="admin.html"><span>Switch to Admin</span><span class="badge">demo</span></a>
-        <a href="walkthrough.html"><span>Demo Script</span></a>
-      </nav>
+<nav class="nav">
+  <a href="admin.html"><span>Switch to Admin</span><span class="badge">demo</span></a>
+  <a href="walkthrough.html"><span>Demo Script</span></a>
+
+  <!-- ✅ Logout -->
+  <a href="#" onclick="TIMP_AUTH.logout(); location.href='welcome.html'; return false;">
+    <span>Logout</span><span class="badge">demo</span>
+  </a>
+</nav>
     </aside>
 
     <main class="main">
@@ -69,13 +74,21 @@
     <div id="toastMsg"></div>
   </div>
 
-  <script src="data.js"></script>
+<script src="data.js"></script>
 <script src="util.js"></script>
 <script src="regionStore.js"></script>
 <script src="app.js"></script>
 <script src="auth.js"></script>
 
-  <script>
+<!-- ✅ Gate: must run BEFORE any portal JS -->
+<script>
+  if(!window.TIMP_AUTH || !TIMP_AUTH.requireAuth("index.html")){
+    throw new Error("Not registered yet. Redirecting...");
+  }
+</script>
+
+<!-- ✅ Your existing big public.html script starts here -->
+<script>
     // -----------------------------
     // Helpers + Safe storage
     // -----------------------------
