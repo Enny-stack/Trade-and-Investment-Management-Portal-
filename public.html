@@ -1008,11 +1008,40 @@
       else if(h.startsWith("#opps")) renderOpps();
       else if(h.startsWith("#expo")) renderExpo();
       else if(h.startsWith("#archive")) renderArchive();
+      else if(h.startsWith("#regionprofiles")) renderRegionProfilesPublic();  
       else if(h.startsWith("#profile")) renderProfile();
       else renderEvents();
     }
 
     window.addEventListener("hashchange", route);
+    function renderRegionProfilesPublic(){
+  setActive("region_profiles");
+  $("#pageTitle").textContent = "Region Profiles";
+
+  $("#pageBody").innerHTML = `
+    <div class="card">
+      <h2>Search Region Profiles</h2>
+      <input id="rpSearchInput" placeholder="Search (e.g., Kenya, energy, logistics)" style="width:100%" />
+      <div style="height:10px"></div>
+
+      <label>Region</label>
+      <select id="rpRegionFilter" style="width:100%">
+        <option value="all">All</option>
+        <option value="north">North</option>
+        <option value="west">West</option>
+        <option value="central">Central</option>
+        <option value="east">East</option>
+        <option value="southern">Southern</option>
+      </select>
+
+      <div class="hr"></div>
+      <div id="rpResults"></div>
+    </div>
+  `;
+
+  // ✅ IMPORTANT: call AFTER innerHTML is set
+  initRegionProfileSearch();
+}
     route();
   </script>
 </body>
