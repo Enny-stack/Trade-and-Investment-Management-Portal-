@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ATIMP – Register</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <div><b>Register</b></div>
+        <span class="sub">Create your portal profile to continue</span>
+      </div>
+    </div>
+    <div class="pills">
+      <a class="pill" href="index.html"><small>Welcome</small></a>
+      <a class="pill" href="home.html"><small>Home</small></a>
+    </div>
+  </div>
+
+  <div class="main" style="max-width:720px;margin:0 auto;">
+    <div class="card">
+      <h2>Portal Registration</h2>
+      <p style="color:var(--muted); line-height:1.55;">
+        This demo uses local storage (browser-based). In the real build this would be SSO/RBAC + database.
+      </p>
+
+      <div class="hr"></div>
+
+      <label>Salutation</label>
+      <select id="rSalutation" style="width:100%">
+        <option>Mr</option><option>Mrs</option><option>Ms</option><option>Dr</option>
+      </select>
+
+      <div style="height:10px"></div>
+
+      <div class="grid cols-2">
+        <div><label>First name</label><input id="rFirst" style="width:100%"></div>
+        <div><label>Last name</label><input id="rLast" style="width:100%"></div>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <label>Organisation</label><input id="rOrg" style="width:100%">
+
+      <div style="height:10px"></div>
+
+      <label>Position</label><input id="rPosition" style="width:100%">
+
+      <div style="height:10px"></div>
+
+      <label>Email</label><input id="rEmail" style="width:100%" placeholder="name@company.com">
+
+      <div style="height:10px"></div>
+
+      <label>Phone</label><input id="rPhone" style="width:100%">
+
+      <div class="hr"></div>
+
+      <div class="row-actions">
+        <button onclick="doRegister()">Register & Continue</button>
+        <button class="secondary" onclick="location.href='home.html'">Back</button>
+      </div>
+
+      <div style="height:10px"></div>
+      <div id="msg" style="color:var(--muted)"></div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    function $(id){ return document.getElementById(id); }
+
+    function saveMyProfile(p){
+      localStorage.setItem("timp_profile", JSON.stringify(p || {}));
+      if(p && p.email) localStorage.setItem("timp_user_email", p.email);
+    }
+
+    function doRegister(){
+      const p = {
+        salutation: ($("rSalutation").value || "Mr").trim(),
+        first_name: ($("rFirst").value || "").trim(),
+        last_name: ($("rLast").value || "").trim(),
+        org: ($("rOrg").value || "").trim(),
+        position: ($("rPosition").value || "").trim(),
+        email: ($("rEmail").value || "").trim(),
+        phone: ($("rPhone").value || "").trim()
+      };
+
+      if(!p.first_name || !p.last_name || !p.org || !p.position || !p.email){
+        $("msg").textContent = "Please fill First name, Last name, Organisation, Position, and Email.";
+        return;
+      }
+
+      saveMyProfile(p);
+      TIMP_AUTH.login(p.email);
+
+      // send user into the full portal (Events page)
+      location.href = "public.html#events";
+    }
+
+    // If already registered, show quick message and route to portal
+    if(TIMP_AUTH.isAuthed()){
+      $("msg").innerHTML = "You’re already registered on this browser. Redirecting to portal...";
+      setTimeout(()=> location.href="public.html#events", 700);
+    }
+  </script>
+</body>
+</html>
