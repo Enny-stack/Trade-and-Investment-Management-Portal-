@@ -127,10 +127,23 @@
         <span class="tag muted">Static prototype (GitHub Pages friendly)</span>
       </div>
 
+      <!-- ✅ Updated: Welcome → Home → Register → Full Portal -->
       <div class="ctaRow">
-        <a href="public.html"><button>Enter Public Portal</button></a>
-        <a href="admin.html"><button class="secondary">Enter Admin Console</button></a>
-        <a href="public.html#events"><button class="secondary">Register / Events</button></a>
+        <a href="register.html"><button>Register</button></a>
+
+        <!-- Hidden until user is "authed" (registered) -->
+        <a href="public.html#events">
+          <button class="secondary" id="openPortalBtn" style="display:none;">Open Portal</button>
+        </a>
+
+        <!-- Keep Admin accessible for internal demo use -->
+        <a href="admin.html"><button class="secondary">Admin Console</button></a>
+      </div>
+
+      <div style="margin-top:8px;">
+        <small class="muted">
+          After registering, the “Open Portal” button will appear (demo access control).
+        </small>
       </div>
     </div>
 
@@ -166,9 +179,8 @@
         <div>
           <!-- IMAGE SLOT (use one of your screenshots or an Afreximbank visual) -->
           <div class="imgSlot">
-            <!-- Replace src with your image file -->
-            <!-- Example: assets/afsic-hero.jpg or assets/atimp-hero.jpg -->
-            <img src="assets/atimp-hero.jpg" alt="ATIMP hero image" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;><b>IMAGE SLOT</b><br/>Place your hero image here.<br/><br/>Save an image as:<br/><code>assets/atimp-hero.jpg</code><br/>and it will appear automatically.</div>';">
+            <img src="assets/atimp-hero.jpg" alt="ATIMP hero image"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;><b>IMAGE SLOT</b><br/>Place your hero image here.<br/><br/>Save an image as:<br/><code>assets/atimp-hero.jpg</code><br/>and it will appear automatically.</div>';">
           </div>
           <div style="height:8px;"></div>
           <div class="imgHint">
@@ -193,7 +205,8 @@
             <span class="tag ok">Discover</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-showcase.jpg" alt="Showcase" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-showcase.jpg</code></div>';">
+            <img src="assets/feature-showcase.jpg" alt="Showcase"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-showcase.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             A curated marketplace of investment opportunities with filters by country, sector, ticket size, and readiness level.
@@ -206,7 +219,8 @@
             <span class="tag warn">Match</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-dealroom.jpg" alt="Deal Room" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-dealroom.jpg</code></div>';">
+            <img src="assets/feature-dealroom.jpg" alt="Deal Room"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-dealroom.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Smart matchmaking between investors and opportunities, with meeting requests, follow-ups, and engagement signals.
@@ -219,7 +233,8 @@
             <span class="tag ok">Engage</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-engagement.jpg" alt="Engagement Hub" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-engagement.jpg</code></div>';">
+            <img src="assets/feature-engagement.jpg" alt="Engagement Hub"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-engagement.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             A structured space for messaging, document sharing (prospectus/deal packs), and tracking investor interest.
@@ -232,7 +247,8 @@
             <span class="tag muted">Events</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-forums.jpg" alt="Forums" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-forums.jpg</code></div>';">
+            <img src="assets/feature-forums.jpg" alt="Forums"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-forums.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Event pages for registration, agenda, speakers, downloads, and post-event recordings to sustain deal momentum.
@@ -245,7 +261,8 @@
             <span class="tag muted">Mobilize</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-roadshows.jpg" alt="Roadshows" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-roadshows.jpg</code></div>';">
+            <img src="assets/feature-roadshows.jpg" alt="Roadshows"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-roadshows.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Roadshow modules to promote opportunities by region, schedule sessions, and connect promoters to target investor pools.
@@ -258,7 +275,8 @@
             <span class="tag warn">Quickfire</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-pitching.jpg" alt="Pitching" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-pitching.jpg</code></div>';">
+            <img src="assets/feature-pitching.jpg" alt="Pitching"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-pitching.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Pitch-ready tools (timers, checklists, and document prompts) so opportunities present consistently and professionally.
@@ -271,7 +289,8 @@
             <span class="tag ok">Segment</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-region.jpg" alt="Region profile" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-region.jpg</code></div>';">
+            <img src="assets/feature-region.jpg" alt="Region profile"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-region.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Region-specific views to highlight priorities, pipelines, and curated opportunities by geography and strategy.
@@ -284,7 +303,8 @@
             <span class="tag muted">Onboard</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-submission.jpg" alt="Submission" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-submission.jpg</code></div>';">
+            <img src="assets/feature-submission.jpg" alt="Submission"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-submission.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Guided submission workflow to capture project details, readiness, documents, and approvals before publishing.
@@ -297,7 +317,8 @@
             <span class="tag ok">Trusted</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-access.jpg" alt="Investor access" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-access.jpg</code></div>';">
+            <img src="assets/feature-access.jpg" alt="Investor access"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-access.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Tiered access for institutional investors, banks, dealmakers, and partners — aligned to user roles and permissions.
@@ -310,7 +331,8 @@
             <span class="tag warn">Secure</span>
           </div>
           <div class="featureImg">
-            <img src="assets/feature-security.jpg" alt="Security" onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-security.jpg</code></div>';">
+            <img src="assets/feature-security.jpg" alt="Security"
+              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-security.jpg</code></div>';">
           </div>
           <p style="color:var(--muted); line-height:1.6; margin:0;">
             Security-by-design approach: authentication, audit trails, secure document handling, and privacy controls.
@@ -321,9 +343,12 @@
 
       <div class="hr"></div>
 
+      <!-- ✅ Updated CTA: Register first, then Open Portal appears -->
       <div class="ctaRow">
-        <a href="public.html"><button>Explore Opportunities</button></a>
-        <a href="public.html#dealroom"><button class="secondary">Open Deal Room</button></a>
+        <a href="register.html"><button>Register</button></a>
+        <a href="public.html#events">
+          <button class="secondary" id="openPortalBtn2" style="display:none;">Open Portal</button>
+        </a>
         <a href="admin.html"><button class="secondary">Admin Console</button></a>
       </div>
     </div>
@@ -334,6 +359,10 @@
   <script src="data.js"></script>
   <script src="util.js"></script>
   <script src="app.js"></script>
+
+  <!-- ✅ Add auth.js (controls whether Open Portal shows) -->
+  <script src="auth.js"></script>
+
   <script>
     // Fill region selector (keeps your existing behavior)
     const regionSel = document.getElementById("regionSel");
@@ -346,6 +375,16 @@
       });
     }
     if (typeof initTopbar === "function") initTopbar();
+
+    // ✅ Show Open Portal buttons only if registered/authed
+    const authed = (window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function")
+      ? TIMP_AUTH.isAuthed()
+      : false;
+
+    ["openPortalBtn","openPortalBtn2"].forEach(id=>{
+      const b = document.getElementById(id);
+      if (b) b.style.display = authed ? "inline-block" : "none";
+    });
   </script>
 </body>
 </html>
