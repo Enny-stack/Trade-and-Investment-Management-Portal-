@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED + Region Profiles Search FIXED) -->
+<!-- public.html (UPDATED + Auth Gate Order Fixed + Safer RegionSel + Logout Safe) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -37,7 +37,7 @@
         <a href="#events" data-nav="events"><span class="i18n" data-key="events">Events</span><span class="badge" id="evCount"></span></a>
         <a href="#dealroom" data-nav="deal_room"><span class="i18n" data-key="deal_room">Deal Room</span><span class="badge" id="matchCount"></span></a>
 
-        <!-- ✅ NEW: Region Profiles nav item -->
+        <!-- ✅ Region Profiles -->
         <a href="#regionprofiles" data-nav="region_profiles"><span>Region Profiles</span></a>
 
         <a href="#opps" data-nav="opportunities"><span class="i18n" data-key="opportunities">Opportunities</span></a>
@@ -47,15 +47,15 @@
       </nav>
 
       <div class="navtitle">Shortcut</div>
-<nav class="nav">
-  <a href="admin.html"><span>Switch to Admin</span><span class="badge">demo</span></a>
-  <a href="welcome.html"><span>Demo Script</span></a>
+      <nav class="nav">
+        <a href="admin.html"><span>Switch to Admin</span><span class="badge">demo</span></a>
+        <a href="welcome.html"><span>Demo Script</span></a>
 
-  <!-- ✅ Logout -->
-  <a href="#" onclick="TIMP_AUTH.logout(); location.href='welcome.html'; return false;">
-    <span>Logout</span><span class="badge">demo</span>
-  </a>
-</nav>
+        <!-- ✅ Logout (safe even if auth.js not ready yet) -->
+        <a href="#" onclick="(window.TIMP_AUTH && TIMP_AUTH.logout ? TIMP_AUTH.logout() : null); location.href='welcome.html'; return false;">
+          <span>Logout</span><span class="badge">demo</span>
+        </a>
+      </nav>
     </aside>
 
     <main class="main">
@@ -74,21 +74,41 @@
     <div id="toastMsg"></div>
   </div>
 
-<script src="data.js"></script>
-<script src="util.js"></script>
-<script src="regionStore.js"></script>
-<script src="app.js"></script>
-<script src="auth.js"></script>
+  <!-- =========================================================
+       ✅ AUTH GATE MUST LOAD FIRST (BEFORE portal scripts)
+       ========================================================= -->
+  <script src="auth.js"></script>
+  <script>
+    (function(){
+      try{
+        // If auth.js exists and provides requireAuth, enforce it.
+        if(window.TIMP_AUTH && typeof TIMP_AUTH.requireAuth === "function"){
+          if(!TIMP_AUTH.requireAuth("welcome.html")){
+            // Prevent flash of portal UI while redirect happens
+            document.documentElement.style.display = "none";
+            return;
+          }
+        }
+      }catch(e){
+        console.warn("Auth gate warning:", e);
+        // Demo fail-open if something is wrong with auth.js
+      }
+    })();
+  </script>
 
-<!-- ✅ Gate: must run BEFORE any portal JS -->
-<script>
-  if(!window.TIMP_AUTH || !TIMP_AUTH.requireAuth("index.html")){
-    throw new Error("Not registered yet. Redirecting...");
-  }
-</script>
+  <!-- Only load portal JS after gate -->
+  <script src="data.js"></script>
+  <script src="util.js"></script>
+  <script src="regionStore.js"></script>
+  <script src="app.js"></script>
 
-<!-- ✅ Your existing big public.html script starts here -->
-<script>
+  <!-- ✅ Your portal logic -->
+  <script>
+  // If auth exists and user is not authed, skip initializing portal (gate already redirected)
+  if(window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function" && !TIMP_AUTH.isAuthed()){
+    console.warn("Not registered yet — skipping public portal init.");
+  } else {
+
     // -----------------------------
     // Helpers + Safe storage
     // -----------------------------
@@ -101,7 +121,7 @@
       return (typeof getDeals === "function") ? getDeals() : ((window.TIMP_DATA && TIMP_DATA.deals) || []);
     }
 
-    // ✅ NEW: fallbacks so Public sees Admin changes saved to localStorage
+    // ✅ fallbacks so Public sees Admin changes saved to localStorage
     window.getEvents = window.getEvents || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
@@ -164,7 +184,7 @@
       setToast("Requested", "Prospectus request recorded (demo signal). If available, use Download.");
     }
 
-    // Use util.js versions if they exist; otherwise fallback here
+    // registrations store
     window.getRegistrations = window.getRegistrations || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_regs"));
@@ -177,7 +197,7 @@
       localStorage.setItem("timp_regs", JSON.stringify(rows || []));
     };
 
-    // ✅ NEW: profile fields for registration capture
+    // profile store
     window.getMyProfile = window.getMyProfile || function(){
       try{
         const p = JSON.parse(localStorage.getItem("timp_profile"));
@@ -199,7 +219,7 @@
       if(p && p.email) localStorage.setItem("timp_user_email", p.email);
     };
 
-    // Backward-compatible wrappers (older code used getProfile/saveProfile)
+    // compat wrappers
     window.getProfile = window.getProfile || function(){
       const p = getMyProfile();
       return {
@@ -262,7 +282,7 @@
       return `<span class="tag ${cls}">${s}</span>`;
     }
 
-    // Auto-refresh Public when Admin approves/rejects (other tab / same browser)
+    // Auto-refresh Public when Admin changes
     window.addEventListener("storage", (e)=>{
       if(e.key === "timp_regs"){
         if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID);
@@ -288,23 +308,26 @@
         if(location.hash.startsWith("#expo")) renderExpo();
       }
 
-      // ✅ Optional: if your regionStore saves to localStorage, refresh results
-      if(e.key === "timp_region_profiles" && location.hash.startsWith("#regionprofiles")){
+      // Region profile store refresh (common keys)
+      const regionKeys = ["timp_region_profiles","timp_regionprofiles","timp_regionStore"];
+      if(regionKeys.includes(e.key) && location.hash.startsWith("#regionprofiles")){
         initRegionProfileSearch();
       }
     });
 
     // -----------------------------
-    // Topbar init
+    // Topbar init (SAFER)
     // -----------------------------
     const regionSel = document.getElementById("regionSel");
-    TIMP_REGIONS.forEach(r=>{
-      const opt = document.createElement("option");
-      opt.value = r.id;
-      opt.textContent = r.name[pickLang()] || r.name.en;
-      regionSel.appendChild(opt);
-    });
-    initTopbar();
+    if(window.TIMP_REGIONS && Array.isArray(TIMP_REGIONS) && regionSel){
+      TIMP_REGIONS.forEach(r=>{
+        const opt = document.createElement("option");
+        opt.value = r.id;
+        opt.textContent = r.name[pickLang()] || r.name.en;
+        regionSel.appendChild(opt);
+      });
+    }
+    if(typeof initTopbar === "function") initTopbar();
 
     function setActive(navKey){
       $$("#sidebarNav a").forEach(a=>a.classList.remove("active"));
@@ -313,7 +336,7 @@
     }
 
     // -----------------------------
-    // ✅ Registration helpers
+    // Registration helpers
     // -----------------------------
     function fillRegFromProfile(){
       const p = getMyProfile();
@@ -400,10 +423,8 @@
     }
 
     // -----------------------------
-    // ✅ REGION PROFILES (Public Search) — FIXED
+    // REGION PROFILES (Public Search)
     // -----------------------------
-
-    // Fallback store (only used if regionStore.js doesn't provide these)
     window.getRegionProfiles = window.getRegionProfiles || function(){
       const keysToTry = ["timp_region_profiles", "timp_regionprofiles", "timp_regionStore"];
       for(const k of keysToTry){
@@ -415,7 +436,6 @@
       return [];
     };
 
-    // Pick localized fields safely
     window.rp_pickLangContent = window.rp_pickLangContent || function(profile, lang){
       if(!profile || typeof profile !== "object") return {};
       const c = profile.content || profile.i18n || profile.text || null;
@@ -431,10 +451,20 @@
       };
     };
 
-    // Search published region profiles (fallback)
+    function rp_normRegionKey(v){
+      const s = String(v || "").toLowerCase().trim();
+      if(!s) return "";
+      if(s === "south" || s.includes("southern")) return "southern";
+      if(s.includes("north")) return "north";
+      if(s.includes("west")) return "west";
+      if(s.includes("central") || s.includes("centre")) return "central";
+      if(s.includes("east")) return "east";
+      return s;
+    }
+
     window.rp_searchPublished = window.rp_searchPublished || function(q, lang, regionFilter){
       const query = String(q || "").toLowerCase().trim();
-      const region = regionFilter ? String(regionFilter).toLowerCase() : null;
+      const region = regionFilter ? rp_normRegionKey(regionFilter) : null;
 
       const rows = window.getRegionProfiles();
 
@@ -445,7 +475,7 @@
         })
         .filter(p => {
           if(!region) return true;
-          const pr = String(p.region || p.region_id || p.regionKey || "").toLowerCase();
+          const pr = rp_normRegionKey(p.region || p.region_id || p.regionKey || "");
           return pr === region;
         })
         .filter(p => {
@@ -510,7 +540,6 @@
       el.innerHTML = results.map(p => rp_renderCard(p, lang)).join("");
     }
 
-    // ✅ init AFTER pageBody is injected
     function initRegionProfileSearch(){
       const input = document.getElementById("rpSearchInput");
       const filter = document.getElementById("rpRegionFilter");
@@ -518,7 +547,6 @@
 
       if(!input || !filter) return;
 
-      // Avoid duplicate listeners across repeated navigation
       if(!input.dataset.bound){
         input.addEventListener("input", rp_refreshResults);
         input.dataset.bound = "1";
@@ -1147,7 +1175,7 @@
     }
 
     // -----------------------------
-    // ✅ REGION PROFILES PAGE (Public) — UPDATED
+    // REGION PROFILES PAGE (Public)
     // -----------------------------
     function renderRegionProfilesPublic(){
       setActive("region_profiles");
@@ -1178,7 +1206,6 @@
         </div>
       `;
 
-      // ✅ Must be after innerHTML is set
       initRegionProfileSearch();
     }
 
@@ -1191,13 +1218,15 @@
       else if(h.startsWith("#opps")) renderOpps();
       else if(h.startsWith("#expo")) renderExpo();
       else if(h.startsWith("#archive")) renderArchive();
-      else if(h.startsWith("#regionprofiles")) renderRegionProfilesPublic();  // ✅ FIXED target
+      else if(h.startsWith("#regionprofiles")) renderRegionProfilesPublic();
       else if(h.startsWith("#profile")) renderProfile();
       else renderEvents();
     }
 
     window.addEventListener("hashchange", route);
     route();
+
+  } // end auth skip wrapper
   </script>
 </body>
 </html>
