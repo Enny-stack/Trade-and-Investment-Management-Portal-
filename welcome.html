@@ -12,6 +12,7 @@
   <div class="topbar" style="justify-content:flex-end;">
     <div class="pills">
       <a class="pill" href="index.html"><small>Home</small></a>
+<a class="pill" id="openPortalBtn" href="public.html#events" style="display:none;"><small>Open Portal</small></a>
 
       <div class="pill">
         <small>Region</small>&nbsp;<select id="regionSel"></select>
@@ -65,5 +66,11 @@
     // Keeps language/region behavior consistent with your other pages
     if (typeof initTopbar === "function") initTopbar();
   </script>
+  <script src="auth.js"></script>
+<script>
+  // show Open Portal only if registered on this browser
+  const btn = document.getElementById("openPortalBtn");
+  if (btn) btn.style.display = TIMP_AUTH.isAuthed() ? "inline-block" : "none";
+</script>
 </body>
 </html>
