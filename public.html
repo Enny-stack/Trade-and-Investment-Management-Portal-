@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED + Auth Gate Order Fixed + Safer RegionSel + Logout Safe) -->
+<!-- public.html (UPDATED + Auth Gate Order Fixed + Proposal Template Download Added) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -81,17 +81,22 @@
   <script>
     (function(){
       try{
-        // If auth.js exists and provides requireAuth, enforce it.
+        // Hide while we check auth (prevents UI flash)
+        document.documentElement.style.visibility = "hidden";
+
         if(window.TIMP_AUTH && typeof TIMP_AUTH.requireAuth === "function"){
-          if(!TIMP_AUTH.requireAuth("welcome.html")){
-            // Prevent flash of portal UI while redirect happens
-            document.documentElement.style.display = "none";
+          const ok = TIMP_AUTH.requireAuth("welcome.html");
+          if(!ok){
+            // requireAuth should redirect; keep hidden
             return;
           }
         }
+        // Authed (or no auth available) -> show page
+        document.documentElement.style.visibility = "";
       }catch(e){
         console.warn("Auth gate warning:", e);
         // Demo fail-open if something is wrong with auth.js
+        document.documentElement.style.visibility = "";
       }
     })();
   </script>
@@ -157,6 +162,51 @@
       a.href = dataUrl;
       a.download = filename || "download";
       a.click();
+    }
+
+    // =========================================================
+    // ✅ NEW: Project Proposal Template (Deal Book) download
+    // Put PDFs in your repo:
+    //  - assets/Project Proposal Template ENG (3).pdf
+    //  - assets/Project Proposal Template FR.pdf
+    // =========================================================
+    function getProposalTemplateMeta(){
+      const lang =
+        (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
+
+      const urlMap = {
+        en: "assets/Project Proposal Template ENG (3).pdf",
+        fr: "assets/Project Proposal Template FR.pdf",
+        ar: "assets/Project Proposal Template ENG (3).pdf",
+        pt: "assets/Project Proposal Template ENG (3).pdf"
+      };
+
+      const labelMap = {
+        en: "Download Project Proposal Template (Deal Book)",
+        fr: "Télécharger le modèle de proposition (Deal Book)",
+        ar: "تحميل نموذج مقترح المشروع (Deal Book)",
+        pt: "Baixar modelo de proposta (Deal Book)"
+      };
+
+      const raw = urlMap[lang] || urlMap.en;
+      const url = encodeURI(raw); // handles spaces safely
+      return {
+        lang,
+        url,
+        label: labelMap[lang] || labelMap.en,
+        filename: (raw.split("/").pop() || "Project_Proposal_Template.pdf")
+      };
+    }
+
+    function downloadProposalTemplate(){
+      const tpl = getProposalTemplateMeta();
+      const a = document.createElement("a");
+      a.href = tpl.url;
+      a.download = tpl.filename;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
 
     // ✅ Public download: Prospectus for a deal
@@ -854,7 +904,14 @@
       setActive("opportunities");
       $("#pageTitle").textContent = t("opportunities");
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Pipeline view (stage + warmth)</span>`;
-      $("#pageActions").innerHTML = `<button onclick="setToast('Info', 'Admin generates Deal Books. Public can submit opportunities + attach a PDF (demo).')">Info</button>`;
+
+      const tpl = getProposalTemplateMeta();
+
+      // ✅ Add template download button in the header (your red-circled area)
+      $("#pageActions").innerHTML = `
+        <button onclick="setToast('Info', 'Download the proposal template (Deal Book), complete it, then submit your opportunity below.')">Info</button>
+        <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
+      `;
 
       const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
       const dealBooks = getDealBooks();
@@ -884,6 +941,12 @@
         <div class="grid cols-2">
           <div class="card">
             <h2>Submit an Opportunity (Public demo)</h2>
+
+            <!-- ✅ Also add template download inside the submission card -->
+            <div class="row-actions" style="margin:8px 0 10px 0;">
+              <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
+            </div>
+
             <p>Public users can submit an opportunity + upload a deal pack. In the real build, Admin reviews and publishes.</p>
             <div class="hr"></div>
 
