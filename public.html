@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED + Auth Gate Order Fixed + Proposal Template Download Added) -->
+<!-- public.html (FIXED: Region Profiles storage aligned with Admin v1 + safer fallbacks) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -107,12 +107,67 @@
   <script src="regionStore.js"></script>
   <script src="app.js"></script>
 
-  <!-- ✅ Your portal logic -->
+  <!-- ✅ Portal logic -->
   <script>
   // If auth exists and user is not authed, skip initializing portal (gate already redirected)
   if(window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function" && !TIMP_AUTH.isAuthed()){
     console.warn("Not registered yet — skipping public portal init.");
   } else {
+
+    /* =========================================================
+       Safer fallbacks (prevents demo crashes if util.js differs)
+       ========================================================= */
+    window.$  = window.$  || function(sel){ return document.querySelector(sel); };
+    window.$$ = window.$$ || function(sel){ return Array.from(document.querySelectorAll(sel)); };
+
+    window.setToast = window.setToast || function(title, msg){
+      const t = document.getElementById("toast");
+      const tt = document.getElementById("toastTitle");
+      const tm = document.getElementById("toastMsg");
+      if(tt) tt.textContent = title || "";
+      if(tm) tm.textContent = msg || "";
+      if(t){
+        t.classList.add("show");
+        setTimeout(()=>t.classList.remove("show"), 2600);
+      } else {
+        console.log("TOAST:", title, msg);
+      }
+    };
+
+    window.pickLang = window.pickLang || function(){
+      return document.getElementById("langSel")?.value || localStorage.getItem("timp_lang") || "en";
+    };
+    window.pickRegion = window.pickRegion || function(){
+      return document.getElementById("regionSel")?.value || localStorage.getItem("timp_region") || "non_reg";
+    };
+
+    window.t = window.t || function(key){
+      // basic fallback if i18n missing
+      return String(key || "").replace(/_/g," ").replace(/\b\w/g, c => c.toUpperCase());
+    };
+
+    window.regionLabel = window.regionLabel || function(regionId){
+      const r = String(regionId || "").toLowerCase();
+      const map = { north:"North", west:"West", central:"Central", east:"East", south:"South", southern:"Southern", non_reg:"Non-Regional" };
+      return map[r] || regionId || "Region";
+    };
+
+    window.filterByRegion = window.filterByRegion || function(items){
+      const r = pickRegion();
+      if(r === "non_reg") return Array.isArray(items) ? items : [];
+      return (Array.isArray(items) ? items : []).filter(x => (x && x.region) ? x.region === r : true);
+    };
+
+    window.fmtMoney = window.fmtMoney || function(x){
+      const n = Number(x || 0);
+      return (n ? (n.toLocaleString() + "m USD") : "0m USD");
+    };
+
+    window.badgeWarmth = window.badgeWarmth || function(w){
+      const v = String(w || "Warm");
+      const cls = v === "Hot" ? "ok" : (v === "Cold" ? "muted" : "warn");
+      return `<span class="tag ${cls}">${v}</span>`;
+    };
 
     // -----------------------------
     // Helpers + Safe storage
@@ -143,6 +198,10 @@
       return ((window.TIMP_DATA && TIMP_DATA.deals) || []);
     };
 
+    window.saveDeals = window.saveDeals || function(rows){
+      localStorage.setItem("timp_deals", JSON.stringify(rows || []));
+    };
+
     window.getBooths = window.getBooths || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
@@ -165,38 +224,38 @@
     }
 
     // =========================================================
-    // ✅ NEW: Project Proposal Template (Deal Book) download
+    // ✅ Project Proposal Template (Deal Book) download
     // Put PDFs in your repo:
     //  - assets/project-proposal-template-en.pdf
-    //  - assets/project-proposal-template fr.pdf
+    //  - assets/project-proposal-template-fr.pdf
     // =========================================================
-   function getProposalTemplateMeta(){
-  const lang =
-    (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
+    function getProposalTemplateMeta(){
+      const lang =
+        (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
 
-  const urlMap = {
-    en: "assets/project-proposal-template-en.pdf",
-    fr: "assets/project-proposal-template-fr.pdf",
-    ar: "assets/project-proposal-template-en.pdf", // fallback
-    pt: "assets/project-proposal-template-en.pdf"  // fallback
-  };
+      const urlMap = {
+        en: "assets/project-proposal-template-en.pdf",
+        fr: "assets/project-proposal-template-fr.pdf",
+        ar: "assets/project-proposal-template-en.pdf", // fallback
+        pt: "assets/project-proposal-template-en.pdf"  // fallback
+      };
 
-  const labelMap = {
-    en: "Download Project Proposal Template (Deal Book)",
-    fr: "Télécharger le modèle de proposition (Deal Book)",
-    ar: "تحميل نموذج مقترح المشروع (Deal Book)",
-    pt: "Baixar modelo de proposta (Deal Book)"
-  };
+      const labelMap = {
+        en: "Download Project Proposal Template (Deal Book)",
+        fr: "Télécharger le modèle de proposition (Deal Book)",
+        ar: "تحميل نموذج مقترح المشروع (Deal Book)",
+        pt: "Baixar modelo de proposta (Deal Book)"
+      };
 
-  const url = urlMap[lang] || urlMap.en;
+      const url = urlMap[lang] || urlMap.en;
 
-  return {
-    lang,
-    url,
-    label: labelMap[lang] || labelMap.en,
-    filename: url.split("/").pop() || "project-proposal-template.pdf"
-  };
-}
+      return {
+        lang,
+        url,
+        label: labelMap[lang] || labelMap.en,
+        filename: url.split("/").pop() || "project-proposal-template.pdf"
+      };
+    }
 
     function downloadProposalTemplate(){
       const tpl = getProposalTemplateMeta();
@@ -307,13 +366,13 @@
       return {};
     }
     function saveDealBooks(obj){
-      localStorage.setItem("timp_deal_books", JSON.stringify(obj));
+      localStorage.setItem("timp_deal_books", JSON.stringify(obj || {}));
     }
 
     function isDealVisibleOnPublic(d){
       if(!d || typeof d !== "object") return false;
       if(!("status" in d)) return true;
-      return d.status !== "Draft";
+      return String(d.status || "").toLowerCase() !== "draft";
     }
 
     function myRegForEvent(eventId){
@@ -358,22 +417,22 @@
         if(location.hash.startsWith("#expo")) renderExpo();
       }
 
-      // Region profile store refresh (common keys)
-      const regionKeys = ["timp_region_profiles","timp_regionprofiles","timp_regionStore"];
+      // ✅ Region Profiles store refresh (Admin uses timp_region_profiles_v1)
+      const regionKeys = ["timp_region_profiles_v1","timp_region_profiles","timp_regionprofiles","timp_regionStore"];
       if(regionKeys.includes(e.key) && location.hash.startsWith("#regionprofiles")){
         initRegionProfileSearch();
       }
     });
 
     // -----------------------------
-    // Topbar init (SAFER)
+    // Topbar init
     // -----------------------------
     const regionSel = document.getElementById("regionSel");
     if(window.TIMP_REGIONS && Array.isArray(TIMP_REGIONS) && regionSel){
       TIMP_REGIONS.forEach(r=>{
         const opt = document.createElement("option");
         opt.value = r.id;
-        opt.textContent = r.name[pickLang()] || r.name.en;
+        opt.textContent = (r.name && (r.name[pickLang()] || r.name.en)) ? (r.name[pickLang()] || r.name.en) : (r.id || "");
         regionSel.appendChild(opt);
       });
     }
@@ -473,21 +532,35 @@
     }
 
     // -----------------------------
-    // REGION PROFILES (Public Search)
+    // REGION PROFILES (Public Search) — FIXED to read Admin v1 store
     // -----------------------------
-    window.getRegionProfiles = window.getRegionProfiles || function(){
-      const keysToTry = ["timp_region_profiles", "timp_regionprofiles", "timp_regionStore"];
+    const RP_STORE_KEY = "timp_region_profiles_v1"; // ✅ Admin uses this
+
+    function rp_asArrayFromAnyStore(){
+      // Try Admin v1 (object map) first, then legacy arrays
+      const keysToTry = [RP_STORE_KEY, "timp_region_profiles", "timp_regionprofiles", "timp_regionStore"];
       for(const k of keysToTry){
         try{
-          const x = JSON.parse(localStorage.getItem(k) || "null");
+          const raw = localStorage.getItem(k);
+          if(!raw) continue;
+          const x = JSON.parse(raw);
           if(Array.isArray(x)) return x;
+          if(x && typeof x === "object"){
+            // Admin v1: { north:{...}, west:{...} } -> array
+            return Object.values(x);
+          }
         }catch(e){}
       }
       return [];
+    }
+
+    window.getRegionProfiles = window.getRegionProfiles || function(){
+      return rp_asArrayFromAnyStore();
     };
 
     window.rp_pickLangContent = window.rp_pickLangContent || function(profile, lang){
       if(!profile || typeof profile !== "object") return {};
+      // Admin v1: profile.content = { en:{...}, fr:{...} }
       const c = profile.content || profile.i18n || profile.text || null;
 
       if(c && typeof c === "object" && c[lang]) return c[lang];
@@ -504,12 +577,22 @@
     function rp_normRegionKey(v){
       const s = String(v || "").toLowerCase().trim();
       if(!s) return "";
-      if(s === "south" || s.includes("southern")) return "southern";
+      if(s === "south" || s === "southern" || s.includes("southern")) return "southern";
       if(s.includes("north")) return "north";
       if(s.includes("west")) return "west";
       if(s.includes("central") || s.includes("centre")) return "central";
       if(s.includes("east")) return "east";
       return s;
+    }
+
+    function rp_isPublished(p){
+      // Admin v1 uses status: "draft" / "published"
+      const st = String(p?.status || "").toLowerCase().trim();
+      if(st === "published") return true;
+      if(p?.published === true) return true;
+      if(String(p?.visibility || "").toLowerCase() === "public") return true;
+      if(String(p?.status || "") === "Published") return true; // legacy
+      return false;
     }
 
     window.rp_searchPublished = window.rp_searchPublished || function(q, lang, regionFilter){
@@ -519,13 +602,10 @@
       const rows = window.getRegionProfiles();
 
       return rows
-        .filter(p => {
-          const pub = (p.published === true) || (p.status === "Published") || (p.visibility === "Public");
-          return pub;
-        })
+        .filter(rp_isPublished)
         .filter(p => {
           if(!region) return true;
-          const pr = rp_normRegionKey(p.region || p.region_id || p.regionKey || "");
+          const pr = rp_normRegionKey(p.regionId || p.region || p.region_id || p.regionKey || "");
           return pr === region;
         })
         .filter(p => {
@@ -546,7 +626,7 @@
     }
 
     function rp_escapeHtml(s){
-      return (s || "").replace(/[&<>"']/g, m => ({
+      return String(s || "").replace(/[&<>"']/g, m => ({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
       }[m]));
     }
@@ -559,11 +639,23 @@
       const overview = overviewFull.slice(0, 240);
       const tags = Array.isArray(c.tags) ? c.tags : [];
 
+      const updated = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
+      const regionId = profile?.regionId || profile?.region || "";
+
       return `
         <div class="card" style="margin:12px 0;">
-          <h3 style="margin:0 0 6px 0;">${rp_escapeHtml(title)}</h3>
-          ${subtitle ? `<div style="color:var(--muted); margin-bottom:8px;">${rp_escapeHtml(subtitle)}</div>` : ""}
-          ${overview ? `<p style="color:var(--muted); line-height:1.55;">${rp_escapeHtml(overview)}${overviewFull.length>240 ? "..." : ""}</p>` : ""}
+          <div class="mini" style="align-items:flex-start;">
+            <div style="flex:1;">
+              <h3 style="margin:0 0 6px 0;">${rp_escapeHtml(title)}</h3>
+              ${subtitle ? `<div style="color:var(--muted); margin-bottom:8px;">${rp_escapeHtml(subtitle)}</div>` : ""}
+              ${overview ? `<p style="color:var(--muted); line-height:1.55;">${rp_escapeHtml(overview)}${overviewFull.length>240 ? "..." : ""}</p>` : ""}
+            </div>
+            <div style="text-align:right;">
+              ${regionId ? `<span class="tag ok">${rp_escapeHtml(regionLabel(regionId))}</span>` : ""}
+              ${updated ? `<div style="margin-top:6px;"><small class="muted">${rp_escapeHtml(updated)}</small></div>` : ""}
+            </div>
+          </div>
+
           ${tags.length ? `
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
               ${tags.map(t => `<span class="tag muted">${rp_escapeHtml(t)}</span>`).join("")}
@@ -623,7 +715,7 @@
       $("#pageActions").innerHTML = ``;
 
       const evs = filterByRegion(safeEvents()).filter(e => e.status === "Published");
-      $("#evCount").textContent = evs.length;
+      if($("#evCount")) $("#evCount").textContent = evs.length;
 
       const rows = evs.map(e=>{
         const my = myRegForEvent(e.id);
@@ -804,7 +896,7 @@
         `;
       }).join("");
 
-      $("#matchCount").textContent = deals.length;
+      if($("#matchCount")) $("#matchCount").textContent = deals.length;
 
       const meetingRows = ((window.TIMP_DATA && TIMP_DATA.meetings) ? TIMP_DATA.meetings : []).map(m=>{
         const deal = safeDeals().find(d => d.id === m.deal_id);
@@ -907,7 +999,6 @@
 
       const tpl = getProposalTemplateMeta();
 
-      // ✅ Add template download button in the header (your red-circled area)
       $("#pageActions").innerHTML = `
         <button onclick="setToast('Info', 'Download the proposal template (Deal Book), complete it, then submit your opportunity below.')">Info</button>
         <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
@@ -918,7 +1009,7 @@
 
       const rows = deals.map(d=>{
         const book = dealBooks[d.id] ? `<small class="tag ok">Uploaded: ${dealBooks[d.id]}</small>` : `<small class="tag muted">No deal book uploaded</small>`;
-        const status = d.status ? `<span class="tag ${d.status==='Published'?'ok':'warn'}">${d.status}</span>` : "";
+        const status = d.status ? `<span class="tag ${String(d.status).toLowerCase()==='published'?'ok':'warn'}">${d.status}</span>` : "";
 
         return `
           <tr>
@@ -931,7 +1022,7 @@
             <td>${d.stage}</td>
             <td>${badgeWarmth(d.warmth)}</td>
             <td class="row-actions">
-              <button class="secondary" onclick="setToast('Deal opened', '${(d.summary||"").replace(/'/g,"&#39;")}')">Open</button>
+              <button class="secondary" onclick="setToast('Deal opened', '${String(d.summary||"").replace(/'/g,"&#39;")}')">Open</button>
             </td>
           </tr>
         `;
@@ -942,7 +1033,6 @@
           <div class="card">
             <h2>Submit an Opportunity (Public demo)</h2>
 
-            <!-- ✅ Also add template download inside the submission card -->
             <div class="row-actions" style="margin:8px 0 10px 0;">
               <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
             </div>
@@ -1027,12 +1117,8 @@
         status: "Pending"
       };
 
-      if(typeof saveDeals === "function"){
-        deals.push(newDeal);
-        saveDeals(deals);
-      } else {
-        localStorage.setItem("timp_deals", JSON.stringify([...deals, newDeal]));
-      }
+      deals.push(newDeal);
+      saveDeals(deals);
 
       const f = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
       if(f){
@@ -1051,7 +1137,7 @@
     function isBoothVisibleOnPublic(b){
       if(!b || typeof b !== "object") return false;
       if(!("status" in b)) return true;
-      return b.status !== "Draft";
+      return String(b.status || "").toLowerCase() !== "draft";
     }
 
     function viewBoothCatalog(boothKey){
@@ -1188,21 +1274,21 @@
             <div style="height:10px"></div>
 
             <div class="grid cols-2">
-              <div><label>First name</label><input id="pFirst" value="${(p.first_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
-              <div><label>Last name</label><input id="pLast" value="${(p.last_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
+              <div><label>First name</label><input id="pFirst" value="${String(p.first_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
+              <div><label>Last name</label><input id="pLast" value="${String(p.last_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
             </div>
 
             <div style="height:10px"></div>
-            <label>Organisation</label><input id="pOrg" value="${(p.org||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Organisation</label><input id="pOrg" value="${String(p.org||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
 
-            <label>Position</label><input id="pPosition" value="${(p.position||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Position</label><input id="pPosition" value="${String(p.position||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
 
-            <label>Email</label><input id="pEmail" value="${(p.email||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Email</label><input id="pEmail" value="${String(p.email||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
 
-            <label>Phone</label><input id="pPhone" value="${(p.phone||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Phone</label><input id="pPhone" value="${String(p.phone||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
 
             <button onclick="savePublicProfile()">Save</button>
@@ -1244,7 +1330,7 @@
       setActive("region_profiles");
       $("#pageTitle").textContent = "Region Profiles";
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Market intelligence & investment insights</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'Only Published region profiles appear here (demo).')">Info</button>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'Only published region profiles appear here (demo).')">Info</button>`;
 
       $("#pageBody").innerHTML = `
         <div class="card">
@@ -1262,6 +1348,7 @@
             <option value="central">Central</option>
             <option value="east">East</option>
             <option value="southern">Southern</option>
+            <option value="south">South</option>
           </select>
 
           <div class="hr"></div>
