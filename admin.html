@@ -1,4 +1,4 @@
-<!-- admin.html (UPDATED: Opportunity Approvals + Inquiries Inbox + Engagement Hub + Working Invite Link + Real Analytics) -->
+<!-- admin.html (UPDATED: Engagement Hub ↔ Public Chat sync + Event Banner preview + Deal Pipeline KPI + Attendance clarity + Robust Bulk Deals Upload) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -39,7 +39,7 @@
         <a href="#regs" data-nav="registrations"><span class="i18n" data-key="registrations">Registrations</span><span class="badge" id="regCount"></span></a>
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
 
-        <!-- ✅ NEW: Approve opportunities submitted from Public -->
+        <!-- ✅ Approve opportunities submitted from Public -->
         <a href="#submissions" data-nav="submissions"><span>Opportunity Submissions</span><span class="badge" id="subCount"></span></a>
 
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
@@ -47,10 +47,10 @@
         <!-- ✅ Virtual Exhibition Admin -->
         <a href="#expo" data-nav="expo"><span>Virtual Exhibition</span></a>
 
-        <!-- ✅ NEW: Public "Send Inquiry" inbox -->
+        <!-- ✅ Public "Send Inquiry" inbox -->
         <a href="#inquiries" data-nav="inquiries"><span>Inquiries</span><span class="badge" id="inqCount"></span></a>
 
-        <!-- ✅ NEW: Engagement Hub (messages/chat) -->
+        <!-- ✅ Engagement Hub (messages/chat) -->
         <a href="#engagement" data-nav="engagement"><span>Engagement Hub</span><span class="badge" id="msgCount"></span></a>
 
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
@@ -146,12 +146,112 @@
       localStorage.setItem("timp_inquiries", JSON.stringify(rows || []));
     }
 
-    // ✅ engagement messages storage (Public/booth inquiry follow-ups -> Admin replies)
-    function getMessages(){
-      try{ return JSON.parse(localStorage.getItem("timp_messages") || "[]"); }catch(e){ return []; }
+    /* =========================================================
+       ✅ Engagement Hub ↔ Public Event Chat sync (single inbox)
+       ========================================================= */
+    const TIMP_MSG_STORE_KEY = "timp_messages";
+    const TIMP_EVENT_CHAT_KEYS = [
+      "timp_event_chat",
+      "timp_event_chat_messages",
+      "timp_event_messages",
+      "timp_chat",
+      "timp_chat_messages"
+    ];
+
+    function lsReadArray(key){
+      try{
+        const x = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(x) ? x : [];
+      }catch(e){
+        return [];
+      }
     }
+    function lsWriteArray(key, arr){
+      localStorage.setItem(key, JSON.stringify(Array.isArray(arr) ? arr : []));
+    }
+
+    function normalizeMessage(m, srcKey){
+      const at = m?.at || m?.created_at || m?.timestamp || "";
+      const id =
+        m?.id ||
+        m?.message_id ||
+        ("msg_" + (at || Date.now()) + "_" + Math.random().toString(16).slice(2));
+
+      return {
+        id: String(id),
+        at: at ? String(at) : new Date().toISOString(),
+        status: m?.status ? String(m.status) : "Unread",
+        to: m?.to ?? m?.to_role ?? "",
+        from_email: m?.from_email ?? m?.email ?? "",
+        from_name: m?.from_name ?? m?.name ?? "",
+        text: m?.text ?? m?.message ?? "",
+        context: (m?.context && typeof m.context === "object") ? m.context : (m?.ctx || {}),
+        _src: srcKey || TIMP_MSG_STORE_KEY
+      };
+    }
+
+    function dedupeById(list){
+      const seen = new Set();
+      const out = [];
+      for(const m of list){
+        const k = String(m?.id || "");
+        if(!k || seen.has(k)) continue;
+        seen.add(k);
+        out.push(m);
+      }
+      return out;
+    }
+
+    function getMessages(){
+      const base = lsReadArray(TIMP_MSG_STORE_KEY).map(m => normalizeMessage(m, TIMP_MSG_STORE_KEY));
+      const extra = [];
+      for(const k of TIMP_EVENT_CHAT_KEYS){
+        const rows = lsReadArray(k);
+        if(rows.length) extra.push(...rows.map(m => normalizeMessage(m, k)));
+      }
+      return dedupeById([...extra, ...base])
+        .sort((a,b)=> String(b.at||"").localeCompare(String(a.at||"")));
+    }
+
     function saveMessages(rows){
-      localStorage.setItem("timp_messages", JSON.stringify(rows || []));
+      lsWriteArray(TIMP_MSG_STORE_KEY, rows || []);
+    }
+
+    function updateMessageEverywhere(id, patch){
+      const targetId = String(id||"");
+      if(!targetId) return false;
+
+      let changed = false;
+      const stores = [TIMP_MSG_STORE_KEY, ...TIMP_EVENT_CHAT_KEYS];
+      stores.forEach(key=>{
+        const arr = lsReadArray(key);
+        const i = arr.findIndex(x => String(x?.id || x?.message_id || "") === targetId);
+        if(i >= 0){
+          arr[i] = { ...arr[i], ...patch };
+          lsWriteArray(key, arr);
+          changed = true;
+        }
+      });
+      return changed;
+    }
+
+    function pushMessageEverywhere(msg){
+      const m = normalizeMessage(msg, TIMP_MSG_STORE_KEY);
+
+      const base = lsReadArray(TIMP_MSG_STORE_KEY);
+      base.unshift(m);
+      lsWriteArray(TIMP_MSG_STORE_KEY, base);
+
+      // Mirror to a canonical event chat store if it’s clearly event-related (demo sync)
+      const eventId = m?.context?.event_id || m?.context?.eventId || "";
+      const isEventThread = (String(m.to||"").toLowerCase() === "event") || !!eventId;
+
+      if(isEventThread){
+        const k = "timp_event_chat";
+        const ev = lsReadArray(k);
+        ev.unshift({ ...m, to: m.to || "Event" });
+        lsWriteArray(k, ev);
+      }
     }
 
     // ✅ analytics metrics storage
@@ -450,7 +550,12 @@
 
             <label>Event Banner (image)</label>
             <input type="file" id="evBanner" accept="image/*" />
-            <small class="muted">Demo: stored in browser and can be shown on Public.</small>
+            <div id="evBannerPreview" style="margin-top:10px"></div>
+            <div class="row-actions" style="margin-top:8px">
+              <button class="secondary" onclick="refreshEventBannerPreview()">Preview stored banner</button>
+              <button class="danger" onclick="clearEventBanner()">Clear banner</button>
+            </div>
+            <small class="muted">Demo: banner is stored in the event record and can render on Public once Published.</small>
 
             <div style="height:10px"></div>
             <label>Invitation Email (demo template)</label>
@@ -490,6 +595,44 @@
       const defaultRegion = (pickRegion() === "non_reg") ? "north" : pickRegion();
       if ($("#evRegion")) $("#evRegion").value = defaultRegion;
       if ($("#evId")) $("#evId").value = "";
+      refreshEventBannerPreview();
+    }
+
+    function refreshEventBannerPreview(){
+      const id = ($("#evId")?.value || "").trim();
+      const el = $("#evBannerPreview");
+      if(!el) return;
+
+      if(!id){
+        el.innerHTML = `<small class="muted">Save and select an event first (Edit), then preview the stored banner.</small>`;
+        return;
+      }
+
+      const ev = getEvents().find(e=>e.id===id);
+      if(ev && ev.banner_data_url){
+        el.innerHTML = `
+          <div class="card" style="padding:10px">
+            <div style="font-weight:700; margin-bottom:8px;">Stored banner preview</div>
+            <img src="${ev.banner_data_url}" style="width:100%; max-height:200px; object-fit:cover; border-radius:12px;" />
+          </div>
+        `;
+      } else {
+        el.innerHTML = `<small class="muted">No banner stored for this event yet.</small>`;
+      }
+    }
+
+    function clearEventBanner(){
+      const id = ($("#evId")?.value || "").trim();
+      if(!id) return setToast("Missing", "Select an event first (Edit).");
+
+      const events = getEvents();
+      const i = events.findIndex(e=>e.id===id);
+      if(i < 0) return setToast("Not found", "Event not found.");
+
+      events[i].banner_data_url = "";
+      saveEvents(events);
+      setToast("Cleared", "Event banner removed (demo).");
+      refreshEventBannerPreview();
     }
 
     function clearEventForm(){
@@ -505,6 +648,7 @@
       if($("#evBanner")) $("#evBanner").value = "";
       if($("#evProgramme")) $("#evProgramme").value = "";
       if($("#evDeck")) $("#evDeck").value = "";
+      refreshEventBannerPreview();
       setToast("Cleared", "Event form reset (demo).");
     }
 
@@ -597,6 +741,7 @@
       $("#evInviteTpl").value = e.invite_tpl || "";
       $("#evRecordingUrl").value = e.recording_url || "";
 
+      refreshEventBannerPreview();
       setToast("Editing", "Loaded event into editor.");
     }
 
@@ -1033,7 +1178,7 @@
     }
 
     /* =========================
-       Deals Manager + Prospectus upload + Bulk CSV Import (Status added)
+       Deals Manager + Prospectus upload + Robust Bulk CSV Import
        ========================= */
     function renderDealsManager(){
       setActive("deals");
@@ -1092,7 +1237,7 @@
             <input type="file" id="bulkDeals" accept=".csv" />
             <button class="secondary" onclick="importDealsCsv()">Import</button>
             <div style="height:6px"></div>
-            <small class="muted">Columns: country, sector, ticket_usd_m, stage, summary, region</small>
+            <small class="muted">Columns: country, sector, ticket_usd_m, stage, summary, region, status, warmth, owner, video (comma/semicolon supported)</small>
 
             <div class="hr"></div>
 
@@ -1275,6 +1420,50 @@
       logMetric("prospectus_download", { deal_id: id, filename: d.prospectus_name });
     }
 
+    // ✅ Robust CSV helpers (supports comma/semicolon/tab, quotes, and skips duplicates)
+    function detectDelimiter(line){
+      const commas = (line.match(/,/g) || []).length;
+      const semis  = (line.match(/;/g) || []).length;
+      const tabs   = (line.match(/\t/g) || []).length;
+      if(tabs > commas && tabs > semis) return "\t";
+      if(semis > commas) return ";";
+      return ",";
+    }
+
+    function parseCsvLine(line, delim){
+      const out = [];
+      let cur = "";
+      let inQ = false;
+
+      for(let i=0;i<line.length;i++){
+        const ch = line[i];
+
+        if(ch === '"'){
+          if(inQ && line[i+1] === '"'){
+            cur += '"';
+            i++;
+          } else {
+            inQ = !inQ;
+          }
+          continue;
+        }
+
+        if(ch === delim && !inQ){
+          out.push(cur);
+          cur = "";
+          continue;
+        }
+
+        cur += ch;
+      }
+      out.push(cur);
+      return out.map(s => String(s||"").trim());
+    }
+
+    function normKey(s){
+      return String(s||"").trim().toLowerCase();
+    }
+
     function importDealsCsv(){
       const f = $("#bulkDeals")?.files?.[0];
       if(!f) return setToast("Missing", "Choose a CSV file.");
@@ -1285,42 +1474,85 @@
         const lines = text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
         if(lines.length < 2) return setToast("Invalid", "CSV has no data rows.");
 
-        const headers = lines.shift().split(",").map(x=>x.trim().toLowerCase());
+        const delim = detectDelimiter(lines[0]);
+        const headers = parseCsvLine(lines.shift(), delim).map(h => normKey(h));
 
         const deals = getDeals();
         let added = 0;
+        let skipped = 0;
 
         const fallbackRegion = (pickRegion()==="non_reg") ? "north" : pickRegion();
 
-        lines.forEach(line=>{
-          const cols = line.split(",");
-          const obj = {};
-          headers.forEach((h,i)=> obj[h] = (cols[i]||"").trim());
+        // Duplicate key = country+sector+ticket+stage
+        const existingKeys = new Set(
+          deals.map(d => [
+            normKey(d.country),
+            normKey(d.sector),
+            String(Number(d.ticket_usd_m)||0),
+            normKey(d.stage)
+          ].join("|"))
+        );
 
-          if(!obj.country || !obj.sector) return;
+        lines.forEach(line=>{
+          const cols = parseCsvLine(line, delim);
+          const obj = {};
+          headers.forEach((h,i)=> obj[h] = (cols[i] ?? "").trim());
+
+          const country = obj.country || obj.pays || obj["country_name"] || "";
+          const sector  = obj.sector  || obj.secteur || "";
+          if(!country || !sector) return;
+
+          const ticket = Number(obj.ticket_usd_m || obj.ticket || obj.amount_usd_m || 0) || 0;
+          const stage  = obj.stage || "Origination";
+
+          const dupeKey = [normKey(country), normKey(sector), String(ticket||0), normKey(stage)].join("|");
+          if(existingKeys.has(dupeKey)){
+            skipped += 1;
+            return;
+          }
+          existingKeys.add(dupeKey);
+
+          const statusRaw = (obj.status || "Draft").trim();
+          const status =
+            /^active$/i.test(statusRaw) ? "Active" :
+            /^published$/i.test(statusRaw) ? "Published" :
+            /^pending$/i.test(statusRaw) ? "Pending" :
+            /^rejected$/i.test(statusRaw) ? "Rejected" :
+            "Draft";
+
+          const warmthRaw = (obj.warmth || "Warm").trim();
+          const warmth =
+            /^hot$/i.test(warmthRaw) ? "Hot" :
+            /^warm$/i.test(warmthRaw) ? "Warm" :
+            "Cold";
 
           deals.push({
             id: "d" + Date.now() + Math.floor(Math.random()*100000),
-            country: obj.country,
-            sector: obj.sector,
-            ticket_usd_m: Number(obj.ticket_usd_m||0),
-            stage: obj.stage || "Origination",
+            country,
+            sector,
+            ticket_usd_m: ticket,
+            stage,
             summary: obj.summary || "",
-            region: obj.region || fallbackRegion,
-            status: "Draft",
-            warmth: "Warm",
+            region: (obj.region || fallbackRegion).trim(),
+            status,
+            warmth,
+            owner: (obj.owner || obj.sponsor || "").trim(),
+            video: (obj.video || "").trim() || "Video pitch (demo)",
             prospectus_name: "",
             prospectus_data: "",
             prospectus_mime: "",
             prospectus_size: 0,
             prospectus_updated_at: ""
           });
+
           added += 1;
         });
 
         saveDeals(deals);
-        setToast("Imported", `${added} deals imported (demo).`);
+        setToast("Imported", `${added} deals imported • ${skipped} duplicates skipped (demo).`);
         renderDealsManager();
+        renderAnalytics();
+        renderDashboard();
       };
       reader.readAsText(f);
     }
@@ -1423,7 +1655,7 @@
     }
 
     /* =========================
-       Virtual Exhibition Admin (unchanged)
+       Virtual Exhibition Admin (unchanged from your version)
        ========================= */
     function renderExpoAdmin(){
       setActive("expo");
@@ -1754,9 +1986,7 @@
         at: new Date().toISOString()
       };
 
-      const msgs = getMessages();
-      msgs.unshift(msg);
-      saveMessages(msgs);
+      pushMessageEverywhere(msg);
 
       setToast("Sent", "Reply saved to Engagement Hub (demo).");
       logMetric("inquiry_replied", { inquiry_id: id, to: inq.from_email || "" });
@@ -1820,11 +2050,8 @@
     }
 
     function markMessageRead(id){
-      const all = getMessages();
-      const i = all.findIndex(x=>x.id===id);
-      if(i < 0) return setToast("Not found", "Message not found.");
-      all[i].status = "Read";
-      saveMessages(all);
+      const ok = updateMessageEverywhere(id, { status: "Read" });
+      if(!ok) return setToast("Not found", "Message not found.");
       setToast("Updated", "Message marked Read.");
       logMetric("message_marked_read", { message_id: id });
       renderEngagement();
@@ -1851,9 +2078,7 @@
         at: new Date().toISOString()
       };
 
-      const msgs = getMessages();
-      msgs.unshift(out);
-      saveMessages(msgs);
+      pushMessageEverywhere(out);
 
       setToast("Sent", "Reply saved (demo).");
       logMetric("message_replied", { to: toEmail });
@@ -1863,6 +2088,7 @@
 
     /* =========================
        Matchmaking / RBAC / Region Profiles / Archive
+       (unchanged from your version)
        ========================= */
     function renderMatchmaking(){
       setActive("matchmaking");
@@ -1903,7 +2129,7 @@
     }
 
     /* =========================================================
-       ✅ Region Profiles (your fixed version - unchanged)
+       ✅ Region Profiles (unchanged)
        ========================================================= */
     const RP_STORE_KEY = "timp_region_profiles_v1";
 
@@ -2144,7 +2370,7 @@
     }
 
     /* =========================
-       Analytics (REAL counts from localStorage)
+       Analytics (UPDATED: Deal Pipeline in USD + clearer attendance calc)
        ========================= */
     function renderAnalytics(){
       setActive("analytics");
@@ -2167,9 +2393,18 @@
 
       const dealsRegion = adminFilter(getDeals());
       const dealsAll = getDeals();
-      const totalDeals = dealsRegion.length;
-      const activeDeals = dealsRegion.filter(d => isActiveDealStatus(d.status)).length;
-      const pendingDeals = dealsRegion.filter(d => String(d.status||"").toLowerCase() === "pending").length;
+      const scopeDeals = (pickRegion()==="non_reg") ? dealsAll : dealsRegion;
+
+      const activePublished = scopeDeals.filter(d => isActiveDealStatus(d.status));
+      const pendingDeals = scopeDeals.filter(d => String(d.status||"").toLowerCase() === "pending");
+
+      const dealPipelineUsdM = activePublished.reduce((sum,d)=> sum + (Number(d.ticket_usd_m)||0), 0);
+
+      function fmtUsdBillionsFromMillions(m){
+        const b = Number(m||0) / 1000; // millions -> billions
+        const decimals = (b && b < 10) ? 1 : 0;
+        return "$" + (b ? b.toFixed(decimals) : "0.0") + "B";
+      }
 
       const metrics = getMetrics();
       const dealbookDownloads = metrics.filter(m => m.type === "dealbook_download").length;
@@ -2186,7 +2421,10 @@
               <span class="tag ok">Events</span>
             </div>
             <div class="hr"></div>
-            <small>Approved: <b>${approved.length}</b> • Attended: <b>${attended.length}</b></small>
+            <small>
+              Attendance rate = (Attended ÷ Approved) •
+              Approved: <b>${approved.length}</b> • Attended: <b>${attended.length}</b>
+            </small>
           </div>
 
           <div class="card">
@@ -2213,16 +2451,23 @@
         <div class="grid cols-3">
           <div class="card">
             <div class="mini">
-              <div><div class="label">Deals on platform</div><div class="big">${(pickRegion()==="non_reg") ? dealsAll.length : totalDeals}</div></div>
+              <div>
+                <div class="label">Deal Pipeline (USD)</div>
+                <div class="big">${fmtUsdBillionsFromMillions(dealPipelineUsdM)}</div>
+              </div>
               <span class="tag ok">Pipeline</span>
             </div>
             <div class="hr"></div>
-            <small>${pickRegion()==="non_reg" ? "All regions" : "Current region"} • Pending: <b>${pendingDeals}</b></small>
+            <small>
+              ${pickRegion()==="non_reg" ? "All regions" : "Current region"} •
+              Active/Published: <b>${activePublished.length}</b> •
+              Pending: <b>${pendingDeals.length}</b>
+            </small>
           </div>
 
           <div class="card">
             <div class="mini">
-              <div><div class="label">Active deals</div><div class="big">${activeDeals}</div></div>
+              <div><div class="label">Active deals</div><div class="big">${activePublished.length}</div></div>
               <span class="tag ok">Pipeline</span>
             </div>
             <div class="hr"></div>
@@ -2247,7 +2492,7 @@
             <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
               <li><b>Inquiries handled:</b> ${inquiriesHandled}</li>
               <li><b>Unread messages:</b> ${getMessages().filter(m => (m.to==="Admin"||m.to==="All"||!m.to) && String(m.status||"Unread")!=="Read").length}</li>
-              <li><b>Pending submissions:</b> ${pendingDeals}</li>
+              <li><b>Pending submissions:</b> ${pendingDeals.length}</li>
             </ul>
             <div class="hr"></div>
             <small class="muted">These are live demo numbers pulled from localStorage.</small>
