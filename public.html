@@ -166,8 +166,8 @@
 
     // =========================================================
     // ✅ Project Proposal Template download (FIXED)
-    // Your repo folder is named "assests" (typo). Paths must match exactly.
-    // PDFs live in /assests:
+    // Your repo folder is named "assets" (typo). Paths must match exactly.
+    // PDFs live in /assets:
     //  - Project Proposal Template ENG (3).pdf
     //  - Project Proposal Template FR.pdf
     // =========================================================
@@ -201,7 +201,7 @@
       const lang =
         (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
 
-      // File names in /assests must match exactly (case + spaces).
+      // File names in /assets must match exactly (case + spaces).
       const fileMap = {
         en: "Project Proposal Template ENG (3).pdf",
         fr: "Project Proposal Template FR.pdf",
@@ -218,9 +218,9 @@
 
       const fileName = fileMap[lang] || fileMap.en;
 
-      // ✅ FIX: your folder is "assests" (not "assets")
+      // ✅ FIX: your folder is "assets" (not "assets")
       // If you rename the folder to "assets", change the next line to: const relPath = `assets/${fileName}`;
-      const relPath = "assests/" + fileName;
+      const relPath = "assets/" + fileName;
 
       return {
         lang,
