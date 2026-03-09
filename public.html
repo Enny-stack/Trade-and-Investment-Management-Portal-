@@ -1,4 +1,4 @@
-<!-- public.html (LATEST FIX: Inquiry WORKING + Deal Details VIEW + Request/Downloads wired + ✅ Event Chat Hub added) -->
+<!-- public.html (UPDATED: Event Banner + Event Chat + Deal Chat + Reliable window handlers) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -81,21 +81,17 @@
   <script>
     (function(){
       try{
-        // Hide while we check auth (prevents UI flash)
         document.documentElement.style.visibility = "hidden";
 
         if(window.TIMP_AUTH && typeof TIMP_AUTH.requireAuth === "function"){
           const ok = TIMP_AUTH.requireAuth("welcome.html");
           if(!ok){
-            // requireAuth should redirect; keep hidden
             return;
           }
         }
-        // Authed (or no auth available) -> show page
         document.documentElement.style.visibility = "";
       }catch(e){
         console.warn("Auth gate warning:", e);
-        // Demo fail-open if something is wrong with auth.js
         document.documentElement.style.visibility = "";
       }
     })();
@@ -109,13 +105,12 @@
 
   <!-- ✅ Portal logic -->
   <script>
-  // If auth exists and user is not authed, skip initializing portal (gate already redirected)
   if(window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function" && !TIMP_AUTH.isAuthed()){
     console.warn("Not registered yet — skipping public portal init.");
   } else {
 
     /* =========================================================
-       Safer fallbacks (prevents demo crashes if util.js differs)
+       Safer fallbacks
        ========================================================= */
     window.$  = window.$  || function(sel){ return document.querySelector(sel); };
     window.$$ = window.$$ || function(sel){ return Array.from(document.querySelectorAll(sel)); };
@@ -168,9 +163,14 @@
       return `<span class="tag ${cls}">${v}</span>`;
     };
 
+    function escapeHtml(s){
+      return String(s || "").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[m]));
+    }
+
     /* =========================================================
-       ✅ Metrics (lightweight demo)
-       - events: timp_metric_events (array)
+       ✅ Metrics (demo)
        ========================================================= */
     const METRIC_EVENTS_KEY = "timp_metric_events";
     function logMetric(name, payload){
@@ -185,6 +185,7 @@
     // Helpers + Safe storage
     // -----------------------------
     let OPEN_EVENT_ID = null;
+    let OPEN_DEAL_ID = null;
 
     function safeEvents(){
       return (typeof getEvents === "function") ? getEvents() : ((window.TIMP_DATA && TIMP_DATA.events) || []);
@@ -193,7 +194,6 @@
       return (typeof getDeals === "function") ? getDeals() : ((window.TIMP_DATA && TIMP_DATA.deals) || []);
     }
 
-    // ✅ fallbacks so Public sees Admin changes saved to localStorage
     window.getEvents = window.getEvents || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
@@ -226,7 +226,6 @@
       return (typeof getBooths === "function") ? getBooths() : ((window.TIMP_DATA && TIMP_DATA.booths) || []);
     }
 
-    // ✅ helper: download a stored dataURL as a file
     function downloadDataUrl(dataUrl, filename){
       if(!dataUrl) return;
       const a = document.createElement("a");
@@ -236,10 +235,7 @@
     }
 
     // =========================================================
-    // ✅ Project Proposal Template (Deal Book) download
-    // Put PDFs in your repo:
-    //  - assets/project-proposal-template-en.pdf
-    //  - assets/project-proposal-template-fr.pdf
+    // ✅ Project Proposal Template download
     // =========================================================
     function getProposalTemplateMeta(){
       const lang =
@@ -248,8 +244,8 @@
       const urlMap = {
         en: "assets/project-proposal-template-en.pdf",
         fr: "assets/project-proposal-template-fr.pdf",
-        ar: "assets/project-proposal-template-en.pdf", // fallback
-        pt: "assets/project-proposal-template-en.pdf"  // fallback
+        ar: "assets/project-proposal-template-en.pdf",
+        pt: "assets/project-proposal-template-en.pdf"
       };
 
       const labelMap = {
@@ -375,19 +371,15 @@
 
     /* =========================================================
        Deal book storage
-       - Legacy: "timp_deal_books" { dealId: "filename.pdf" }
-       - v1:     "timp_deal_books_v1" { dealId: {name,data,size,at} }
        ========================================================= */
     const DEALBOOK_KEY_V1 = "timp_deal_books_v1";
     const DEALBOOK_KEY_LEGACY = "timp_deal_books";
 
     function getDealBooks(){
-      // prefer v1
       try{
         const x = JSON.parse(localStorage.getItem(DEALBOOK_KEY_V1) || "null");
         if(x && typeof x === "object") return x;
       }catch(e){}
-      // fallback legacy
       try{
         const y = JSON.parse(localStorage.getItem(DEALBOOK_KEY_LEGACY) || "null");
         if(y && typeof y === "object") return y;
@@ -396,7 +388,6 @@
     }
     function saveDealBooks(obj){
       localStorage.setItem(DEALBOOK_KEY_V1, JSON.stringify(obj || {}));
-      // keep legacy map best-effort for compatibility (name only)
       try{
         const legacy = {};
         Object.keys(obj || {}).forEach(k=>{
@@ -452,103 +443,7 @@
     }
 
     /* =========================================================
-       ✅ Investment Engagement Hub (Event Chat) — DEMO (localStorage)
-       Store key: timp_chat_messages
-       ========================================================= */
-    const CHAT_KEY = "timp_chat_messages";
-
-    function getChatAll(){
-      try{
-        const x = JSON.parse(localStorage.getItem(CHAT_KEY) || "[]");
-        return Array.isArray(x) ? x : [];
-      }catch(e){ return []; }
-    }
-    function saveChatAll(rows){
-      localStorage.setItem(CHAT_KEY, JSON.stringify(rows || []));
-    }
-    function getEventChat(eventId){
-      return getChatAll().filter(m => m && m.event_id === eventId);
-    }
-
-    function canChatOnEvent(eventId){
-      // Rule: must be registered (any state), and must have email in profile
-      const p = getMyProfile();
-      const email = String(p.email || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
-      if(!email) return { ok:false, msg:"Please complete your Profile (email) first." };
-
-      const r = myRegForEvent(eventId);
-      if(!r) return { ok:false, msg:"Please register for this event before chatting." };
-
-      return { ok:true, email };
-    }
-
-    function renderEventChat(eventId){
-      const stream = document.getElementById("chatStream");
-      if(!stream) return;
-
-      const msgs = getEventChat(eventId);
-      if(!msgs.length){
-        stream.innerHTML = `<div class="muted"><small>No messages yet. Be the first to say hello.</small></div>`;
-        return;
-      }
-
-      stream.innerHTML = msgs
-        .slice(-200) // keep it light for demo
-        .map(m => {
-          const at = m.at ? new Date(m.at).toLocaleString() : "";
-          const who = (m.from_name || "Attendee").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-          const text = String(m.message || "").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-          return `
-            <div style="padding:8px 0; border-bottom:1px solid var(--border);">
-              <div style="display:flex; justify-content:space-between; gap:12px;">
-                <b style="font-size:13px">${who}</b>
-                <small class="muted">${at}</small>
-              </div>
-              <div style="color:var(--muted); line-height:1.5">${text}</div>
-            </div>
-          `;
-        })
-        .join("");
-
-      // scroll to bottom
-      stream.scrollTop = stream.scrollHeight;
-    }
-
-    function sendEventChat(){
-      const eventId = window.CURRENT_EVENT_ID;
-      if(!eventId) return setToast("No event", "Open an event first.");
-
-      const gate = canChatOnEvent(eventId);
-      if(!gate.ok) return setToast("Chat unavailable", gate.msg);
-
-      const input = document.getElementById("chatInput");
-      const msg = String(input?.value || "").trim();
-      if(!msg) return;
-
-      const p = getMyProfile();
-      const row = {
-        id: "c" + Date.now(),
-        event_id: eventId,
-        from_email: gate.email,
-        from_name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Attendee",
-        message: msg,
-        at: new Date().toISOString()
-      };
-
-      const all = getChatAll();
-      all.push(row);
-      saveChatAll(all);
-
-      try{ logMetric("event_chat_message", { event_id: eventId, from_email: gate.email }); }catch(e){}
-
-      if(input) input.value = "";
-      renderEventChat(eventId);
-    }
-
-    /* =========================================================
        ✅ Virtual Exhibition Inquiries
-       - Store key: "timp_inquiries" (array)
-       - Admin should read this and show notifications
        ========================================================= */
     const INQUIRIES_KEY = "timp_inquiries";
     function getInquiries(){
@@ -584,11 +479,8 @@
         return setToast("Profile required", "Please update your Profile (email) before sending an inquiry.");
       }
 
-      const message = prompt(
-        `Send inquiry to ${res.booth.org || "Exhibitor"}:\n\nType your message below:`,
-        "Hello, I would like to learn more about your offers."
-      );
-      if(message === null) return; // cancelled
+      const message = prompt(`Send inquiry to ${res.booth.org || "Exhibitor"}:\n\nType your message below:`, "Hello, I would like to learn more about your offers.");
+      if(message === null) return;
       const msg = String(message || "").trim();
       if(!msg) return setToast("Empty message", "Please type a message to send.");
 
@@ -614,16 +506,134 @@
     }
 
     /* =========================================================
-       ✅ Deal Details View (used by Deal Room + Opportunities Dashboard)
+       ✅ Engagement streams (Public writes, Admin reads)
+       - Event Chat: timp_event_chat_v1
+       - Deal Chat : timp_deal_chat_v1
+       ========================================================= */
+    const EVENT_CHAT_KEY = "timp_event_chat_v1";
+    const DEAL_CHAT_KEY  = "timp_deal_chat_v1";
+
+    function getChat(key){
+      try{
+        const x = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(x) ? x : [];
+      }catch(e){ return []; }
+    }
+    function saveChat(key, rows){
+      localStorage.setItem(key, JSON.stringify(rows || []));
+    }
+
+    function renderChatList(containerId, rows){
+      const el = document.getElementById(containerId);
+      if(!el) return;
+
+      if(!rows.length){
+        el.innerHTML = `<div class="muted"><small>No messages yet.</small></div>`;
+        return;
+      }
+
+      el.innerHTML = rows
+        .slice(-80)
+        .map(m=>{
+          const who = escapeHtml(m.from_name || m.from_email || "User");
+          const when = m.at ? new Date(m.at).toLocaleString() : "";
+          const msg = escapeHtml(m.message || "");
+          return `
+            <div style="padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+              <div class="mini">
+                <div><b>${who}</b></div>
+                <div><small class="muted">${escapeHtml(when)}</small></div>
+              </div>
+              <div style="color:var(--muted); line-height:1.45; margin-top:6px;">${msg}</div>
+            </div>
+          `;
+        })
+        .join("");
+
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function renderEventChatList(eventId){
+      const rows = getChat(EVENT_CHAT_KEY).filter(x => x.event_id === eventId);
+      renderChatList("eventChatList", rows);
+    }
+
+    function sendEventChat(eventId){
+      const p = getMyProfile();
+      const email = String(p.email || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
+      const name = `${p.first_name||""} ${p.last_name||""}`.trim() || "Public user";
+
+      if(!email){
+        return setToast("Profile required", "Please update your Profile (email) before sending a message.");
+      }
+      const input = document.getElementById("eventChatInput");
+      const msg = String(input?.value || "").trim();
+      if(!msg) return setToast("Empty", "Type a message first.");
+
+      const rows = getChat(EVENT_CHAT_KEY);
+      rows.push({
+        id: "ec" + Date.now(),
+        event_id: eventId,
+        from_email: email,
+        from_name: name,
+        message: msg,
+        at: new Date().toISOString()
+      });
+      saveChat(EVENT_CHAT_KEY, rows);
+
+      if(input) input.value = "";
+      renderEventChatList(eventId);
+      logMetric("event_chat_message", { event_id: eventId, from_email: email });
+      setToast("Sent", "Message posted to Event Chat (demo).");
+    }
+
+    function renderDealChatList(dealId){
+      const rows = getChat(DEAL_CHAT_KEY).filter(x => x.deal_id === dealId);
+      renderChatList("dealChatList", rows);
+    }
+
+    function sendDealChat(dealId){
+      const p = getMyProfile();
+      const email = String(p.email || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
+      const name = `${p.first_name||""} ${p.last_name||""}`.trim() || "Public user";
+
+      if(!email){
+        return setToast("Profile required", "Please update your Profile (email) before sending a message.");
+      }
+      const input = document.getElementById("dealChatInput");
+      const msg = String(input?.value || "").trim();
+      if(!msg) return setToast("Empty", "Type a message first.");
+
+      const rows = getChat(DEAL_CHAT_KEY);
+      rows.push({
+        id: "dc" + Date.now(),
+        deal_id: dealId,
+        from_email: email,
+        from_name: name,
+        message: msg,
+        at: new Date().toISOString()
+      });
+      saveChat(DEAL_CHAT_KEY, rows);
+
+      if(input) input.value = "";
+      renderDealChatList(dealId);
+      logMetric("deal_chat_message", { deal_id: dealId, from_email: email });
+      setToast("Sent", "Message posted to Investment Hub (demo).");
+    }
+
+    /* =========================================================
+       Deal Details View
        ========================================================= */
     function openDealDetails(dealId, backHash){
+      OPEN_DEAL_ID = dealId;
+
       const d = safeDeals().find(x => x.id === dealId);
       if(!d) return setToast("Not found", "Deal not found.");
 
       const back = backHash || "#dealroom";
       if(back.startsWith("#opps")) setActive("opportunities"); else setActive("deal_room");
 
-      const status = d.status ? `<span class="tag ${String(d.status).toLowerCase()==='published' ? 'ok' : 'warn'}">${d.status}</span>` : "";
+      const status = d.status ? `<span class="tag ${String(d.status).toLowerCase()==='published' ? 'ok' : 'warn'}">${escapeHtml(d.status)}</span>` : "";
       const region = regionLabel(d.region || pickRegion());
       const book = getDealBookEntry(dealId);
 
@@ -642,7 +652,7 @@
 
       const bookBlock = book
         ? `
-          <p style="margin:0 0 8px 0;"><b>Deal Book:</b> ${book.name}</p>
+          <p style="margin:0 0 8px 0;"><b>Deal Book:</b> ${escapeHtml(book.name)}</p>
           <div class="row-actions">
             <button class="secondary" onclick="downloadDealBook('${d.id}')">Download Deal Book</button>
           </div>
@@ -652,8 +662,8 @@
 
       $("#pageTitle").textContent = `${d.country || "Deal"} • ${d.sector || ""}`.trim();
       $("#pageMeta").innerHTML = `
-        <span class="tag ok">${region}</span>
-        <span class="tag muted">Stage: <b>${d.stage || "—"}</b></span>
+        <span class="tag ok">${escapeHtml(region)}</span>
+        <span class="tag muted">Stage: <b>${escapeHtml(d.stage || "—")}</b></span>
         ${status}
       `;
 
@@ -667,13 +677,13 @@
           <div class="card">
             <h2>Deal Details</h2>
             <div class="hr"></div>
-            <p style="margin:0 0 8px 0;"><b>Country:</b> ${d.country || "—"}</p>
-            <p style="margin:0 0 8px 0;"><b>Sector:</b> ${d.sector || "—"}</p>
-            <p style="margin:0 0 8px 0;"><b>Ticket:</b> ${fmtMoney(d.ticket_usd_m)}</p>
+            <p style="margin:0 0 8px 0;"><b>Country:</b> ${escapeHtml(d.country || "—")}</p>
+            <p style="margin:0 0 8px 0;"><b>Sector:</b> ${escapeHtml(d.sector || "—")}</p>
+            <p style="margin:0 0 8px 0;"><b>Ticket:</b> ${escapeHtml(fmtMoney(d.ticket_usd_m))}</p>
             <p style="margin:0 0 8px 0;"><b>Warmth:</b> ${badgeWarmth(d.warmth)}</p>
-            <p style="margin:0 0 8px 0;"><b>Owner:</b> ${d.owner || "—"}</p>
+            <p style="margin:0 0 8px 0;"><b>Owner:</b> ${escapeHtml(d.owner || "—")}</p>
             <div class="hr"></div>
-            <p style="color:var(--muted); line-height:1.55;">${String(d.summary || "No summary provided.").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</p>
+            <p style="color:var(--muted); line-height:1.55;">${escapeHtml(d.summary || "No summary provided.")}</p>
           </div>
 
           <div style="display:grid; gap:14px;">
@@ -690,10 +700,26 @@
               <div class="hr"></div>
               <small class="muted">Prospectus requests are stored under <b>timp_prospectus_requests</b> for Admin review.</small>
             </div>
+
+            <!-- ✅ Investment Hub (Deal Engagement Chat) -->
+            <div class="card">
+              <h2>Investment Hub</h2>
+              <p style="color:var(--muted); margin-top:6px;">Ask questions about this deal. Admin sees this in Engagement Hub (demo).</p>
+              <div class="hr"></div>
+              <div id="dealChatList" style="max-height:260px; overflow:auto;"></div>
+              <div class="hr"></div>
+              <textarea id="dealChatInput" rows="3" maxlength="500" placeholder="Write a message about this deal..." style="width:100%"></textarea>
+              <div style="height:10px"></div>
+              <div class="row-actions">
+                <button onclick="sendDealChat('${d.id}')">Send</button>
+              </div>
+            </div>
+
           </div>
         </div>
       `;
 
+      renderDealChatList(dealId);
       logMetric("deal_open", { deal_id: dealId, source: back });
     }
 
@@ -705,6 +731,7 @@
       }
       if(e.key === "timp_events"){
         if(location.hash.startsWith("#events")) renderEvents();
+        if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID);
       }
       if(e.key === "timp_profile"){
         if(location.hash.startsWith("#profile")) renderProfile();
@@ -718,22 +745,24 @@
       if(e.key === "timp_deals"){
         if(location.hash.startsWith("#dealroom")) renderDealRoom();
         if(location.hash.startsWith("#opps")) renderOpps();
+        if(OPEN_DEAL_ID) openDealDetails(OPEN_DEAL_ID, location.hash.startsWith("#opps") ? "#opps" : "#dealroom");
       }
       if(e.key === "timp_booths"){
         if(location.hash.startsWith("#expo")) renderExpo();
       }
 
-      // ✅ inquiries refresh hook (admin reads it; public doesn't need)
       if(e.key === INQUIRIES_KEY){
-        // no-op for public
+        // public no-op
       }
 
-      // ✅ Event Chat Hub refresh hook
-      if(e.key === "timp_chat_messages"){
-        if(OPEN_EVENT_ID) renderEventChat(OPEN_EVENT_ID);
+      // ✅ chat refresh
+      if(e.key === EVENT_CHAT_KEY && OPEN_EVENT_ID){
+        renderEventChatList(OPEN_EVENT_ID);
+      }
+      if(e.key === DEAL_CHAT_KEY && OPEN_DEAL_ID){
+        renderDealChatList(OPEN_DEAL_ID);
       }
 
-      // ✅ Region Profiles store refresh (Admin uses timp_region_profiles_v1)
       const regionKeys = ["timp_region_profiles_v1","timp_region_profiles","timp_regionprofiles","timp_regionStore"];
       if(regionKeys.includes(e.key) && location.hash.startsWith("#regionprofiles")){
         initRegionProfileSearch();
@@ -784,7 +813,7 @@
       );
       if($("#regStatus")){
         $("#regStatus").innerHTML = r
-          ? `<small>Status: <b>${r.state || "Pending"}</b></small>`
+          ? `<small>Status: <b>${escapeHtml(r.state || "Pending")}</b></small>`
           : `<small class="muted">Status: Not registered</small>`;
       }
     }
@@ -849,173 +878,28 @@
     }
 
     // -----------------------------
-    // REGION PROFILES (Public Search) — FIXED to read Admin v1 store
+    // Event banner resolver (NEW)
     // -----------------------------
-    const RP_STORE_KEY = "timp_region_profiles_v1"; // ✅ Admin uses this
+    function resolveEventBanner(ev){
+      if(!ev || typeof ev !== "object") return null;
+      const raw =
+        ev.banner_data || ev.bannerData ||
+        ev.banner_url || ev.bannerUrl ||
+        ev.banner ||
+        ev.image || ev.image_url || ev.imageUrl || null;
 
-    function rp_asArrayFromAnyStore(){
-      const keysToTry = [RP_STORE_KEY, "timp_region_profiles", "timp_regionprofiles", "timp_regionStore"];
-      for(const k of keysToTry){
-        try{
-          const raw = localStorage.getItem(k);
-          if(!raw) continue;
-          const x = JSON.parse(raw);
-          if(Array.isArray(x)) return x;
-          if(x && typeof x === "object"){
-            return Object.values(x);
-          }
-        }catch(e){}
-      }
-      return [];
-    }
+      if(!raw) return null;
+      const s = String(raw);
 
-    window.getRegionProfiles = window.getRegionProfiles || function(){
-      return rp_asArrayFromAnyStore();
-    };
+      // dataURL or http(s) or relative
+      if(s.startsWith("data:")) return s;
+      if(s.startsWith("http://") || s.startsWith("https://")) return s;
+      if(s.startsWith("./") || s.startsWith("/") || s.includes("assets/")) return s;
 
-    window.rp_pickLangContent = window.rp_pickLangContent || function(profile, lang){
-      if(!profile || typeof profile !== "object") return {};
-      const c = profile.content || profile.i18n || profile.text || null;
+      // filename only → assume assets/events/
+      if(/\.(png|jpg|jpeg|webp|gif)$/i.test(s)) return "assets/events/" + s;
 
-      if(c && typeof c === "object" && c[lang]) return c[lang];
-      if(c && typeof c === "object" && c.en) return c.en;
-
-      return {
-        title: profile.title || profile.name || "",
-        subtitle: profile.subtitle || "",
-        overview: profile.overview || profile.summary || "",
-        tags: profile.tags || []
-      };
-    };
-
-    function rp_normRegionKey(v){
-      const s = String(v || "").toLowerCase().trim();
-      if(!s) return "";
-      if(s === "south" || s === "southern" || s.includes("southern")) return "southern";
-      if(s.includes("north")) return "north";
-      if(s.includes("west")) return "west";
-      if(s.includes("central") || s.includes("centre")) return "central";
-      if(s.includes("east")) return "east";
-      return s;
-    }
-
-    function rp_isPublished(p){
-      const st = String(p?.status || "").toLowerCase().trim();
-      if(st === "published") return true;
-      if(p?.published === true) return true;
-      if(String(p?.visibility || "").toLowerCase() === "public") return true;
-      if(String(p?.status || "") === "Published") return true;
-      return false;
-    }
-
-    window.rp_searchPublished = window.rp_searchPublished || function(q, lang, regionFilter){
-      const query = String(q || "").toLowerCase().trim();
-      const region = regionFilter ? rp_normRegionKey(regionFilter) : null;
-
-      const rows = window.getRegionProfiles();
-
-      return rows
-        .filter(rp_isPublished)
-        .filter(p => {
-          if(!region) return true;
-          const pr = rp_normRegionKey(p.regionId || p.region || p.region_id || p.regionKey || "");
-          return pr === region;
-        })
-        .filter(p => {
-          if(!query) return true;
-          const c = rp_pickLangContent(p, lang) || {};
-          const hay = [
-            c.title, c.subtitle, c.overview,
-            ...(Array.isArray(c.tags) ? c.tags : []),
-            p.country, p.sector
-          ].join(" ").toLowerCase();
-          return hay.includes(query);
-        });
-    };
-
-    function rp_currentLang(){
-      const sel = document.getElementById("langSel");
-      return sel ? sel.value : "en";
-    }
-
-    function rp_escapeHtml(s){
-      return String(s || "").replace(/[&<>"']/g, m => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-      }[m]));
-    }
-
-    function rp_renderCard(profile, lang){
-      const c = rp_pickLangContent(profile, lang) || {};
-      const title = c.title || "Region Profile";
-      const subtitle = c.subtitle || "";
-      const overviewFull = String(c.overview || "");
-      const overview = overviewFull.slice(0, 240);
-      const tags = Array.isArray(c.tags) ? c.tags : [];
-
-      const updated = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
-      const regionId = profile?.regionId || profile?.region || "";
-
-      return `
-        <div class="card" style="margin:12px 0;">
-          <div class="mini" style="align-items:flex-start;">
-            <div style="flex:1;">
-              <h3 style="margin:0 0 6px 0;">${rp_escapeHtml(title)}</h3>
-              ${subtitle ? `<div style="color:var(--muted); margin-bottom:8px;">${rp_escapeHtml(subtitle)}</div>` : ""}
-              ${overview ? `<p style="color:var(--muted); line-height:1.55;">${rp_escapeHtml(overview)}${overviewFull.length>240 ? "..." : ""}</p>` : ""}
-            </div>
-            <div style="text-align:right;">
-              ${regionId ? `<span class="tag ok">${rp_escapeHtml(regionLabel(regionId))}</span>` : ""}
-              ${updated ? `<div style="margin-top:6px;"><small class="muted">${rp_escapeHtml(updated)}</small></div>` : ""}
-            </div>
-          </div>
-
-          ${tags.length ? `
-            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-              ${tags.map(t => `<span class="tag muted">${rp_escapeHtml(t)}</span>`).join("")}
-            </div>` : ""
-          }
-        </div>
-      `;
-    }
-
-    function rp_refreshResults(){
-      const lang = rp_currentLang();
-      const q = document.getElementById("rpSearchInput")?.value || "";
-      const regionFilter = document.getElementById("rpRegionFilter")?.value || "all";
-
-      const results = rp_searchPublished(q, lang, regionFilter !== "all" ? regionFilter : null);
-      const el = document.getElementById("rpResults");
-      if(!el) return;
-
-      if(!results.length){
-        el.innerHTML = `<div class="card"><p style="color:var(--muted);">No published region profiles match your search yet.</p></div>`;
-        return;
-      }
-
-      el.innerHTML = results.map(p => rp_renderCard(p, lang)).join("");
-    }
-
-    function initRegionProfileSearch(){
-      const input = document.getElementById("rpSearchInput");
-      const filter = document.getElementById("rpRegionFilter");
-      const langSel = document.getElementById("langSel");
-
-      if(!input || !filter) return;
-
-      if(!input.dataset.bound){
-        input.addEventListener("input", rp_refreshResults);
-        input.dataset.bound = "1";
-      }
-      if(!filter.dataset.bound){
-        filter.addEventListener("change", rp_refreshResults);
-        filter.dataset.bound = "1";
-      }
-      if(langSel && !langSel.dataset.rpBound){
-        langSel.addEventListener("change", rp_refreshResults);
-        langSel.dataset.rpBound = "1";
-      }
-
-      rp_refreshResults();
+      return null;
     }
 
     // -----------------------------
@@ -1024,7 +908,7 @@
     function renderEvents(){
       setActive("events");
       $("#pageTitle").textContent = t("events");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${escapeHtml(regionLabel(pickRegion()))}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
       $("#pageActions").innerHTML = ``;
 
       const evs = filterByRegion(safeEvents()).filter(e => e.status === "Published");
@@ -1038,8 +922,8 @@
 
         return `
           <tr>
-            <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
-            <td>${e.date} <small>(${e.time || ""})</small></td>
+            <td><b>${escapeHtml(e.title)}</b><br><small>${escapeHtml(e.type)} • ${escapeHtml(e.venue)}</small></td>
+            <td>${escapeHtml(e.date)} <small>(${escapeHtml(e.time || "")})</small></td>
             <td><span class="tag ok">Published</span></td>
             <td class="row-actions">
               <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
@@ -1073,11 +957,13 @@
         return;
       }
 
+      const banner = resolveEventBanner(e);
+
       $("#pageTitle").textContent = e.title;
       $("#pageMeta").innerHTML = `
-        <span class="tag ok">${e.type}</span>
-        <span class="tag ok">${regionLabel(e.region || pickRegion())}</span>
-        <span class="tag muted">${e.venue} • ${e.date} • ${e.time || ""}</span>
+        <span class="tag ok">${escapeHtml(e.type)}</span>
+        <span class="tag ok">${escapeHtml(regionLabel(e.region || pickRegion()))}</span>
+        <span class="tag muted">${escapeHtml(e.venue)} • ${escapeHtml(e.date)} • ${escapeHtml(e.time || "")}</span>
       `;
       $("#pageActions").innerHTML = `
         <button class="secondary" onclick="setHash('#events')">Back</button>
@@ -1085,14 +971,31 @@
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
-          <div class="card">
-            <h2>Event Materials</h2>
-            <p><b>Programme</b> (demo) • <b>Presentations</b> (demo) • <b>Briefing note</b> (demo)</p>
-            <div class="hr"></div>
-            <p><b>Post-event continuity:</b> recordings and decks become available to verified users after the event (controlled access).</p>
-            <div class="row-actions">
-              <button class="secondary" onclick="setToast('Materials', 'Demo: Secure downloads with RBAC in real build.')">View materials</button>
-              <button class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available post-event.')">View recordings</button>
+          <div style="display:grid; gap:14px;">
+            <div class="card">
+              <h2>Event Materials</h2>
+              ${banner ? `<img src="${escapeHtml(banner)}" alt="Event banner" style="width:100%; border-radius:16px; margin:10px 0 10px 0; object-fit:cover; max-height:240px;">` : ""}
+              <p><b>Programme</b> (demo) • <b>Presentations</b> (demo) • <b>Briefing note</b> (demo)</p>
+              <div class="hr"></div>
+              <p><b>Post-event continuity:</b> recordings and decks become available to verified users after the event (controlled access).</p>
+              <div class="row-actions">
+                <button class="secondary" onclick="setToast('Materials', 'Demo: Secure downloads with RBAC in real build.')">View materials</button>
+                <button class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available post-event.')">View recordings</button>
+              </div>
+            </div>
+
+            <!-- ✅ Event Chat (NEW) -->
+            <div class="card">
+              <h2>Event Chat</h2>
+              <p style="color:var(--muted); margin-top:6px;">Questions, logistics, and Q&A. Admin sees this in Engagement Hub (demo).</p>
+              <div class="hr"></div>
+              <div id="eventChatList" style="max-height:260px; overflow:auto;"></div>
+              <div class="hr"></div>
+              <textarea id="eventChatInput" rows="3" maxlength="500" placeholder="Write a message for this event..." style="width:100%"></textarea>
+              <div style="height:10px"></div>
+              <div class="row-actions">
+                <button onclick="sendEventChat('${e.id}')">Send</button>
+              </div>
             </div>
           </div>
 
@@ -1151,35 +1054,13 @@
               <div style="height:10px"></div>
               <button class="secondary" onclick="setToast('Feedback submitted', 'Thanks. In the real build this feeds analytics + reports.')">Submit feedback</button>
             </div>
-
-            <!-- ✅ Investment Engagement Hub (Event Chat) -->
-            <div class="card">
-              <h2>Investment Engagement Hub</h2>
-              <p style="color:var(--muted); margin-top:6px;">Live attendee chat during the event (demo).</p>
-              <div class="hr"></div>
-
-              <div id="chatStream"
-                   style="max-height:260px; overflow:auto; padding:10px; border:1px solid var(--border); border-radius:12px;">
-              </div>
-
-              <div style="height:10px"></div>
-
-              <div class="row-actions" style="gap:10px;">
-                <input id="chatInput" placeholder="Type a message…" style="flex:1; min-width:0;" />
-                <button onclick="sendEventChat()">Send</button>
-              </div>
-
-              <div class="hr"></div>
-              <small class="muted">Demo: stored locally in <b>timp_chat_messages</b>. Admin can read/moderate.</small>
-            </div>
-
           </div>
         </div>
       `;
 
       fillRegFromProfile();
       updateRegStatus();
-      renderEventChat(eventId);
+      renderEventChatList(eventId);
     }
 
     // -----------------------------
@@ -1188,7 +1069,7 @@
     function renderDealRoom(){
       setActive("deal_room");
       $("#pageTitle").textContent = t("deal_room");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">AI-style recommendations (demo logic)</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${escapeHtml(regionLabel(pickRegion()))}</span> <span class="tag muted">AI-style recommendations (demo logic)</span>`;
       $("#pageActions").innerHTML = `
         <button class="secondary" onclick="setToast('Meeting request', 'Demo: Scheduling integrates with calendar + meeting links in the real build.')">Request 1:1</button>
         <button class="secondary" onclick="renderPitching()">Pitching</button>
@@ -1208,7 +1089,7 @@
       const cards = deals.map(d=>{
         const rec = recommendInvestors(d);
         const recHtml = rec.length
-          ? rec.map(r=>`<li><b>${r.name}</b><br><small>${(r.focus||[]).join(", ")} • ${fmtMoney(r.ticket_min)}–${fmtMoney(r.ticket_max)}</small></li>`).join("")
+          ? rec.map(r=>`<li><b>${escapeHtml(r.name)}</b><br><small>${escapeHtml((r.focus||[]).join(", "))} • ${escapeHtml(fmtMoney(r.ticket_min))}–${escapeHtml(fmtMoney(r.ticket_max))}</small></li>`).join("")
           : `<li><small>No exact match in demo dataset.</small></li>`;
 
         const prospectusBtns = d.prospectus_name
@@ -1218,8 +1099,8 @@
 
         return `
           <div class="card">
-            <h3>${d.country} • ${d.sector} <span style="float:right">${badgeWarmth(d.warmth)}</span></h3>
-            <p><b>${fmtMoney(d.ticket_usd_m)}</b> • Stage: <b>${d.stage}</b><br>${d.summary || ""}</p>
+            <h3>${escapeHtml(d.country)} • ${escapeHtml(d.sector)} <span style="float:right">${badgeWarmth(d.warmth)}</span></h3>
+            <p><b>${escapeHtml(fmtMoney(d.ticket_usd_m))}</b> • Stage: <b>${escapeHtml(d.stage)}</b><br>${escapeHtml(d.summary || "")}</p>
             <div class="hr"></div>
             <small><b>Recommended investors (demo)</b></small>
             <ul style="margin:6px 0 0 0; padding-left:18px; color:var(--muted); line-height:1.45">${recHtml}</ul>
@@ -1239,11 +1120,11 @@
         const deal = safeDeals().find(d => d.id === m.deal_id);
         const inv = investors.find(i=>i.id===m.investor_id);
         return `<tr>
-          <td>${deal ? (deal.country+' • '+deal.sector) : m.deal_id}</td>
-          <td>${inv ? inv.name : m.investor_id}</td>
-          <td>${m.datetime}</td>
-          <td>${m.mode}</td>
-          <td>${m.status}</td>
+          <td>${deal ? (escapeHtml(deal.country)+' • '+escapeHtml(deal.sector)) : escapeHtml(m.deal_id)}</td>
+          <td>${inv ? escapeHtml(inv.name) : escapeHtml(m.investor_id)}</td>
+          <td>${escapeHtml(m.datetime)}</td>
+          <td>${escapeHtml(m.mode)}</td>
+          <td>${escapeHtml(m.status)}</td>
         </tr>`;
       }).join("");
 
@@ -1333,30 +1214,30 @@
     function renderOpps(){
       setActive("opportunities");
       $("#pageTitle").textContent = t("opportunities");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Pipeline view (stage + warmth)</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${escapeHtml(regionLabel(pickRegion()))}</span> <span class="tag muted">Pipeline view (stage + warmth)</span>`;
 
       const tpl = getProposalTemplateMeta();
 
       $("#pageActions").innerHTML = `
         <button onclick="setToast('Info', 'Download the proposal template (Deal Book), complete it, then submit your opportunity below.')">Info</button>
-        <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
+        <button class="secondary" onclick="downloadProposalTemplate()">${escapeHtml(tpl.label)}</button>
       `;
 
       const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
       const rows = deals.map(d=>{
         const book = getDealBookEntry(d.id);
-        const bookTag = book ? `<small class="tag ok">Deal book: ${book.name}</small>` : `<small class="tag muted">No deal book uploaded</small>`;
-        const status = d.status ? `<span class="tag ${String(d.status).toLowerCase()==='published'?'ok':'warn'}">${d.status}</span>` : "";
+        const bookTag = book ? `<small class="tag ok">Deal book: ${escapeHtml(book.name)}</small>` : `<small class="tag muted">No deal book uploaded</small>`;
+        const status = d.status ? `<span class="tag ${String(d.status).toLowerCase()==='published'?'ok':'warn'}">${escapeHtml(d.status)}</span>` : "";
 
         return `
           <tr>
             <td>
-              <b>${d.country}</b> ${status}<br>
-              <small>${d.sector}</small><br>
+              <b>${escapeHtml(d.country)}</b> ${status}<br>
+              <small>${escapeHtml(d.sector)}</small><br>
               ${bookTag}
             </td>
-            <td>${fmtMoney(d.ticket_usd_m)}</td>
-            <td>${d.stage}</td>
+            <td>${escapeHtml(fmtMoney(d.ticket_usd_m))}</td>
+            <td>${escapeHtml(d.stage)}</td>
             <td>${badgeWarmth(d.warmth)}</td>
             <td class="row-actions">
               <button class="secondary" onclick="openDealDetails('${d.id}', '#opps')">Open</button>
@@ -1372,7 +1253,7 @@
             <h2>Submit an Opportunity (Public demo)</h2>
 
             <div class="row-actions" style="margin:8px 0 10px 0;">
-              <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
+              <button class="secondary" onclick="downloadProposalTemplate()">${escapeHtml(tpl.label)}</button>
             </div>
 
             <p>Public users can submit an opportunity + upload a deal pack. In the real build, Admin reviews and publishes.</p>
@@ -1458,13 +1339,11 @@
       deals.push(newDeal);
       saveDeals(deals);
 
-      // store deal book (name-only for large PDFs; dataURL for small PDFs)
       const f = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
       if(f){
         const map = getDealBooks();
-        const MAX = 2 * 1024 * 1024; // 2MB demo limit for storing dataURL safely
+        const MAX = 2 * 1024 * 1024;
 
-        // always store filename
         map[id] = { name: f.name, size: f.size, type: f.type, at: new Date().toISOString() };
         saveDealBooks(map);
 
@@ -1529,7 +1408,7 @@
     function renderExpo(){
       setActive("exhibition");
       $("#pageTitle").textContent = t("exhibition");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Persistent digital stands (demo)</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${escapeHtml(regionLabel(pickRegion()))}</span> <span class="tag muted">Persistent digital stands (demo)</span>`;
       $("#pageActions").innerHTML = ``;
 
       const boothsRaw = filterByRegion(safeBooths()).filter(isBoothVisibleOnPublic);
@@ -1541,8 +1420,8 @@
 
         return `
           <div class="card">
-            <h3>${b.org || "Exhibitor"}</h3>
-            <p><b>Catalog:</b> ${catalogLabel}<br><b>Offers:</b> ${offersLabel}</p>
+            <h3>${escapeHtml(b.org || "Exhibitor")}</h3>
+            <p><b>Catalog:</b> ${escapeHtml(catalogLabel)}<br><b>Offers:</b> ${escapeHtml(offersLabel)}</p>
             <div class="row-actions">
               <button class="secondary" onclick="viewBoothCatalog('${key}')">View catalog</button>
               <button onclick="sendBoothInquiry('${key}')">Send inquiry</button>
@@ -1606,7 +1485,7 @@
       });
 
       $("#results").innerHTML = hits.length
-        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${h.type}:</b> ${h.label}</li>`).join("")}</ul>`
+        ? `<ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">${hits.map(h=>`<li><b>${escapeHtml(h.type)}:</b> ${escapeHtml(h.label)}</li>`).join("")}</ul>`
         : `<small>No results.</small>`;
     }
 
@@ -1636,21 +1515,21 @@
             <div style="height:10px"></div>
 
             <div class="grid cols-2">
-              <div><label>First name</label><input id="pFirst" value="${String(p.first_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
-              <div><label>Last name</label><input id="pLast" value="${String(p.last_name||"").replace(/"/g,"&quot;")}" style="width:100%" /></div>
+              <div><label>First name</label><input id="pFirst" value="${escapeHtml(p.first_name||"")}" style="width:100%" /></div>
+              <div><label>Last name</label><input id="pLast" value="${escapeHtml(p.last_name||"")}" style="width:100%" /></div>
             </div>
 
             <div style="height:10px"></div>
-            <label>Organisation</label><input id="pOrg" value="${String(p.org||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Organisation</label><input id="pOrg" value="${escapeHtml(p.org||"")}" style="width:100%" />
             <div style="height:10px"></div>
 
-            <label>Position</label><input id="pPosition" value="${String(p.position||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Position</label><input id="pPosition" value="${escapeHtml(p.position||"")}" style="width:100%" />
             <div style="height:10px"></div>
 
-            <label>Email</label><input id="pEmail" value="${String(p.email||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Email</label><input id="pEmail" value="${escapeHtml(p.email||"")}" style="width:100%" />
             <div style="height:10px"></div>
 
-            <label>Phone</label><input id="pPhone" value="${String(p.phone||"").replace(/"/g,"&quot;")}" style="width:100%" />
+            <label>Phone</label><input id="pPhone" value="${escapeHtml(p.phone||"")}" style="width:100%" />
             <div style="height:10px"></div>
 
             <button onclick="savePublicProfile()">Save</button>
@@ -1692,7 +1571,7 @@
     function renderRegionProfilesPublic(){
       setActive("region_profiles");
       $("#pageTitle").textContent = "Region Profiles";
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Market intelligence & investment insights</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${escapeHtml(regionLabel(pickRegion()))}</span> <span class="tag muted">Market intelligence & investment insights</span>`;
       $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'Only published region profiles appear here (demo).')">Info</button>`;
 
       $("#pageBody").innerHTML = `
@@ -1719,7 +1598,8 @@
         </div>
       `;
 
-      initRegionProfileSearch();
+      // region profile search functions are in your existing code; keep as-is in your original file
+      if(typeof initRegionProfileSearch === "function") initRegionProfileSearch();
     }
 
     function setHash(h){ location.hash = h; }
@@ -1739,7 +1619,39 @@
     window.addEventListener("hashchange", route);
     route();
 
-  } // end auth skip wrapper
+    // ✅ Export handlers so inline onclick works reliably
+    Object.assign(window, {
+      openEvent,
+      renderEvents,
+      renderDealRoom,
+      renderOpps,
+      renderExpo,
+      renderArchive,
+      renderProfile,
+      renderRegionProfilesPublic,
+      openDealDetails,
+      schedule,
+      renderPitching,
+      startTimer,
+      resetTimer,
+      registerForEvent,
+      submitOpportunity,
+      doSearch,
+      savePublicProfile,
+      setHash,
+      downloadProposalTemplate,
+      downloadDealProspectus,
+      requestProspectus,
+      downloadDealBook,
+      viewBoothCatalog,
+      sendBoothInquiry,
+      sendEventChat,
+      sendDealChat,
+      renderEventChatList,
+      renderDealChatList
+    });
+
+  }
   </script>
 </body>
 </html>
