@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED + Auth Gate Order Fixed + Proposal Template Download Added) -->
+<!-- public.html (UPDATED: Proposal Template Download FIXED + robust path resolving) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -81,21 +81,17 @@
   <script>
     (function(){
       try{
-        // Hide while we check auth (prevents UI flash)
         document.documentElement.style.visibility = "hidden";
 
         if(window.TIMP_AUTH && typeof TIMP_AUTH.requireAuth === "function"){
           const ok = TIMP_AUTH.requireAuth("welcome.html");
           if(!ok){
-            // requireAuth should redirect; keep hidden
             return;
           }
         }
-        // Authed (or no auth available) -> show page
         document.documentElement.style.visibility = "";
       }catch(e){
         console.warn("Auth gate warning:", e);
-        // Demo fail-open if something is wrong with auth.js
         document.documentElement.style.visibility = "";
       }
     })();
@@ -107,16 +103,11 @@
   <script src="regionStore.js"></script>
   <script src="app.js"></script>
 
-  <!-- ✅ Your portal logic -->
   <script>
-  // If auth exists and user is not authed, skip initializing portal (gate already redirected)
   if(window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function" && !TIMP_AUTH.isAuthed()){
     console.warn("Not registered yet — skipping public portal init.");
   } else {
 
-    // -----------------------------
-    // Helpers + Safe storage
-    // -----------------------------
     let OPEN_EVENT_ID = null;
 
     function safeEvents(){
@@ -126,7 +117,6 @@
       return (typeof getDeals === "function") ? getDeals() : ((window.TIMP_DATA && TIMP_DATA.deals) || []);
     }
 
-    // ✅ fallbacks so Public sees Admin changes saved to localStorage
     window.getEvents = window.getEvents || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
@@ -155,7 +145,6 @@
       return (typeof getBooths === "function") ? getBooths() : ((window.TIMP_DATA && TIMP_DATA.booths) || []);
     }
 
-    // ✅ helper: download a stored dataURL as a file
     function downloadDataUrl(dataUrl, filename){
       if(!dataUrl) return;
       const a = document.createElement("a");
@@ -165,11 +154,19 @@
     }
 
     // =========================================================
-    // ✅ NEW: Project Proposal Template (Deal Book) download
-    // Put PDFs in your repo:
-    //  - assets/Project Proposal Template ENG (3).pdf
-    //  - assets/Project Proposal Template FR.pdf
+    // ✅ FIXED: Project Proposal Template download
+    // - encodes spaces/parentheses safely
+    // - tries assets/, ./assets/, ../assets/ (covers /docs deployment)
+    // - fetch->blob forces real download and gives clean errors
     // =========================================================
+
+    function encodePathSafe(path){
+      return String(path || "")
+        .split("/")
+        .map(seg => (seg === "" || seg === "." || seg === "..") ? seg : encodeURIComponent(seg))
+        .join("/");
+    }
+
     function getProposalTemplateMeta(){
       const lang =
         (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
@@ -188,25 +185,57 @@
         pt: "Baixar modelo de proposta (Deal Book)"
       };
 
-      const raw = urlMap[lang] || urlMap.en;
-      const url = encodeURI(raw); // handles spaces safely
-      return {
-        lang,
-        url,
-        label: labelMap[lang] || labelMap.en,
-        filename: (raw.split("/").pop() || "Project_Proposal_Template.pdf")
-      };
+      const rel = urlMap[lang] || urlMap.en;
+      const filename = (rel.split("/").pop() || "Project_Proposal_Template.pdf");
+
+      return { lang, rel, label: (labelMap[lang] || labelMap.en), filename };
     }
 
-    function downloadProposalTemplate(){
+    async function downloadStaticFile(relPath, filename){
+      const candidates = [
+        relPath,
+        "./" + relPath,
+        "../" + relPath
+      ];
+
+      for(const c of candidates){
+        try{
+          const abs = new URL(encodePathSafe(c), window.location.href).toString();
+          const res = await fetch(abs, { cache: "no-store" });
+          if(!res.ok) continue;
+
+          const blob = await res.blob();
+          const objUrl = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = objUrl;
+          a.download = filename || "download";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+
+          setTimeout(()=> URL.revokeObjectURL(objUrl), 15000);
+          return true;
+        }catch(e){
+          // try next candidate
+        }
+      }
+      return false;
+    }
+
+    async function downloadProposalTemplate(){
       const tpl = getProposalTemplateMeta();
-      const a = document.createElement("a");
-      a.href = tpl.url;
-      a.download = tpl.filename;
-      a.target = "_blank";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const ok = await downloadStaticFile(tpl.rel, tpl.filename);
+
+      if(!ok){
+        setToast(
+          "Template not found",
+          "Your PDF is in the repo, but it isn’t reachable from the live site. Most common fix: put the assets folder in the SAME published folder as public.html (e.g., /docs/assets if Pages uses /docs), and ensure the filename matches exactly."
+        );
+        console.warn("Proposal template not reachable. Tried:", tpl.rel, "./"+tpl.rel, "../"+tpl.rel);
+      } else {
+        setToast("Downloading", tpl.filename);
+      }
     }
 
     // ✅ Public download: Prospectus for a deal
@@ -234,7 +263,6 @@
       setToast("Requested", "Prospectus request recorded (demo signal). If available, use Download.");
     }
 
-    // registrations store
     window.getRegistrations = window.getRegistrations || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_regs"));
@@ -247,7 +275,6 @@
       localStorage.setItem("timp_regs", JSON.stringify(rows || []));
     };
 
-    // profile store
     window.getMyProfile = window.getMyProfile || function(){
       try{
         const p = JSON.parse(localStorage.getItem("timp_profile"));
@@ -269,7 +296,6 @@
       if(p && p.email) localStorage.setItem("timp_user_email", p.email);
     };
 
-    // compat wrappers
     window.getProfile = window.getProfile || function(){
       const p = getMyProfile();
       return {
@@ -332,7 +358,6 @@
       return `<span class="tag ${cls}">${s}</span>`;
     }
 
-    // Auto-refresh Public when Admin changes
     window.addEventListener("storage", (e)=>{
       if(e.key === "timp_regs"){
         if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID);
@@ -358,16 +383,12 @@
         if(location.hash.startsWith("#expo")) renderExpo();
       }
 
-      // Region profile store refresh (common keys)
       const regionKeys = ["timp_region_profiles","timp_regionprofiles","timp_regionStore"];
       if(regionKeys.includes(e.key) && location.hash.startsWith("#regionprofiles")){
         initRegionProfileSearch();
       }
     });
 
-    // -----------------------------
-    // Topbar init (SAFER)
-    // -----------------------------
     const regionSel = document.getElementById("regionSel");
     if(window.TIMP_REGIONS && Array.isArray(TIMP_REGIONS) && regionSel){
       TIMP_REGIONS.forEach(r=>{
@@ -385,9 +406,6 @@
       if(match) match.classList.add("active");
     }
 
-    // -----------------------------
-    // Registration helpers
-    // -----------------------------
     function fillRegFromProfile(){
       const p = getMyProfile();
       if($("#regSalutation")) $("#regSalutation").value = p.salutation || "Mr";
@@ -907,7 +925,6 @@
 
       const tpl = getProposalTemplateMeta();
 
-      // ✅ Add template download button in the header (your red-circled area)
       $("#pageActions").innerHTML = `
         <button onclick="setToast('Info', 'Download the proposal template (Deal Book), complete it, then submit your opportunity below.')">Info</button>
         <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
@@ -942,7 +959,6 @@
           <div class="card">
             <h2>Submit an Opportunity (Public demo)</h2>
 
-            <!-- ✅ Also add template download inside the submission card -->
             <div class="row-actions" style="margin:8px 0 10px 0;">
               <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
             </div>
@@ -1237,9 +1253,6 @@
       setToast("Saved", "Profile saved (demo).");
     }
 
-    // -----------------------------
-    // REGION PROFILES PAGE (Public)
-    // -----------------------------
     function renderRegionProfilesPublic(){
       setActive("region_profiles");
       $("#pageTitle").textContent = "Region Profiles";
@@ -1289,7 +1302,7 @@
     window.addEventListener("hashchange", route);
     route();
 
-  } // end auth skip wrapper
+  }
   </script>
 </body>
 </html>
