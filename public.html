@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED: Event Banner + Event Chat + Deal Chat + Reliable window handlers) -->
+<!-- public.html (UPDATED: Published Events show Banner in LIST + Banner resolver supports banner_data_url) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -437,9 +437,10 @@
     }
 
     function regTag(state){
-      const s = state || "Pending";
-      const cls = (s === "Approved") ? "ok" : (s === "Pending") ? "warn" : "muted";
-      return `<span class="tag ${cls}">${s}</span>`;
+      const raw = String(state || "Pending");
+      const s = raw.toLowerCase().trim();
+      const cls = (s === "approved") ? "ok" : (s === "pending") ? "warn" : "muted";
+      return `<span class="tag ${cls}">${escapeHtml(raw)}</span>`;
     }
 
     /* =========================================================
@@ -878,11 +879,14 @@
     }
 
     // -----------------------------
-    // Event banner resolver (NEW)
+    // ✅ Event banner resolver (UPDATED)
+    // - now supports banner_data_url (your Admin publish banner field)
     // -----------------------------
     function resolveEventBanner(ev){
       if(!ev || typeof ev !== "object") return null;
+
       const raw =
+        ev.banner_data_url || ev.bannerDataUrl ||   /* ✅ NEW */
         ev.banner_data || ev.bannerData ||
         ev.banner_url || ev.bannerUrl ||
         ev.banner ||
@@ -904,6 +908,8 @@
 
     // -----------------------------
     // EVENTS (Public)
+    // ✅ UPDATED: published check is case-insensitive
+    // ✅ UPDATED: list view shows banner thumbnail
     // -----------------------------
     function renderEvents(){
       setActive("events");
@@ -911,7 +917,9 @@
       $("#pageMeta").innerHTML = `<span class="tag ok">${escapeHtml(regionLabel(pickRegion()))}</span> <span class="tag muted">Annual calendar + event profiles</span>`;
       $("#pageActions").innerHTML = ``;
 
-      const evs = filterByRegion(safeEvents()).filter(e => e.status === "Published");
+      const evs = filterByRegion(safeEvents())
+        .filter(e => String(e?.status || "").toLowerCase().trim() === "published");
+
       if($("#evCount")) $("#evCount").textContent = evs.length;
 
       const rows = evs.map(e=>{
@@ -920,10 +928,23 @@
           ? regTag(my.state)
           : `<button onclick="openEvent('${e.id}')">Register</button>`;
 
+        const banner = resolveEventBanner(e);
+        const thumb = banner
+          ? `<img src="${escapeHtml(banner)}" alt="Event banner" style="width:120px;height:64px;object-fit:cover;border-radius:12px;display:block;">`
+          : `<div style="width:120px;height:64px;border-radius:12px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;">No banner</div>`;
+
         return `
           <tr>
-            <td><b>${escapeHtml(e.title)}</b><br><small>${escapeHtml(e.type)} • ${escapeHtml(e.venue)}</small></td>
-            <td>${escapeHtml(e.date)} <small>(${escapeHtml(e.time || "")})</small></td>
+            <td>
+              <div style="display:flex; gap:12px; align-items:center;">
+                ${thumb}
+                <div>
+                  <b>${escapeHtml(e.title)}</b><br>
+                  <small>${escapeHtml(e.type || "")} • ${escapeHtml(e.venue || "")}</small>
+                </div>
+              </div>
+            </td>
+            <td>${escapeHtml(e.date || "")} <small>(${escapeHtml(e.time || "")})</small></td>
             <td><span class="tag ok">Published</span></td>
             <td class="row-actions">
               <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
@@ -1470,7 +1491,9 @@
       const q = ($("#q").value || "").toLowerCase().trim();
       const hits = [];
 
-      const evs = filterByRegion(safeEvents()).filter(e => e.status === "Published");
+      const evs = filterByRegion(safeEvents())
+        .filter(e => String(e?.status || "").toLowerCase().trim() === "published");
+
       evs.forEach(e=>{
         if([e.title,e.theme,e.venue,e.type,e.date].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Event", label:e.title+" • "+e.date});
