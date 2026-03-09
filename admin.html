@@ -92,10 +92,10 @@
        Safety fallbacks (so demo works even if util.js not updated)
        ========================================================= */
     if(typeof getEvents !== "function"){
-      function getEvents(){
-        const x = JSON.parse(localStorage.getItem("timp_events") || "null");
-        return Array.isArray(x) ? x : (TIMP_DATA.events || []);
-      }
+     function getEvents(){
+  const x = JSON.parse(localStorage.getItem("timp_events") || "null");
+  return Array.isArray(x) ? x : (TIMP_DATA.events || []);
+}
     }
     if(typeof saveEvents !== "function"){
       function saveEvents(evs){
