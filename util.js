@@ -38,10 +38,11 @@ function saveDeals(deals){
 
 function getEvents(){
   try{
-    const x = JSON.parse(localStorage.getItem("timp_events"));
-    if(Array.isArray(x)) return x;
-  }catch(e){}
-  return (window.TIMP_DATA && Array.isArray(window.TIMP_DATA.events)) ? window.TIMP_DATA.events : [];
+    const x = JSON.parse(localStorage.getItem("timp_events") || "null");
+    return Array.isArray(x) ? x : (TIMP_DATA.events || []);
+  }catch(e){
+    return (TIMP_DATA.events || []);
+  }
 }
 
 function saveEvents(events){
