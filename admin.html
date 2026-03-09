@@ -1,4 +1,4 @@
-<!-- admin.html (FIXED STRUCTURE + REGION PROFILES STORAGE + CLEAN ROUTING) -->
+<!-- admin.html (UPDATED: Opportunity Approvals + Inquiries Inbox + Engagement Hub + Working Invite Link + Real Analytics) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -38,10 +38,20 @@
         <a href="#events" data-nav="events"><span class="i18n" data-key="create_event">Create / Edit Event</span></a>
         <a href="#regs" data-nav="registrations"><span class="i18n" data-key="registrations">Registrations</span><span class="badge" id="regCount"></span></a>
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
+
+        <!-- ✅ NEW: Approve opportunities submitted from Public -->
+        <a href="#submissions" data-nav="submissions"><span>Opportunity Submissions</span><span class="badge" id="subCount"></span></a>
+
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
 
         <!-- ✅ Virtual Exhibition Admin -->
         <a href="#expo" data-nav="expo"><span>Virtual Exhibition</span></a>
+
+        <!-- ✅ NEW: Public "Send Inquiry" inbox -->
+        <a href="#inquiries" data-nav="inquiries"><span>Inquiries</span><span class="badge" id="inqCount"></span></a>
+
+        <!-- ✅ NEW: Engagement Hub (messages/chat) -->
+        <a href="#engagement" data-nav="engagement"><span>Engagement Hub</span><span class="badge" id="msgCount"></span></a>
 
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
         <a href="#regionprofiles" data-nav="region_profiles"><span class="i18n" data-key="region_profiles">Region Profiles</span></a>
@@ -128,6 +138,46 @@
       }
     }
 
+    // ✅ inquiries storage (Public "Send inquiry" -> Admin inbox)
+    function getInquiries(){
+      try{ return JSON.parse(localStorage.getItem("timp_inquiries") || "[]"); }catch(e){ return []; }
+    }
+    function saveInquiries(rows){
+      localStorage.setItem("timp_inquiries", JSON.stringify(rows || []));
+    }
+
+    // ✅ engagement messages storage (Public/booth inquiry follow-ups -> Admin replies)
+    function getMessages(){
+      try{ return JSON.parse(localStorage.getItem("timp_messages") || "[]"); }catch(e){ return []; }
+    }
+    function saveMessages(rows){
+      localStorage.setItem("timp_messages", JSON.stringify(rows || []));
+    }
+
+    // ✅ analytics metrics storage
+    function getMetrics(){
+      try{ return JSON.parse(localStorage.getItem("timp_metrics") || "[]"); }catch(e){ return []; }
+    }
+    function logMetric(type, payload){
+      try{
+        const rows = getMetrics();
+        rows.unshift({
+          id: "m" + Date.now() + Math.random().toString(16).slice(2),
+          type: String(type||""),
+          payload: payload || {},
+          at: new Date().toISOString()
+        });
+        localStorage.setItem("timp_metrics", JSON.stringify(rows));
+      }catch(e){}
+    }
+
+    function getProspectusRequests(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_prospectus_requests") || "[]");
+        return Array.isArray(x) ? x : [];
+      }catch(e){ return []; }
+    }
+
     /* =========================
        Small helpers
        ========================= */
@@ -157,6 +207,63 @@
       return `${x.toFixed(i===0?0:1)} ${u[i]}`;
     }
 
+    function isActiveDealStatus(s){
+      const x = String(s||"").toLowerCase();
+      return (x === "active" || x === "published");
+    }
+
+    function copyText(txt){
+      const t = String(txt||"");
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        return navigator.clipboard.writeText(t).then(()=>true).catch(()=>false);
+      }
+      // fallback
+      try{
+        const ta = document.createElement("textarea");
+        ta.value = t;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        return Promise.resolve(true);
+      }catch(e){
+        return Promise.resolve(false);
+      }
+    }
+
+    function basePath(){
+      return location.origin + location.pathname.replace(/[^/]+$/, "");
+    }
+    function makeEventInviteLink(eventId){
+      return basePath() + "public.html?event=" + encodeURIComponent(eventId) + "#events";
+    }
+
+    function updateBadges(){
+      try{
+        const events = getEvents();
+        const deals = getDeals();
+        const regsAll = getRegistrations();
+
+        const subs = adminFilter(deals).filter(d => String(d.status||"").toLowerCase() === "pending");
+        const inquiries = getInquiries().filter(x => (x.status||"New") !== "Handled");
+        const msgs = getMessages().filter(m => String(m.status||"Unread") !== "Read" && (m.to === "Admin" || m.to === "All" || !m.to));
+
+        // registrations badge is region-aware (same logic you already used)
+        const regs = regsAll.filter(r=>{
+          const ev = events.find(e=>e.id===r.event_id);
+          if(!ev) return (pickRegion()==="non_reg");
+          return (pickRegion()==="non_reg" || ev.region===pickRegion());
+        });
+
+        if ($("#regCount")) $("#regCount").textContent = regs.length;
+        if ($("#subCount")) $("#subCount").textContent = subs.length;
+        if ($("#inqCount")) $("#inqCount").textContent = inquiries.length;
+        if ($("#msgCount")) $("#msgCount").textContent = msgs.length;
+      }catch(e){}
+    }
+
     /* =========================
        Topbar init
        ========================= */
@@ -172,6 +279,9 @@
     // ✅ Re-render current page when region/lang changes (keeps views in sync)
     document.getElementById("regionSel")?.addEventListener("change", () => route());
     document.getElementById("langSel")?.addEventListener("change", () => route());
+
+    // ✅ Refresh badges when other tab updates localStorage
+    window.addEventListener("storage", ()=> updateBadges());
 
     function setActive(navKey){
       $$("#sidebarNav a").forEach(a=>a.classList.remove("active"));
@@ -202,26 +312,49 @@
         return (pickRegion()==="non_reg" || ev.region===pickRegion());
       });
 
-      if ($("#regCount")) $("#regCount").textContent = regs.length;
-
-      const deals = adminFilter(getDeals());
+      const dealsAll = getDeals();
+      const deals = adminFilter(dealsAll);
+      const pendingSubs = deals.filter(d => String(d.status||"").toLowerCase() === "pending");
+      const activeDeals = deals.filter(d => isActiveDealStatus(d.status));
+      const inquiriesOpen = getInquiries().filter(x => (x.status||"New") !== "Handled");
+      const unreadMsgs = getMessages().filter(m => (m.to === "Admin" || m.to === "All" || !m.to) && String(m.status||"Unread") !== "Read");
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-3">
           <div class="card">
-            <div class="mini"><div><div class="label">Events this year</div><div class="big">${evs.length}</div></div><span class="tag ok">Calendar</span></div>
+            <div class="mini"><div><div class="label">Events</div><div class="big">${evs.length}</div></div><span class="tag ok">Calendar</span></div>
             <div class="hr"></div>
-            <small>Centralized annual visibility across roadshows & forums.</small>
+            <small>Published events appear on Public.</small>
           </div>
           <div class="card">
             <div class="mini"><div><div class="label">Registrations</div><div class="big">${regs.length}</div></div><span class="tag warn">Workflow</span></div>
             <div class="hr"></div>
-            <small>Approve/reject; send automated alerts when materials are published.</small>
+            <small>Approve/reject + track attendance.</small>
           </div>
           <div class="card">
-            <div class="mini"><div><div class="label">Active opportunities</div><div class="big">${deals.length}</div></div><span class="tag ok">Pipeline</span></div>
+            <div class="mini"><div><div class="label">Deals</div><div class="big">${deals.length}</div></div><span class="tag ok">Pipeline</span></div>
             <div class="hr"></div>
-            <small>Track stages + investor “warmth” signals.</small>
+            <small><b>Active:</b> ${activeDeals.length} • <b>Pending submissions:</b> ${pendingSubs.length}</small>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="grid cols-3">
+          <div class="card">
+            <div class="mini"><div><div class="label">Open inquiries</div><div class="big">${inquiriesOpen.length}</div></div><span class="tag warn">Expo</span></div>
+            <div class="hr"></div>
+            <small>From Public “Send inquiry”.</small>
+          </div>
+          <div class="card">
+            <div class="mini"><div><div class="label">Unread messages</div><div class="big">${unreadMsgs.length}</div></div><span class="tag warn">Engagement</span></div>
+            <div class="hr"></div>
+            <small>Investment Engagement Hub (chat).</small>
+          </div>
+          <div class="card">
+            <div class="mini"><div><div class="label">Prospectus requests</div><div class="big">${getProspectusRequests().length}</div></div><span class="tag ok">Signals</span></div>
+            <div class="hr"></div>
+            <small>From Deal Room “Request Prospectus”.</small>
           </div>
         </div>
 
@@ -233,14 +366,16 @@
             <div class="row-actions">
               <button onclick="location.hash='#events'">Create Event</button>
               <button class="secondary" onclick="location.hash='#regs'">Approve Registrations</button>
-              <button class="secondary" onclick="location.hash='#dealbook'">Generate Deal Book</button>
+              <button class="secondary" onclick="location.hash='#submissions'">Approve Opportunities</button>
+              <button class="secondary" onclick="location.hash='#inquiries'">View Inquiries</button>
+              <button class="secondary" onclick="location.hash='#engagement'">Engagement Hub</button>
               <button class="secondary" onclick="location.hash='#analytics'">View Analytics</button>
             </div>
           </div>
 
           <div class="card">
             <h2>Security posture (demo)</h2>
-            <p>RBAC controls who can publish events, approve registrations, upload materials, and access sensitive pitch decks.</p>
+            <p>RBAC controls who can publish events, approve registrations, upload materials, and access sensitive deal packs.</p>
             <div class="hr"></div>
             <span class="tag ok">RBAC</span>
             <span class="tag ok">Secure data rooms</span>
@@ -248,6 +383,8 @@
           </div>
         </div>
       `;
+
+      updateBadges();
     }
 
     /* =========================
@@ -259,15 +396,15 @@
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Event profiling + publishing (demo)</span>`;
       $("#pageActions").innerHTML = `
         <button onclick="publishEvent()">Publish</button>
-        <button class="secondary" onclick="setToast('Invite link generated', 'Demo: Registration link + invitation email automation.')">Generate invite link</button>
+        <button class="secondary" onclick="copyInviteLink()">Generate invite link</button>
       `;
 
       const evs = adminFilter(getEvents());
       const rows = evs.map(e=>`
         <tr>
-          <td><b>${e.title}</b><br><small>${e.type} • ${e.venue}</small></td>
-          <td>${e.date}</td>
-          <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${e.status}</span></td>
+          <td><b>${escapeHtml(e.title)}</b><br><small>${escapeHtml(e.type)} • ${escapeHtml(e.venue)}</small></td>
+          <td>${escapeHtml(e.date)}</td>
+          <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${escapeHtml(e.status)}</span></td>
           <td class="row-actions">
             <button class="secondary" onclick="editEvent('${e.id}')">Edit</button>
             <button class="danger" onclick="deleteEvent('${e.id}')">Delete</button>
@@ -470,20 +607,16 @@
       renderEventManager();
     }
 
+    // ✅ WORKING: copies a real deep-link to Public that includes eventId
     function copyInviteLink(){
       const id = ($("#evId").value || "").trim();
-      const link = "public.html#events";
-      const text = `${link} (event id: ${id || "not saved yet"})`;
+      if(!id) return setToast("Missing", "Save the event first (needs an ID).");
 
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(text).then(()=>{
-          setToast("Copied", "Invite link copied (demo).");
-        }).catch(()=>{
-          setToast("Copy failed", text);
-        });
-      } else {
-        setToast("Copy link", text);
-      }
+      const link = makeEventInviteLink(id);
+      copyText(link).then(ok=>{
+        if(ok) setToast("Copied", "Registration link copied to clipboard.");
+        else setToast("Copy link", link);
+      });
     }
 
     function downloadInviteList(){
@@ -509,11 +642,12 @@
           Position: r.position || r.title || "",
           Email: r.email || "",
           Phone: r.phone || "",
-          Status: r.state || "Pending"
+          Status: r.state || "Pending",
+          Attended: r.attended ? "Yes" : "No"
         };
       });
 
-      const headers = ["Event","Salutation","FirstName","LastName","Organisation","Position","Email","Phone","Status"];
+      const headers = ["Event","Salutation","FirstName","LastName","Organisation","Position","Email","Phone","Status","Attended"];
       const csv = [
         headers.join(","),
         ...rows.map(o=>headers.map(h=>`"${String(o[h]||"").replace(/"/g,'""')}"`).join(","))
@@ -532,10 +666,11 @@
       const id = ($("#evId").value || "").trim();
       const title = ($("#evTitle").value || "Event").trim();
       const tpl = ($("#evInviteTpl").value || "").trim();
+      const link = id ? makeEventInviteLink(id) : (basePath() + "public.html#events");
 
       const subject = encodeURIComponent(`Invitation: ${title}`);
       const body = encodeURIComponent(
-        (tpl ? tpl : `Dear [Name],\n\nYou are invited to ${title}.\n\nRegister here: public.html#events\n\nRegards,\nTIMP Admin`)
+        (tpl ? tpl : `Dear [Name],\n\nYou are invited to ${title}.\n\nRegister here: ${link}\n\nRegards,\nTIMP Admin`)
         + (id ? `\n\n(Event ID: ${id})` : "")
       );
 
@@ -543,12 +678,12 @@
     }
 
     /* =========================
-       Registrations
+       Registrations (with Attendance toggle)
        ========================= */
     function renderRegistrations(){
       setActive("registrations");
       $("#pageTitle").textContent = t("registrations");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject workflow (demo)</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject workflow + attendance (demo)</span>`;
       $("#pageActions").innerHTML = `<button class="secondary" onclick="exportRegistrationsCsv()">Export (CSV)</button>`;
 
       const events = getEvents();
@@ -559,8 +694,6 @@
         if(!ev) return (pickRegion()==="non_reg");
         return (pickRegion()==="non_reg" || ev.region===pickRegion());
       });
-
-      if($("#regCount")) $("#regCount").textContent = regs.length;
 
       const rows = regs.map(r=>{
         const ev = events.find(e=>e.id===r.event_id);
@@ -581,6 +714,10 @@
         const disableApprove = state === "Approved";
         const disableReject = state === "Rejected";
 
+        const attended = !!r.attended;
+        const attendedLabel = attended ? `<span class="tag ok">Yes</span>` : `<span class="tag muted">No</span>`;
+        const canToggleAttendance = (state === "Approved");
+
         return `
           <tr>
             <td>
@@ -591,9 +728,11 @@
             <td><small>${escapeHtml(r.email || "")}</small></td>
             <td>${escapeHtml(evTitle)}</td>
             <td><span class="tag ${stateClass}">${escapeHtml(state)}</span></td>
+            <td>${attendedLabel}</td>
             <td class="row-actions">
               <button ${disableApprove ? "disabled" : ""} onclick="approve('${r.id}')">Approve</button>
               <button class="danger" ${disableReject ? "disabled" : ""} onclick="reject('${r.id}')">Reject</button>
+              <button class="secondary" ${canToggleAttendance ? "" : "disabled"} onclick="toggleAttendance('${r.id}')">${attended ? "Unmark" : "Mark"} attended</button>
             </td>
           </tr>
         `;
@@ -602,13 +741,17 @@
       $("#pageBody").innerHTML = `
         <div class="card">
           <h2>Registration Queue</h2>
-          <p>Admin can approve/reject, then participants gain controlled access to published materials and recordings.</p>
+          <p>Approve/reject, then mark attendance for reporting.</p>
           <table class="table">
-            <thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="5"><small>No registrations found for this region.</small></td></tr>`}</tbody>
+            <thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Status</th><th>Attended</th><th>Actions</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="6"><small>No registrations found for this region.</small></td></tr>`}</tbody>
           </table>
+          <div class="hr"></div>
+          <small class="muted">Attendance can only be marked for <b>Approved</b> registrations (demo).</small>
         </div>
       `;
+
+      updateBadges();
     }
 
     function exportRegistrationsCsv(){
@@ -635,12 +778,13 @@
           Position: r.position || r.title || "",
           Email: r.email || "",
           Phone: r.phone || "",
-          Status: r.state || "Pending"
+          Status: r.state || "Pending",
+          Attended: r.attended ? "Yes" : "No"
         };
       });
 
       const headers = Object.keys(rows[0]||{
-        Event:"",Salutation:"",FirstName:"",LastName:"",Organisation:"",Position:"",Email:"",Phone:"",Status:""
+        Event:"",Salutation:"",FirstName:"",LastName:"",Organisation:"",Position:"",Email:"",Phone:"",Status:"",Attended:""
       });
 
       const csv = [
@@ -665,6 +809,7 @@
       r[i].state = "Approved";
       saveRegistrations(r);
       setToast("Approved", "Participant approved (demo).");
+      logMetric("registration_approved", { reg_id: id });
       renderRegistrations();
       renderDashboard();
     }
@@ -677,6 +822,22 @@
       r[i].state = "Rejected";
       saveRegistrations(r);
       setToast("Rejected", "Participant rejected (demo).");
+      logMetric("registration_rejected", { reg_id: id });
+      renderRegistrations();
+      renderDashboard();
+    }
+
+    function toggleAttendance(id){
+      const r = getRegistrations();
+      const i = r.findIndex(x=>x.id===id);
+      if(i < 0) return setToast("Not found", "Registration not found.");
+      if((r[i].state || "Pending") !== "Approved"){
+        return setToast("Not allowed", "Only Approved registrations can be marked attended.");
+      }
+      r[i].attended = !r[i].attended;
+      saveRegistrations(r);
+      setToast("Updated", `Attendance: ${r[i].attended ? "Yes" : "No"}`);
+      logMetric("attendance_toggled", { reg_id: id, attended: !!r[i].attended });
       renderRegistrations();
       renderDashboard();
     }
@@ -709,7 +870,7 @@
             <label>Filter: Country</label>
             <select id="country" style="width:100%">
               <option value="">All</option>
-              ${countries.map(c=>`<option>${c}</option>`).join("")}
+              ${countries.map(c=>`<option>${escapeHtml(c)}</option>`).join("")}
             </select>
 
             <div style="height:10px"></div>
@@ -717,7 +878,7 @@
             <label>Filter: Sector</label>
             <select id="sector" style="width:100%">
               <option value="">All</option>
-              ${sectors.map(s=>`<option>${s}</option>`).join("")}
+              ${sectors.map(s=>`<option>${escapeHtml(s)}</option>`).join("")}
             </select>
 
             <div style="height:10px"></div>
@@ -744,7 +905,7 @@
     }
 
     function genDealBook(){
-      const deals = adminFilter(getDeals());
+      const deals = adminFilter(getDeals()).filter(d => isActiveDealStatus(d.status) || String(d.status||"").toLowerCase() === "draft");
       const c = ($("#country")?.value || "");
       const s = ($("#sector")?.value || "");
 
@@ -781,7 +942,8 @@
         <hr/>
         ${list.map((d,i)=>`
           <h3>${i+1}. ${escapeHtml(d.country||"")} – ${escapeHtml(d.sector||"")} (${fmtMoney(d.ticket_usd_m)})</h3>
-          <p><b>Stage:</b> ${escapeHtml(d.stage||"")}<br/>${escapeHtml(d.summary||"")}</p>
+          <p><b>Status:</b> ${escapeHtml(d.status||"Draft")}<br/>
+             <b>Stage:</b> ${escapeHtml(d.stage||"")}<br/>${escapeHtml(d.summary||"")}</p>
           <hr/>
         `).join("")}
         <p><small>Demo: Use Print → Save as PDF.</small></p>
@@ -799,10 +961,79 @@
         return setToast("Nothing to download", "Click Generate first.");
       }
       downloadDealBookHtml(LAST_DEALBOOK.list, LAST_DEALBOOK.title || "Deal_Book");
+      logMetric("dealbook_download", { title: LAST_DEALBOOK.title || "Deal_Book", count: LAST_DEALBOOK.list.length });
     }
 
     /* =========================
-       Deals Manager + Prospectus upload + Bulk CSV Import
+       Opportunity Submissions (Approve deals submitted from Public)
+       ========================= */
+    function renderSubmissions(){
+      setActive("submissions");
+      $("#pageTitle").textContent = "Opportunity Submissions";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject public-submitted opportunities (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This is localStorage demo. In real build this is workflow + audit.')">Info</button>`;
+
+      const all = getDeals();
+      const pending = adminFilter(all).filter(d => String(d.status||"").toLowerCase() === "pending");
+
+      const rows = pending.map(d=>`
+        <tr>
+          <td>
+            <b>${escapeHtml(d.country||"")}</b><br>
+            <small>${escapeHtml(d.sector||"")}</small><br>
+            <small class="muted">${escapeHtml(d.owner||"Public submission")}</small>
+          </td>
+          <td>${regionLabel(d.region || pickRegion())}</td>
+          <td>${fmtMoney(d.ticket_usd_m)}</td>
+          <td>${escapeHtml(d.stage||"")}</td>
+          <td class="row-actions">
+            <button onclick="approveSubmission('${d.id}')">Approve</button>
+            <button class="danger" onclick="rejectSubmission('${d.id}')">Reject</button>
+            <button class="secondary" onclick="loadDeal('${d.id}'); location.hash='#deals'">Open</button>
+          </td>
+        </tr>
+      `).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Pending Queue</h2>
+          <p>Public submissions arrive as <b>Pending</b>. Approve to make them <b>Active</b> (Public can see in demo once Public filtering is updated).</p>
+          <table class="table">
+            <thead><tr><th>Deal</th><th>Region</th><th>Ticket</th><th>Stage</th><th>Actions</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="5"><small>No pending submissions for this region.</small></td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+
+      updateBadges();
+    }
+
+    function approveSubmission(id){
+      const deals = getDeals();
+      const i = deals.findIndex(d=>d.id===id);
+      if(i < 0) return setToast("Not found", "Deal not found.");
+      deals[i].status = "Active";
+      saveDeals(deals);
+      setToast("Approved", "Submission approved → status set to Active.");
+      logMetric("deal_submission_approved", { deal_id: id });
+      renderSubmissions();
+      renderDashboard();
+    }
+
+    function rejectSubmission(id){
+      const deals = getDeals();
+      const i = deals.findIndex(d=>d.id===id);
+      if(i < 0) return setToast("Not found", "Deal not found.");
+      deals[i].status = "Rejected";
+      saveDeals(deals);
+      setToast("Rejected", "Submission rejected.");
+      logMetric("deal_submission_rejected", { deal_id: id });
+      renderSubmissions();
+      renderDashboard();
+    }
+
+    /* =========================
+       Deals Manager + Prospectus upload + Bulk CSV Import (Status added)
        ========================= */
     function renderDealsManager(){
       setActive("deals");
@@ -816,27 +1047,37 @@
       const deals = adminFilter(getDeals());
       const allDeals = getDeals();
 
-      const rows = deals.map(d=>`
-        <tr>
-          <td>
-            <b>${escapeHtml(d.country)}</b><br>
-            <small>${escapeHtml(d.sector)}</small><br>
-            ${
-              d.prospectus_name
-                ? `<small class="tag ok">Prospectus: ${escapeHtml(d.prospectus_name)}</small>`
-                : `<small class="tag muted">Prospectus: not attached</small>`
-            }
-          </td>
-          <td>${regionLabel(d.region)}</td>
-          <td>${fmtMoney(d.ticket_usd_m)}</td>
-          <td>${escapeHtml(d.stage)}</td>
-          <td>${badgeWarmth(d.warmth)}</td>
-          <td class="row-actions">
-            <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
-            <button class="danger" onclick="deleteDeal('${d.id}')">Delete</button>
-          </td>
-        </tr>
-      `).join("");
+      const rows = deals.map(d=>{
+        const st = String(d.status || "Draft");
+        const stClass = isActiveDealStatus(st) ? "ok" : (st.toLowerCase()==="pending" ? "warn" : (st.toLowerCase()==="rejected" ? "muted" : "warn"));
+        const pendingActions = (st.toLowerCase()==="pending")
+          ? `<button onclick="approveSubmission('${d.id}')">Approve</button><button class="danger" onclick="rejectSubmission('${d.id}')">Reject</button>`
+          : ``;
+
+        return `
+          <tr>
+            <td>
+              <b>${escapeHtml(d.country)}</b>
+              <span class="tag ${stClass}" style="margin-left:6px">${escapeHtml(st)}</span><br>
+              <small>${escapeHtml(d.sector)}</small><br>
+              ${
+                d.prospectus_name
+                  ? `<small class="tag ok">Prospectus: ${escapeHtml(d.prospectus_name)}</small>`
+                  : `<small class="tag muted">Prospectus: not attached</small>`
+              }
+            </td>
+            <td>${regionLabel(d.region)}</td>
+            <td>${fmtMoney(d.ticket_usd_m)}</td>
+            <td>${escapeHtml(d.stage)}</td>
+            <td>${badgeWarmth(d.warmth)}</td>
+            <td class="row-actions">
+              <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
+              ${pendingActions}
+              <button class="danger" onclick="deleteDeal('${d.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
 
       const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
 
@@ -859,6 +1100,16 @@
 
             <label>Region</label>
             <select id="dealRegion" style="width:100%">${regionOpts}</select>
+            <div style="height:10px"></div>
+
+            <label>Status</label>
+            <select id="dealStatus" style="width:100%">
+              <option>Draft</option>
+              <option>Active</option>
+              <option>Published</option>
+              <option>Pending</option>
+              <option>Rejected</option>
+            </select>
             <div style="height:10px"></div>
 
             <label>Country</label>
@@ -940,6 +1191,7 @@
       const r = pickRegion();
       $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
       updateProspectusStatusUi();
+      updateBadges();
     }
 
     function updateProspectusStatusUi(){
@@ -1019,6 +1271,8 @@
       a.href = d.prospectus_data;
       a.download = d.prospectus_name || ("prospectus_" + id + ".pdf");
       a.click();
+
+      logMetric("prospectus_download", { deal_id: id, filename: d.prospectus_name });
     }
 
     function importDealsCsv(){
@@ -1081,6 +1335,7 @@
       $("#dealVideo").value = "";
       $("#dealStage").value = "Origination";
       $("#dealWarmth").value = "Cold";
+      if($("#dealStatus")) $("#dealStatus").value = "Draft";
       if($("#dealProspectus")) $("#dealProspectus").value = "";
       updateProspectusStatusUi();
       setToast("Cleared", "Deal form reset (demo).");
@@ -1099,6 +1354,7 @@
       $("#dealOwner").value = d.owner || "";
       $("#dealSummary").value = d.summary || "";
       $("#dealVideo").value = d.video || "";
+      if($("#dealStatus")) $("#dealStatus").value = d.status || "Draft";
       if($("#dealProspectus")) $("#dealProspectus").value = "";
       updateProspectusStatusUi();
       setToast("Loaded", "Deal loaded for editing (demo).");
@@ -1112,6 +1368,7 @@
       const deal = {
         id: id || ("d" + Date.now()),
         region: $("#dealRegion").value,
+        status: ($("#dealStatus")?.value || existing?.status || "Draft"),
         country: ($("#dealCountry").value || "").trim(),
         sector: ($("#dealSector").value || "").trim(),
         ticket_usd_m: parseInt($("#dealTicket").value || "0", 10),
@@ -1137,15 +1394,20 @@
       saveDeals(deals);
 
       setToast("Saved", "Deal saved. Prospectus can be attached below.");
+      logMetric("deal_saved", { deal_id: deal.id, status: deal.status });
       renderDealsManager();
       loadDeal(deal.id);
+      updateBadges();
     }
 
     function deleteDeal(id){
       const deals = getDeals().filter(d=>d.id!==id);
       saveDeals(deals);
       setToast("Deleted", "Deal removed (demo).");
+      logMetric("deal_deleted", { deal_id: id });
       renderDealsManager();
+      renderSubmissions();
+      updateBadges();
     }
 
     function addDeal(){
@@ -1157,10 +1419,11 @@
       localStorage.removeItem("timp_deals");
       setToast("Reset", "Deals reset to sample dataset.");
       renderDealsManager();
+      updateBadges();
     }
 
     /* =========================
-       Virtual Exhibition Admin
+       Virtual Exhibition Admin (unchanged)
        ========================= */
     function renderExpoAdmin(){
       setActive("expo");
@@ -1258,6 +1521,7 @@
       const r = pickRegion();
       $("#boothRegion").value = (r === "non_reg") ? (allBooths[0]?.region || "north") : r;
       updateBoothCatalogStatusUi();
+      updateBadges();
     }
 
     function updateBoothCatalogStatusUi(){
@@ -1330,6 +1594,8 @@
       a.href = b.catalog_data;
       a.download = name || ("catalog_" + id + ".pdf");
       a.click();
+
+      logMetric("catalog_download", { booth_id: id, filename: name });
     }
 
     function clearBoothForm(){
@@ -1388,6 +1654,7 @@
       saveBooths(booths);
 
       setToast("Saved", "Booth saved. Catalog can be attached below.");
+      logMetric("booth_saved", { booth_id: booth.id, status: booth.status });
       renderExpoAdmin();
       loadBooth(booth.id);
     }
@@ -1396,6 +1663,7 @@
       const booths = getBooths().filter(b=>b.id!==id);
       saveBooths(booths);
       setToast("Deleted", "Booth removed (demo).");
+      logMetric("booth_deleted", { booth_id: id });
       renderExpoAdmin();
     }
 
@@ -1406,7 +1674,195 @@
     }
 
     /* =========================
-       Matchmaking / RBAC / Analytics / Archive (your version)
+       Inquiries Inbox (Public "Send inquiry")
+       ========================= */
+    function renderInquiries(){
+      setActive("inquiries");
+      $("#pageTitle").textContent = "Inquiries";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Public inquiries from Virtual Exhibition (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This demo stores inquiries in localStorage.')">Info</button>`;
+
+      const rowsAll = getInquiries();
+      const rows = rowsAll
+        .filter(inq => (inq.status || "New") !== "Handled")
+        .sort((a,b)=> String(b.at||"").localeCompare(String(a.at||"")));
+
+      const tableRows = rows.map(inq=>{
+        const boothOrg = inq.booth_org || "Exhibitor";
+        const from = inq.from_name || inq.from_email || "Public user";
+        const msg = inq.message || "";
+        const at = inq.at ? new Date(inq.at).toLocaleString() : "";
+
+        return `
+          <tr>
+            <td><b>${escapeHtml(boothOrg)}</b><br><small class="muted">${escapeHtml(at)}</small></td>
+            <td><b>${escapeHtml(from)}</b><br><small>${escapeHtml(inq.from_email||"")}</small></td>
+            <td><small>${escapeHtml(msg)}</small></td>
+            <td class="row-actions">
+              <button onclick="replyInquiry('${inq.id}')">Reply</button>
+              <button class="secondary" onclick="markInquiryHandled('${inq.id}')">Mark handled</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Open Inquiries</h2>
+          <p>When Public clicks “Send inquiry”, it shows up here for Admin follow-up.</p>
+          <table class="table">
+            <thead><tr><th>Booth</th><th>From</th><th>Message</th><th>Actions</th></tr></thead>
+            <tbody>${tableRows || `<tr><td colspan="4"><small>No open inquiries.</small></td></tr>`}</tbody>
+          </table>
+          <div class="hr"></div>
+          <small class="muted">Reply creates a message in the Engagement Hub (demo).</small>
+        </div>
+      `;
+
+      updateBadges();
+    }
+
+    function markInquiryHandled(id){
+      const all = getInquiries();
+      const i = all.findIndex(x=>x.id===id);
+      if(i < 0) return setToast("Not found", "Inquiry not found.");
+      all[i].status = "Handled";
+      all[i].handled_at = new Date().toISOString();
+      saveInquiries(all);
+      setToast("Updated", "Inquiry marked as handled.");
+      logMetric("inquiry_handled", { inquiry_id: id });
+      renderInquiries();
+      renderDashboard();
+    }
+
+    function replyInquiry(id){
+      const all = getInquiries();
+      const inq = all.find(x=>x.id===id);
+      if(!inq) return setToast("Not found", "Inquiry not found.");
+
+      const reply = prompt("Type your reply (demo):", "Thanks for reaching out. We will follow up shortly.");
+      if(!reply) return;
+
+      const msg = {
+        id: "msg" + Date.now(),
+        from_email: "admin@timp.demo",
+        from_name: "TIMP Admin",
+        to: inq.from_email || "Public",
+        text: String(reply).trim(),
+        context: { inquiry_id: inq.id, booth_key: inq.booth_key, booth_org: inq.booth_org },
+        status: "Unread",
+        at: new Date().toISOString()
+      };
+
+      const msgs = getMessages();
+      msgs.unshift(msg);
+      saveMessages(msgs);
+
+      setToast("Sent", "Reply saved to Engagement Hub (demo).");
+      logMetric("inquiry_replied", { inquiry_id: id, to: inq.from_email || "" });
+      renderInquiries();
+      renderDashboard();
+    }
+
+    /* =========================
+       Engagement Hub (Admin inbox + replies)
+       ========================= */
+    function renderEngagement(){
+      setActive("engagement");
+      $("#pageTitle").textContent = "Engagement Hub";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Chat-style follow-ups (demo)</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This is localStorage messaging for the demo.')">Info</button>`;
+
+      const all = getMessages().sort((a,b)=> String(b.at||"").localeCompare(String(a.at||"")));
+      const incoming = all.filter(m => (m.to === "Admin" || m.to === "All" || !m.to));
+
+      const rows = incoming.map(m=>{
+        const from = m.from_name || m.from_email || "User";
+        const at = m.at ? new Date(m.at).toLocaleString() : "";
+        const status = (m.status || "Unread");
+        const statusClass = (status === "Read") ? "muted" : "warn";
+        const ctx = m.context && Object.keys(m.context).length ? `<small class="muted">Context: ${escapeHtml(JSON.stringify(m.context))}</small><br>` : "";
+
+        return `
+          <tr>
+            <td>
+              <b>${escapeHtml(from)}</b><br>
+              <small>${escapeHtml(m.from_email || "")}</small><br>
+              <small class="muted">${escapeHtml(at)}</small>
+            </td>
+            <td>
+              ${ctx}
+              <small>${escapeHtml(m.text || "")}</small>
+            </td>
+            <td><span class="tag ${statusClass}">${escapeHtml(status)}</span></td>
+            <td class="row-actions">
+              <button class="secondary" onclick="markMessageRead('${m.id}')">Mark read</button>
+              <button onclick="replyMessage('${m.id}')">Reply</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Inbox</h2>
+          <p>Admin can reply to Public users (demo). Replies are stored as messages.</p>
+          <table class="table">
+            <thead><tr><th>From</th><th>Message</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="4"><small>No messages yet.</small></td></tr>`}</tbody>
+          </table>
+          <div class="hr"></div>
+          <small class="muted">In the real build, this is powered by a database + notification service.</small>
+        </div>
+      `;
+
+      updateBadges();
+    }
+
+    function markMessageRead(id){
+      const all = getMessages();
+      const i = all.findIndex(x=>x.id===id);
+      if(i < 0) return setToast("Not found", "Message not found.");
+      all[i].status = "Read";
+      saveMessages(all);
+      setToast("Updated", "Message marked Read.");
+      logMetric("message_marked_read", { message_id: id });
+      renderEngagement();
+      renderDashboard();
+    }
+
+    function replyMessage(id){
+      const all = getMessages();
+      const msg = all.find(x=>x.id===id);
+      if(!msg) return setToast("Not found", "Message not found.");
+
+      const toEmail = msg.from_email || "";
+      const reply = prompt("Type your reply (demo):", "Thanks — noted. We will follow up.");
+      if(!reply) return;
+
+      const out = {
+        id: "msg" + Date.now(),
+        from_email: "admin@timp.demo",
+        from_name: "TIMP Admin",
+        to: toEmail || "All",
+        text: String(reply).trim(),
+        context: msg.context || {},
+        status: "Unread",
+        at: new Date().toISOString()
+      };
+
+      const msgs = getMessages();
+      msgs.unshift(out);
+      saveMessages(msgs);
+
+      setToast("Sent", "Reply saved (demo).");
+      logMetric("message_replied", { to: toEmail });
+      renderEngagement();
+      renderDashboard();
+    }
+
+    /* =========================
+       Matchmaking / RBAC / Region Profiles / Archive
        ========================= */
     function renderMatchmaking(){
       setActive("matchmaking");
@@ -1440,14 +1896,14 @@
             <p>Integrated calendar for 1:1 meetings (physical or virtual).</p>
             <div class="hr"></div>
             <button class="secondary" onclick="setToast('Calendar', 'Demo: integrate with Outlook/Teams or internal scheduling service.')">Open calendar integration</button>
-            <button class="secondary" onclick="setToast('Virtual meeting', 'Demo: generate Teams link + send to attendees.')">Generate meeting link</button>
+            <button class="secondary" onclick="setToast('Virtual meeting', 'Demo: generate meeting link + send to attendees.')">Generate meeting link</button>
           </div>
         </div>
       `;
     }
 
     /* =========================================================
-       ✅ Region Profiles (FIXED): UI + localStorage engine
+       ✅ Region Profiles (your fixed version - unchanged)
        ========================================================= */
     const RP_STORE_KEY = "timp_region_profiles_v1";
 
@@ -1566,6 +2022,7 @@
       const saved = rp_upsertContent(regionId, lang, content, { status: "draft" });
       rp_fillForm(saved, lang);
       setToast("Saved", "Region profile saved as draft (demo storage).");
+      logMetric("region_profile_saved", { region: regionId, lang });
     }
 
     function rp_publishCurrent(){
@@ -1576,6 +2033,7 @@
       const published = rp_publish(regionId);
       rp_fillForm(published, lang);
       setToast("Published", "Region profile published (this browser demo).");
+      logMetric("region_profile_published", { region: regionId });
     }
 
     function renderRegionProfiles(){
@@ -1685,38 +2143,126 @@
       `;
     }
 
+    /* =========================
+       Analytics (REAL counts from localStorage)
+       ========================= */
     function renderAnalytics(){
       setActive("analytics");
       $("#pageTitle").textContent = t("analytics");
-      $("#pageMeta").innerHTML = `<span class="tag ok">Reporting</span> <span class="tag muted">Engagement + downloads + conversion (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Exported', 'Demo: export analytics for post-event reports.')">Export report</button>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">Reporting</span> <span class="tag muted">Live demo metrics from localStorage</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Export', 'Demo: you can export metrics by reading timp_metrics in localStorage.')">Export report</button>`;
+
+      const events = getEvents();
+      const regsAll = getRegistrations();
+
+      const regs = regsAll.filter(r=>{
+        const ev = events.find(e=>e.id===r.event_id);
+        if(!ev) return (pickRegion()==="non_reg");
+        return (pickRegion()==="non_reg" || ev.region===pickRegion());
+      });
+
+      const approved = regs.filter(r => (r.state || "Pending") === "Approved");
+      const attended = approved.filter(r => !!r.attended);
+      const attendanceRate = approved.length ? Math.round((attended.length / approved.length) * 100) : 0;
+
+      const dealsRegion = adminFilter(getDeals());
+      const dealsAll = getDeals();
+      const totalDeals = dealsRegion.length;
+      const activeDeals = dealsRegion.filter(d => isActiveDealStatus(d.status)).length;
+      const pendingDeals = dealsRegion.filter(d => String(d.status||"").toLowerCase() === "pending").length;
+
+      const metrics = getMetrics();
+      const dealbookDownloads = metrics.filter(m => m.type === "dealbook_download").length;
+      const prospectusDownloads = metrics.filter(m => m.type === "prospectus_download").length;
+      const inquiriesHandled = metrics.filter(m => m.type === "inquiry_handled").length;
+
+      const prospectusRequests = getProspectusRequests().length;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-3">
-          <div class="card"><div class="mini"><div><div class="label">Attendance rate</div><div class="big">78%</div></div><span class="tag ok">Events</span></div><div class="progress"><div style="width:78%"></div></div></div>
-          <div class="card"><div class="mini"><div><div class="label">Deal book downloads</div><div class="big">134</div></div><span class="tag warn">Content</span></div><div class="progress"><div style="width:62%"></div></div></div>
-          <div class="card"><div class="mini"><div><div class="label">Prospectus requests</div><div class="big">21</div></div><span class="tag ok">Signals</span></div><div class="progress"><div style="width:35%"></div></div></div>
+          <div class="card">
+            <div class="mini">
+              <div><div class="label">Attendance rate</div><div class="big">${attendanceRate}%</div></div>
+              <span class="tag ok">Events</span>
+            </div>
+            <div class="hr"></div>
+            <small>Approved: <b>${approved.length}</b> • Attended: <b>${attended.length}</b></small>
+          </div>
+
+          <div class="card">
+            <div class="mini">
+              <div><div class="label">Deal book downloads</div><div class="big">${dealbookDownloads}</div></div>
+              <span class="tag warn">Content</span>
+            </div>
+            <div class="hr"></div>
+            <small>Tracked via <code>timp_metrics</code> (demo).</small>
+          </div>
+
+          <div class="card">
+            <div class="mini">
+              <div><div class="label">Prospectus requests</div><div class="big">${prospectusRequests}</div></div>
+              <span class="tag ok">Signals</span>
+            </div>
+            <div class="hr"></div>
+            <small>From Public Deal Room “Request Prospectus”.</small>
+          </div>
         </div>
+
         <div style="height:14px"></div>
+
+        <div class="grid cols-3">
+          <div class="card">
+            <div class="mini">
+              <div><div class="label">Deals on platform</div><div class="big">${(pickRegion()==="non_reg") ? dealsAll.length : totalDeals}</div></div>
+              <span class="tag ok">Pipeline</span>
+            </div>
+            <div class="hr"></div>
+            <small>${pickRegion()==="non_reg" ? "All regions" : "Current region"} • Pending: <b>${pendingDeals}</b></small>
+          </div>
+
+          <div class="card">
+            <div class="mini">
+              <div><div class="label">Active deals</div><div class="big">${activeDeals}</div></div>
+              <span class="tag ok">Pipeline</span>
+            </div>
+            <div class="hr"></div>
+            <small>Status = Active or Published.</small>
+          </div>
+
+          <div class="card">
+            <div class="mini">
+              <div><div class="label">Prospectus downloads</div><div class="big">${prospectusDownloads}</div></div>
+              <span class="tag warn">Content</span>
+            </div>
+            <div class="hr"></div>
+            <small>Tracked via Admin/Public download buttons (demo).</small>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
         <div class="grid cols-2">
           <div class="card">
-            <h2>What gets measured</h2>
+            <h2>Operational metrics (demo)</h2>
             <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
-              <li>Attendance and participation rates</li>
-              <li>Engagement (polls, Q&A, chat)</li>
-              <li>Content access (recordings/decks)</li>
-              <li>Deal book downloads</li>
-              <li>Investor interactions per project (warmth)</li>
+              <li><b>Inquiries handled:</b> ${inquiriesHandled}</li>
+              <li><b>Unread messages:</b> ${getMessages().filter(m => (m.to==="Admin"||m.to==="All"||!m.to) && String(m.status||"Unread")!=="Read").length}</li>
+              <li><b>Pending submissions:</b> ${pendingDeals}</li>
             </ul>
+            <div class="hr"></div>
+            <small class="muted">These are live demo numbers pulled from localStorage.</small>
           </div>
+
           <div class="card">
             <h2>Follow-up prioritization</h2>
-            <p>Real build uses analytics to rank “warm leads” and automate personalized follow-up sequences.</p>
+            <p>Real build uses analytics to rank “warm leads” and automate follow-up sequences.</p>
             <div class="hr"></div>
             <button onclick="setToast('Follow-up queued', 'Demo: in real build, this triggers sequences and assigns owners.')">Generate follow-up list</button>
           </div>
         </div>
       `;
+
+      updateBadges();
     }
 
     function renderArchive(){
@@ -1760,7 +2306,7 @@
 
       const deals = adminFilter(getDeals());
       deals.forEach(d=>{
-        if([d.country,d.sector,(d.summary||""),d.stage].join(" ").toLowerCase().includes(q)){
+        if([d.country,d.sector,(d.summary||""),d.stage,(d.status||"")].join(" ").toLowerCase().includes(q)){
           hits.push({type:"Deal", label:d.country+" • "+d.sector+" • "+fmtMoney(d.ticket_usd_m)});
         }
       });
@@ -1779,14 +2325,19 @@
       else if(h.startsWith("#events")) renderEventManager();
       else if(h.startsWith("#regs")) renderRegistrations();
       else if(h.startsWith("#dealbook")) renderDealBook();
+      else if(h.startsWith("#submissions")) renderSubmissions();
       else if(h.startsWith("#deals")) renderDealsManager();
       else if(h.startsWith("#expo")) renderExpoAdmin();
+      else if(h.startsWith("#inquiries")) renderInquiries();
+      else if(h.startsWith("#engagement")) renderEngagement();
       else if(h.startsWith("#matchmaking")) renderMatchmaking();
       else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
       else if(h.startsWith("#rbac")) renderRBAC();
       else if(h.startsWith("#analytics")) renderAnalytics();
       else if(h.startsWith("#archive")) renderArchive();
       else renderDashboard();
+
+      updateBadges();
     }
 
     window.addEventListener("hashchange", route);
