@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED + Auth Gate Order Fixed + Proposal Template Download Added + DOWNLOAD FIXED) -->
+<!-- public.html (UPDATED + Auth Gate Order Fixed + Proposal Template Download Added) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -148,7 +148,7 @@
         const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
         if(Array.isArray(x)) return x;
       }catch(e){}
-      return ((window.TIMP_DATA && TIMP_DATA.booths) || [];
+      return ((window.TIMP_DATA && TIMP_DATA.booths) || []);
     };
 
     function safeBooths(){
@@ -165,80 +165,45 @@
     }
 
     // =========================================================
-    // ✅ Project Proposal Template download (FIXED)
-    // Your repo folder is named "assests" (typo). Paths must match exactly.
-    // PDFs live in /assests:
-    //  - Project Proposal Template ENG (3).pdf
-    //  - Project Proposal Template FR.pdf
+    // ✅ NEW: Project Proposal Template (Deal Book) download
+    // Put PDFs in your repo:
+    //  - assets/project-proposal-template-en.pdf
+    //  - assets/project-proposal-template fr.pdf
     // =========================================================
+   function getProposalTemplateMeta(){
+  const lang =
+    (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
 
-    function getSiteBasePath(){
-      // Supports both:
-      // - https://user.github.io/repo/
-      // - https://user.github.io/repo/public.html
-      const path = window.location.pathname || "/";
-      // If you're on /repo/public.html, base is /repo/
-      if(path.endsWith(".html")){
-        return path.substring(0, path.lastIndexOf("/") + 1);
-      }
-      // If you're on /repo/ already, keep as is (ensure trailing slash)
-      return path.endsWith("/") ? path : (path + "/");
-    }
+  const urlMap = {
+    en: "assets/project-proposal-template-en.pdf",
+    fr: "assets/project-proposal-template-fr.pdf",
+    ar: "assets/project-proposal-template-en.pdf", // fallback
+    pt: "assets/project-proposal-template-en.pdf"  // fallback
+  };
 
-    function encodePathRFC3986(p){
-      // Encode each segment so spaces, parentheses, etc. are safe in URLs
-      return String(p).split("/").map(seg => encodeURIComponent(seg)).join("/");
-    }
+  const labelMap = {
+    en: "Download Project Proposal Template (Deal Book)",
+    fr: "Télécharger le modèle de proposition (Deal Book)",
+    ar: "تحميل نموذج مقترح المشروع (Deal Book)",
+    pt: "Baixar modelo de proposta (Deal Book)"
+  };
 
-    function buildAssetUrl(relPath){
-      const basePath = getSiteBasePath();               // e.g. /Trade-and-Investment-Management-Portal-/
-      const cleanRel = relPath.replace(/^\/+/, "");     // remove leading slashes
-      const encoded = encodePathRFC3986(cleanRel);
-      return window.location.origin + basePath + encoded;
-    }
+  const url = urlMap[lang] || urlMap.en;
 
-    function getProposalTemplateMeta(){
-      const lang =
-        (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
-
-      // File names in /assests must match exactly (case + spaces).
-      const fileMap = {
-        en: "Project Proposal Template ENG (3).pdf",
-        fr: "Project Proposal Template FR.pdf",
-        ar: "Project Proposal Template ENG (3).pdf",
-        pt: "Project Proposal Template ENG (3).pdf"
-      };
-
-      const labelMap = {
-        en: "Download Project Proposal Template (Deal Book)",
-        fr: "Télécharger le modèle de proposition (Deal Book)",
-        ar: "تحميل نموذج مقترح المشروع (Deal Book)",
-        pt: "Baixar modelo de proposta (Deal Book)"
-      };
-
-      const fileName = fileMap[lang] || fileMap.en;
-
-      // ✅ FIX: your folder is "assests" (not "assets")
-      // If you rename the folder to "assets", change the next line to: const relPath = `assets/${fileName}`;
-      const relPath = "assests/" + fileName;
-
-      return {
-        lang,
-        fileName,
-        url: buildAssetUrl(relPath),
-        label: labelMap[lang] || labelMap.en
-      };
-    }
+  return {
+    lang,
+    url,
+    label: labelMap[lang] || labelMap.en,
+    filename: url.split("/").pop() || "project-proposal-template.pdf"
+  };
+}
 
     function downloadProposalTemplate(){
       const tpl = getProposalTemplateMeta();
-
-      // Open in new tab + download hint
       const a = document.createElement("a");
       a.href = tpl.url;
-      a.download = tpl.fileName;
+      a.download = tpl.filename;
       a.target = "_blank";
-      a.rel = "noopener";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -942,7 +907,7 @@
 
       const tpl = getProposalTemplateMeta();
 
-      // ✅ Add template download button in the header
+      // ✅ Add template download button in the header (your red-circled area)
       $("#pageActions").innerHTML = `
         <button onclick="setToast('Info', 'Download the proposal template (Deal Book), complete it, then submit your opportunity below.')">Info</button>
         <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
