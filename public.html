@@ -1,4 +1,4 @@
-<!-- public.html (LATEST FIX: Inquiry WORKING + Deal Details VIEW + Request/Downloads wired) -->
+<!-- public.html (LATEST FIX: Inquiry WORKING + Deal Details VIEW + Request/Downloads wired + ✅ Event Chat Hub added) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -452,6 +452,100 @@
     }
 
     /* =========================================================
+       ✅ Investment Engagement Hub (Event Chat) — DEMO (localStorage)
+       Store key: timp_chat_messages
+       ========================================================= */
+    const CHAT_KEY = "timp_chat_messages";
+
+    function getChatAll(){
+      try{
+        const x = JSON.parse(localStorage.getItem(CHAT_KEY) || "[]");
+        return Array.isArray(x) ? x : [];
+      }catch(e){ return []; }
+    }
+    function saveChatAll(rows){
+      localStorage.setItem(CHAT_KEY, JSON.stringify(rows || []));
+    }
+    function getEventChat(eventId){
+      return getChatAll().filter(m => m && m.event_id === eventId);
+    }
+
+    function canChatOnEvent(eventId){
+      // Rule: must be registered (any state), and must have email in profile
+      const p = getMyProfile();
+      const email = String(p.email || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
+      if(!email) return { ok:false, msg:"Please complete your Profile (email) first." };
+
+      const r = myRegForEvent(eventId);
+      if(!r) return { ok:false, msg:"Please register for this event before chatting." };
+
+      return { ok:true, email };
+    }
+
+    function renderEventChat(eventId){
+      const stream = document.getElementById("chatStream");
+      if(!stream) return;
+
+      const msgs = getEventChat(eventId);
+      if(!msgs.length){
+        stream.innerHTML = `<div class="muted"><small>No messages yet. Be the first to say hello.</small></div>`;
+        return;
+      }
+
+      stream.innerHTML = msgs
+        .slice(-200) // keep it light for demo
+        .map(m => {
+          const at = m.at ? new Date(m.at).toLocaleString() : "";
+          const who = (m.from_name || "Attendee").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+          const text = String(m.message || "").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+          return `
+            <div style="padding:8px 0; border-bottom:1px solid var(--border);">
+              <div style="display:flex; justify-content:space-between; gap:12px;">
+                <b style="font-size:13px">${who}</b>
+                <small class="muted">${at}</small>
+              </div>
+              <div style="color:var(--muted); line-height:1.5">${text}</div>
+            </div>
+          `;
+        })
+        .join("");
+
+      // scroll to bottom
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    function sendEventChat(){
+      const eventId = window.CURRENT_EVENT_ID;
+      if(!eventId) return setToast("No event", "Open an event first.");
+
+      const gate = canChatOnEvent(eventId);
+      if(!gate.ok) return setToast("Chat unavailable", gate.msg);
+
+      const input = document.getElementById("chatInput");
+      const msg = String(input?.value || "").trim();
+      if(!msg) return;
+
+      const p = getMyProfile();
+      const row = {
+        id: "c" + Date.now(),
+        event_id: eventId,
+        from_email: gate.email,
+        from_name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Attendee",
+        message: msg,
+        at: new Date().toISOString()
+      };
+
+      const all = getChatAll();
+      all.push(row);
+      saveChatAll(all);
+
+      try{ logMetric("event_chat_message", { event_id: eventId, from_email: gate.email }); }catch(e){}
+
+      if(input) input.value = "";
+      renderEventChat(eventId);
+    }
+
+    /* =========================================================
        ✅ Virtual Exhibition Inquiries
        - Store key: "timp_inquiries" (array)
        - Admin should read this and show notifications
@@ -490,7 +584,10 @@
         return setToast("Profile required", "Please update your Profile (email) before sending an inquiry.");
       }
 
-      const message = prompt(`Send inquiry to ${res.booth.org || "Exhibitor"}:\n\nType your message below:`, "Hello, I would like to learn more about your offers.");
+      const message = prompt(
+        `Send inquiry to ${res.booth.org || "Exhibitor"}:\n\nType your message below:`,
+        "Hello, I would like to learn more about your offers."
+      );
       if(message === null) return; // cancelled
       const msg = String(message || "").trim();
       if(!msg) return setToast("Empty message", "Please type a message to send.");
@@ -629,6 +726,11 @@
       // ✅ inquiries refresh hook (admin reads it; public doesn't need)
       if(e.key === INQUIRIES_KEY){
         // no-op for public
+      }
+
+      // ✅ Event Chat Hub refresh hook
+      if(e.key === "timp_chat_messages"){
+        if(OPEN_EVENT_ID) renderEventChat(OPEN_EVENT_ID);
       }
 
       // ✅ Region Profiles store refresh (Admin uses timp_region_profiles_v1)
@@ -1049,12 +1151,35 @@
               <div style="height:10px"></div>
               <button class="secondary" onclick="setToast('Feedback submitted', 'Thanks. In the real build this feeds analytics + reports.')">Submit feedback</button>
             </div>
+
+            <!-- ✅ Investment Engagement Hub (Event Chat) -->
+            <div class="card">
+              <h2>Investment Engagement Hub</h2>
+              <p style="color:var(--muted); margin-top:6px;">Live attendee chat during the event (demo).</p>
+              <div class="hr"></div>
+
+              <div id="chatStream"
+                   style="max-height:260px; overflow:auto; padding:10px; border:1px solid var(--border); border-radius:12px;">
+              </div>
+
+              <div style="height:10px"></div>
+
+              <div class="row-actions" style="gap:10px;">
+                <input id="chatInput" placeholder="Type a message…" style="flex:1; min-width:0;" />
+                <button onclick="sendEventChat()">Send</button>
+              </div>
+
+              <div class="hr"></div>
+              <small class="muted">Demo: stored locally in <b>timp_chat_messages</b>. Admin can read/moderate.</small>
+            </div>
+
           </div>
         </div>
       `;
 
       fillRegFromProfile();
       updateRegStatus();
+      renderEventChat(eventId);
     }
 
     // -----------------------------
