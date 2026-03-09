@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED: Proposal Template Download FIXED + robust path resolving) -->
+<!-- public.html (UPDATED: Proposal Template button fixed + safer download path) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -103,11 +103,15 @@
   <script src="regionStore.js"></script>
   <script src="app.js"></script>
 
+  <!-- ✅ Your portal logic -->
   <script>
   if(window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function" && !TIMP_AUTH.isAuthed()){
     console.warn("Not registered yet — skipping public portal init.");
   } else {
 
+    // -----------------------------
+    // Helpers + Safe storage
+    // -----------------------------
     let OPEN_EVENT_ID = null;
 
     function safeEvents(){
@@ -117,6 +121,7 @@
       return (typeof getDeals === "function") ? getDeals() : ((window.TIMP_DATA && TIMP_DATA.deals) || []);
     }
 
+    // ✅ fallbacks so Public sees Admin changes saved to localStorage
     window.getEvents = window.getEvents || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
@@ -145,6 +150,7 @@
       return (typeof getBooths === "function") ? getBooths() : ((window.TIMP_DATA && TIMP_DATA.booths) || []);
     }
 
+    // ✅ helper: download a stored dataURL as a file
     function downloadDataUrl(dataUrl, filename){
       if(!dataUrl) return;
       const a = document.createElement("a");
@@ -153,20 +159,51 @@
       a.click();
     }
 
-    // =========================================================
-    // ✅ FIXED: Project Proposal Template download
-    // - encodes spaces/parentheses safely
-    // - tries assets/, ./assets/, ../assets/ (covers /docs deployment)
-    // - fetch->blob forces real download and gives clean errors
-    // =========================================================
+    // ✅ helper: download a repo/static file safely (handles spaces + tries a few relative candidates)
+    async function downloadStaticFile(relPath, filename){
+      const clean = String(relPath || "").replace(/^\//, ""); // avoid absolute root issues on project pages
+      const candidates = [
+        clean,
+        "./" + clean,
+        "../" + clean
+      ];
 
-    function encodePathSafe(path){
-      return String(path || "")
-        .split("/")
-        .map(seg => (seg === "" || seg === "." || seg === "..") ? seg : encodeURIComponent(seg))
-        .join("/");
+      // Try to verify existence first (so we can show a useful toast)
+      for(const c of candidates){
+        const url = encodeURI(c);
+        try{
+          const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+          if(head.ok){
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename || (clean.split("/").pop() || "download.pdf");
+            a.target = "_blank";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            return { ok: true, url };
+          }
+        }catch(e){
+          // ignore and keep trying
+        }
+      }
+
+      // Fallback: still attempt to open first candidate
+      const fallbackUrl = encodeURI(clean);
+      const a = document.createElement("a");
+      a.href = fallbackUrl;
+      a.download = filename || (clean.split("/").pop() || "download.pdf");
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      return { ok: false, url: fallbackUrl };
     }
 
+    // =========================================================
+    // ✅ Project Proposal Template download (FIXED)
+    // =========================================================
     function getProposalTemplateMeta(){
       const lang =
         (typeof pickLang === "function" ? pickLang() : (document.getElementById("langSel")?.value || "en"));
@@ -186,57 +223,31 @@
       };
 
       const rel = urlMap[lang] || urlMap.en;
-      const filename = (rel.split("/").pop() || "Project_Proposal_Template.pdf");
 
-      return { lang, rel, label: (labelMap[lang] || labelMap.en), filename };
+      return {
+        lang,
+        rel,
+        label: labelMap[lang] || labelMap.en,
+        filename: (rel.split("/").pop() || "Project_Proposal_Template.pdf")
+      };
     }
 
-    async function downloadStaticFile(relPath, filename){
-      const candidates = [
-        relPath,
-        "./" + relPath,
-        "../" + relPath
-      ];
-
-      for(const c of candidates){
-        try{
-          const abs = new URL(encodePathSafe(c), window.location.href).toString();
-          const res = await fetch(abs, { cache: "no-store" });
-          if(!res.ok) continue;
-
-          const blob = await res.blob();
-          const objUrl = URL.createObjectURL(blob);
-
-          const a = document.createElement("a");
-          a.href = objUrl;
-          a.download = filename || "download";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-
-          setTimeout(()=> URL.revokeObjectURL(objUrl), 15000);
-          return true;
-        }catch(e){
-          // try next candidate
-        }
-      }
-      return false;
-    }
-
+    // ✅ IMPORTANT: define as normal function AND export to window (so inline onclick always works)
     async function downloadProposalTemplate(){
       const tpl = getProposalTemplateMeta();
-      const ok = await downloadStaticFile(tpl.rel, tpl.filename);
+      const res = await downloadStaticFile(tpl.rel, tpl.filename);
 
-      if(!ok){
+      if(!res.ok){
         setToast(
-          "Template not found",
-          "Your PDF is in the repo, but it isn’t reachable from the live site. Most common fix: put the assets folder in the SAME published folder as public.html (e.g., /docs/assets if Pages uses /docs), and ensure the filename matches exactly."
+          "File not found on site",
+          "Your PDF is in the GitHub repo, but it may not be in the published Pages folder. If Pages is using /docs, move assets into /docs/assets too."
         );
-        console.warn("Proposal template not reachable. Tried:", tpl.rel, "./"+tpl.rel, "../"+tpl.rel);
+        console.warn("Proposal template not reachable. Tried:", tpl.rel, res.url);
       } else {
         setToast("Downloading", tpl.filename);
       }
     }
+    window.downloadProposalTemplate = downloadProposalTemplate; // ✅ makes the button click work reliably
 
     // ✅ Public download: Prospectus for a deal
     function downloadDealProspectus(dealId){
@@ -263,6 +274,7 @@
       setToast("Requested", "Prospectus request recorded (demo signal). If available, use Download.");
     }
 
+    // registrations store
     window.getRegistrations = window.getRegistrations || function(){
       try{
         const x = JSON.parse(localStorage.getItem("timp_regs"));
@@ -275,6 +287,7 @@
       localStorage.setItem("timp_regs", JSON.stringify(rows || []));
     };
 
+    // profile store
     window.getMyProfile = window.getMyProfile || function(){
       try{
         const p = JSON.parse(localStorage.getItem("timp_profile"));
@@ -296,6 +309,7 @@
       if(p && p.email) localStorage.setItem("timp_user_email", p.email);
     };
 
+    // compat wrappers
     window.getProfile = window.getProfile || function(){
       const p = getMyProfile();
       return {
@@ -358,6 +372,7 @@
       return `<span class="tag ${cls}">${s}</span>`;
     }
 
+    // Auto-refresh Public when Admin changes
     window.addEventListener("storage", (e)=>{
       if(e.key === "timp_regs"){
         if(OPEN_EVENT_ID) openEvent(OPEN_EVENT_ID);
@@ -389,6 +404,9 @@
       }
     });
 
+    // -----------------------------
+    // Topbar init (SAFER)
+    // -----------------------------
     const regionSel = document.getElementById("regionSel");
     if(window.TIMP_REGIONS && Array.isArray(TIMP_REGIONS) && regionSel){
       TIMP_REGIONS.forEach(r=>{
@@ -406,6 +424,9 @@
       if(match) match.classList.add("active");
     }
 
+    // -----------------------------
+    // Registration helpers
+    // -----------------------------
     function fillRegFromProfile(){
       const p = getMyProfile();
       if($("#regSalutation")) $("#regSalutation").value = p.salutation || "Mr";
@@ -647,7 +668,7 @@
         const my = myRegForEvent(e.id);
         const actionRight = my
           ? regTag(my.state)
-          : `<button onclick="openEvent('${e.id}')">Register</button>`;
+          : `<button type="button" onclick="openEvent('${e.id}')">Register</button>`;
 
         return `
           <tr>
@@ -655,7 +676,7 @@
             <td>${e.date} <small>(${e.time || ""})</small></td>
             <td><span class="tag ok">Published</span></td>
             <td class="row-actions">
-              <button class="secondary" onclick="openEvent('${e.id}')">Open</button>
+              <button type="button" class="secondary" onclick="openEvent('${e.id}')">Open</button>
               ${actionRight}
             </td>
           </tr>
@@ -693,7 +714,7 @@
         <span class="tag muted">${e.venue} • ${e.date} • ${e.time || ""}</span>
       `;
       $("#pageActions").innerHTML = `
-        <button class="secondary" onclick="setHash('#events')">Back</button>
+        <button type="button" class="secondary" onclick="setHash('#events')">Back</button>
       `;
 
       $("#pageBody").innerHTML = `
@@ -704,8 +725,8 @@
             <div class="hr"></div>
             <p><b>Post-event continuity:</b> recordings and decks become available to verified users after the event (controlled access).</p>
             <div class="row-actions">
-              <button class="secondary" onclick="setToast('Materials', 'Demo: Secure downloads with RBAC in real build.')">View materials</button>
-              <button class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available post-event.')">View recordings</button>
+              <button type="button" class="secondary" onclick="setToast('Materials', 'Demo: Secure downloads with RBAC in real build.')">View materials</button>
+              <button type="button" class="secondary" onclick="setToast('Recordings', 'Demo: Recording library becomes available post-event.')">View recordings</button>
             </div>
           </div>
 
@@ -738,7 +759,7 @@
               <label>Phone</label><input id="regPhone" style="width:100%">
               <div style="height:10px"></div>
 
-              <button onclick="registerForEvent()">Submit registration</button>
+              <button type="button" onclick="registerForEvent()">Submit registration</button>
               <div style="height:10px"></div>
               <div id="regStatus"><small class="muted">Status: Not registered</small></div>
 
@@ -762,7 +783,7 @@
               <label>Additional comments (max 500 chars)</label>
               <textarea rows="4" maxlength="500" placeholder="Your comments..." style="width:100%"></textarea>
               <div style="height:10px"></div>
-              <button class="secondary" onclick="setToast('Feedback submitted', 'Thanks. In the real build this feeds analytics + reports.')">Submit feedback</button>
+              <button type="button" class="secondary" onclick="setToast('Feedback submitted', 'Thanks. In the real build this feeds analytics + reports.')">Submit feedback</button>
             </div>
           </div>
         </div>
@@ -780,8 +801,8 @@
       $("#pageTitle").textContent = t("deal_room");
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">AI-style recommendations (demo logic)</span>`;
       $("#pageActions").innerHTML = `
-        <button class="secondary" onclick="setToast('Meeting request', 'Demo: Scheduling integrates with calendar + meeting links in the real build.')">Request 1:1</button>
-        <button class="secondary" onclick="renderPitching()">Pitching</button>
+        <button type="button" class="secondary" onclick="setToast('Meeting request', 'Demo: Scheduling integrates with calendar + meeting links in the real build.')">Request 1:1</button>
+        <button type="button" class="secondary" onclick="renderPitching()">Pitching</button>
       `;
 
       const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
@@ -802,9 +823,9 @@
           : `<li><small>No exact match in demo dataset.</small></li>`;
 
         const prospectusBtns = d.prospectus_name
-          ? `<button class="secondary" onclick="downloadDealProspectus('${d.id}')">Download Prospectus</button>
-             <button class="secondary" onclick="requestProspectus('${d.id}')">Request (signal)</button>`
-          : `<button class="secondary" onclick="requestProspectus('${d.id}')">Request Prospectus</button>`;
+          ? `<button type="button" class="secondary" onclick="downloadDealProspectus('${d.id}')">Download Prospectus</button>
+             <button type="button" class="secondary" onclick="requestProspectus('${d.id}')">Request (signal)</button>`
+          : `<button type="button" class="secondary" onclick="requestProspectus('${d.id}')">Request Prospectus</button>`;
 
         return `
           <div class="card">
@@ -815,7 +836,7 @@
             <ul style="margin:6px 0 0 0; padding-left:18px; color:var(--muted); line-height:1.45">${recHtml}</ul>
             <div class="hr"></div>
             <div class="row-actions">
-              <button onclick="schedule('${d.id}')">Schedule 1:1</button>
+              <button type="button" onclick="schedule('${d.id}')">Schedule 1:1</button>
               ${prospectusBtns}
             </div>
           </div>
@@ -861,7 +882,7 @@
       setActive("deal_room");
       $("#pageTitle").textContent = "Pitching Module";
       $("#pageMeta").innerHTML = `<span class="tag ok">Quickfire snapshots</span> <span class="tag muted">60-second countdown + readiness checklist (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="renderDealRoom()">Back to Deal Room</button>`;
+      $("#pageActions").innerHTML = `<button type="button" class="secondary" onclick="renderDealRoom()">Back to Deal Room</button>`;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
@@ -875,8 +896,8 @@
                 <div class="big" id="timer">60</div>
               </div>
               <div class="row-actions">
-                <button onclick="startTimer()">Start</button>
-                <button class="secondary" onclick="resetTimer()">Reset</button>
+                <button type="button" onclick="startTimer()">Start</button>
+                <button type="button" class="secondary" onclick="resetTimer()">Reset</button>
               </div>
             </div>
             <div class="hr"></div>
@@ -890,8 +911,8 @@
             <label><input type="checkbox" /> Impact alignment</label><br>
             <label><input type="checkbox" /> Visual support</label><br>
             <div class="hr"></div>
-            <button class="secondary" onclick="setToast('Ready', 'Demo: Checklist stored per deal/pitch in real build.')">Mark ready</button>
-            <button onclick="setToast('Prospectus requested', 'Demo: Investors can click “Request for Prospectus” during live pitch.')">Request for Prospectus</button>
+            <button type="button" class="secondary" onclick="setToast('Ready', 'Demo: Checklist stored per deal/pitch in real build.')">Mark ready</button>
+            <button type="button" onclick="setToast('Prospectus requested', 'Demo: Investors can click “Request for Prospectus” during live pitch.')">Request for Prospectus</button>
           </div>
         </div>
       `;
@@ -925,9 +946,10 @@
 
       const tpl = getProposalTemplateMeta();
 
+      // ✅ FIX: call the global function explicitly
       $("#pageActions").innerHTML = `
-        <button onclick="setToast('Info', 'Download the proposal template (Deal Book), complete it, then submit your opportunity below.')">Info</button>
-        <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
+        <button type="button" onclick="setToast('Info', 'Download the proposal template (Deal Book), complete it, then submit your opportunity below.')">Info</button>
+        <button type="button" class="secondary" onclick="window.downloadProposalTemplate()">${tpl.label}</button>
       `;
 
       const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
@@ -948,7 +970,7 @@
             <td>${d.stage}</td>
             <td>${badgeWarmth(d.warmth)}</td>
             <td class="row-actions">
-              <button class="secondary" onclick="setToast('Deal opened', '${(d.summary||"").replace(/'/g,"&#39;")}')">Open</button>
+              <button type="button" class="secondary" onclick="setToast('Deal opened', '${(d.summary||"").replace(/'/g,"&#39;")}')">Open</button>
             </td>
           </tr>
         `;
@@ -959,8 +981,9 @@
           <div class="card">
             <h2>Submit an Opportunity (Public demo)</h2>
 
+            <!-- ✅ FIX: call the global function explicitly -->
             <div class="row-actions" style="margin:8px 0 10px 0;">
-              <button class="secondary" onclick="downloadProposalTemplate()">${tpl.label}</button>
+              <button type="button" class="secondary" onclick="window.downloadProposalTemplate()">${tpl.label}</button>
             </div>
 
             <p>Public users can submit an opportunity + upload a deal pack. In the real build, Admin reviews and publishes.</p>
@@ -997,8 +1020,8 @@
             <input id="subFile" type="file" accept=".pdf" />
             <div class="hr"></div>
 
-            <button onclick="submitOpportunity()">Submit</button>
-            <button class="secondary" onclick="setToast('Workflow', 'Demo: submission saved locally; Admin reviews and sets Published.')">How it works</button>
+            <button type="button" onclick="submitOpportunity()">Submit</button>
+            <button type="button" class="secondary" onclick="setToast('Workflow', 'Demo: submission saved locally; Admin reviews and sets Published.')">How it works</button>
           </div>
 
           <div class="card">
@@ -1113,8 +1136,8 @@
             <h3>${b.org || "Exhibitor"}</h3>
             <p><b>Catalog:</b> ${catalogLabel}<br><b>Offers:</b> ${offersLabel}</p>
             <div class="row-actions">
-              <button class="secondary" onclick="viewBoothCatalog('${key}')">View catalog</button>
-              <button onclick="setToast('Inquiry sent', 'Demo: Follow-up analytics track inquiries and conversion.')">Send inquiry</button>
+              <button type="button" class="secondary" onclick="viewBoothCatalog('${key}')">View catalog</button>
+              <button type="button" onclick="setToast('Inquiry sent', 'Demo: Follow-up analytics track inquiries and conversion.')">Send inquiry</button>
             </div>
           </div>
         `;
@@ -1138,7 +1161,7 @@
             <h2>Search</h2>
             <input id="q" placeholder="Search keywords (e.g., Kenya, Energy, Roadshow)" style="width:100%" />
             <div style="height:10px"></div>
-            <button onclick="doSearch()">Search</button>
+            <button type="button" onclick="doSearch()">Search</button>
             <div class="hr"></div>
             <div id="results"><small>Try “Kenya” or “Energy”.</small></div>
           </div>
@@ -1221,7 +1244,7 @@
             <label>Phone</label><input id="pPhone" value="${(p.phone||"").replace(/"/g,"&quot;")}" style="width:100%" />
             <div style="height:10px"></div>
 
-            <button onclick="savePublicProfile()">Save</button>
+            <button type="button" onclick="savePublicProfile()">Save</button>
             <div class="hr"></div>
             <small>Registrations will use this profile (demo).</small>
           </div>
@@ -1253,11 +1276,14 @@
       setToast("Saved", "Profile saved (demo).");
     }
 
+    // -----------------------------
+    // REGION PROFILES PAGE (Public)
+    // -----------------------------
     function renderRegionProfilesPublic(){
       setActive("region_profiles");
       $("#pageTitle").textContent = "Region Profiles";
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Market intelligence & investment insights</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'Only Published region profiles appear here (demo).')">Info</button>`;
+      $("#pageActions").innerHTML = `<button type="button" class="secondary" onclick="setToast('Note', 'Only Published region profiles appear here (demo).')">Info</button>`;
 
       $("#pageBody").innerHTML = `
         <div class="card">
@@ -1302,7 +1328,7 @@
     window.addEventListener("hashchange", route);
     route();
 
-  }
+  } // end auth skip wrapper
   </script>
 </body>
 </html>
