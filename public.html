@@ -1,4 +1,4 @@
-<!-- public.html (FIXED: Region Profiles storage aligned with Admin v1 + safer fallbacks) -->
+<!-- public.html (LATEST FIX: Inquiry WORKING + Deal Details VIEW + Request/Downloads wired) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -142,7 +142,6 @@
     };
 
     window.t = window.t || function(key){
-      // basic fallback if i18n missing
       return String(key || "").replace(/_/g," ").replace(/\b\w/g, c => c.toUpperCase());
     };
 
@@ -168,6 +167,19 @@
       const cls = v === "Hot" ? "ok" : (v === "Cold" ? "muted" : "warn");
       return `<span class="tag ${cls}">${v}</span>`;
     };
+
+    /* =========================================================
+       ✅ Metrics (lightweight demo)
+       - events: timp_metric_events (array)
+       ========================================================= */
+    const METRIC_EVENTS_KEY = "timp_metric_events";
+    function logMetric(name, payload){
+      try{
+        const rows = JSON.parse(localStorage.getItem(METRIC_EVENTS_KEY) || "[]");
+        rows.push({ id:"m"+Date.now(), name, payload: payload || {}, at:new Date().toISOString() });
+        localStorage.setItem(METRIC_EVENTS_KEY, JSON.stringify(rows));
+      }catch(e){}
+    }
 
     // -----------------------------
     // Helpers + Safe storage
@@ -266,6 +278,7 @@
       document.body.appendChild(a);
       a.click();
       a.remove();
+      logMetric("proposal_template_download", { lang: tpl.lang, url: tpl.url });
     }
 
     // ✅ Public download: Prospectus for a deal
@@ -278,6 +291,7 @@
         return setToast("Demo limit", "Prospectus name exists, but PDF data wasn’t stored (file too large in demo).");
       }
       downloadDataUrl(d.prospectus_data, d.prospectus_name);
+      logMetric("prospectus_download", { deal_id: dealId, name: d.prospectus_name });
     }
 
     function requestProspectus(dealId){
@@ -290,7 +304,8 @@
         at: new Date().toISOString()
       });
       localStorage.setItem("timp_prospectus_requests", JSON.stringify(log));
-      setToast("Requested", "Prospectus request recorded (demo signal). If available, use Download.");
+      logMetric("prospectus_request", { deal_id: dealId });
+      setToast("Requested", "Prospectus request recorded (demo signal).");
     }
 
     // registrations store
@@ -358,15 +373,60 @@
       saveMyProfile(next);
     };
 
+    /* =========================================================
+       Deal book storage
+       - Legacy: "timp_deal_books" { dealId: "filename.pdf" }
+       - v1:     "timp_deal_books_v1" { dealId: {name,data,size,at} }
+       ========================================================= */
+    const DEALBOOK_KEY_V1 = "timp_deal_books_v1";
+    const DEALBOOK_KEY_LEGACY = "timp_deal_books";
+
     function getDealBooks(){
+      // prefer v1
       try{
-        const x = JSON.parse(localStorage.getItem("timp_deal_books"));
+        const x = JSON.parse(localStorage.getItem(DEALBOOK_KEY_V1) || "null");
         if(x && typeof x === "object") return x;
+      }catch(e){}
+      // fallback legacy
+      try{
+        const y = JSON.parse(localStorage.getItem(DEALBOOK_KEY_LEGACY) || "null");
+        if(y && typeof y === "object") return y;
       }catch(e){}
       return {};
     }
     function saveDealBooks(obj){
-      localStorage.setItem("timp_deal_books", JSON.stringify(obj || {}));
+      localStorage.setItem(DEALBOOK_KEY_V1, JSON.stringify(obj || {}));
+      // keep legacy map best-effort for compatibility (name only)
+      try{
+        const legacy = {};
+        Object.keys(obj || {}).forEach(k=>{
+          const v = obj[k];
+          legacy[k] = (typeof v === "string") ? v : (v && (v.name || v.filename) ? (v.name || v.filename) : "");
+        });
+        localStorage.setItem(DEALBOOK_KEY_LEGACY, JSON.stringify(legacy));
+      }catch(e){}
+    }
+
+    function getDealBookEntry(dealId){
+      const map = getDealBooks();
+      const v = map ? map[dealId] : null;
+      if(!v) return null;
+      if(typeof v === "string") return { name: v, data: null };
+      if(typeof v === "object") return {
+        name: v.name || v.filename || "deal-book.pdf",
+        data: v.data || v.dataUrl || null,
+        size: v.size || null,
+        at: v.at || null
+      };
+      return null;
+    }
+
+    function downloadDealBook(dealId){
+      const entry = getDealBookEntry(dealId);
+      if(!entry) return setToast("No deal book", "No deal book uploaded for this deal yet.");
+      if(!entry.data) return setToast("Demo limit", "Deal book name exists, but PDF data wasn’t stored (file too large in demo).");
+      downloadDataUrl(entry.data, entry.name);
+      logMetric("deal_book_download", { deal_id: dealId, name: entry.name });
     }
 
     function isDealVisibleOnPublic(d){
@@ -389,6 +449,155 @@
       const s = state || "Pending";
       const cls = (s === "Approved") ? "ok" : (s === "Pending") ? "warn" : "muted";
       return `<span class="tag ${cls}">${s}</span>`;
+    }
+
+    /* =========================================================
+       ✅ Virtual Exhibition Inquiries
+       - Store key: "timp_inquiries" (array)
+       - Admin should read this and show notifications
+       ========================================================= */
+    const INQUIRIES_KEY = "timp_inquiries";
+    function getInquiries(){
+      try{
+        const x = JSON.parse(localStorage.getItem(INQUIRIES_KEY) || "[]");
+        return Array.isArray(x) ? x : [];
+      }catch(e){ return []; }
+    }
+    function saveInquiries(rows){
+      localStorage.setItem(INQUIRIES_KEY, JSON.stringify(rows || []));
+    }
+
+    function resolveBoothByKey(boothKey){
+      const booths = safeBooths();
+      if(String(boothKey || "").startsWith("idx_")){
+        const idx = parseInt(String(boothKey).replace("idx_",""), 10);
+        const b = booths[idx];
+        return b ? { booth: b, booth_id: b.id || boothKey } : null;
+      }
+      const b = booths.find(x => x.id === boothKey);
+      return b ? { booth: b, booth_id: b.id || boothKey } : null;
+    }
+
+    function sendBoothInquiry(boothKey){
+      const res = resolveBoothByKey(boothKey);
+      if(!res) return setToast("Not found", "Booth not found (demo).");
+
+      const p = getMyProfile();
+      const email = String(p.email || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
+      const name = `${p.first_name||""} ${p.last_name||""}`.trim() || "Public user";
+
+      if(!email){
+        return setToast("Profile required", "Please update your Profile (email) before sending an inquiry.");
+      }
+
+      const message = prompt(`Send inquiry to ${res.booth.org || "Exhibitor"}:\n\nType your message below:`, "Hello, I would like to learn more about your offers.");
+      if(message === null) return; // cancelled
+      const msg = String(message || "").trim();
+      if(!msg) return setToast("Empty message", "Please type a message to send.");
+
+      const row = {
+        id: "inq" + Date.now(),
+        booth_id: res.booth_id,
+        booth_org: res.booth.org || "Exhibitor",
+        offers: res.booth.offers || "",
+        region: pickRegion(),
+        from_email: email,
+        from_name: name,
+        message: msg,
+        at: new Date().toISOString(),
+        status: "New"
+      };
+
+      const rows = getInquiries();
+      rows.push(row);
+      saveInquiries(rows);
+
+      logMetric("booth_inquiry", { booth_id: row.booth_id, booth_org: row.booth_org, from_email: email });
+      setToast("Inquiry sent", "Your inquiry has been recorded and routed to Admin (demo).");
+    }
+
+    /* =========================================================
+       ✅ Deal Details View (used by Deal Room + Opportunities Dashboard)
+       ========================================================= */
+    function openDealDetails(dealId, backHash){
+      const d = safeDeals().find(x => x.id === dealId);
+      if(!d) return setToast("Not found", "Deal not found.");
+
+      const back = backHash || "#dealroom";
+      if(back.startsWith("#opps")) setActive("opportunities"); else setActive("deal_room");
+
+      const status = d.status ? `<span class="tag ${String(d.status).toLowerCase()==='published' ? 'ok' : 'warn'}">${d.status}</span>` : "";
+      const region = regionLabel(d.region || pickRegion());
+      const book = getDealBookEntry(dealId);
+
+      const prospectusBlock = d.prospectus_name
+        ? `
+          <div class="row-actions">
+            <button class="secondary" onclick="downloadDealProspectus('${d.id}')">Download Prospectus</button>
+            <button class="secondary" onclick="requestProspectus('${d.id}')">Request (signal)</button>
+          </div>
+        `
+        : `
+          <div class="row-actions">
+            <button class="secondary" onclick="requestProspectus('${d.id}')">Request Prospectus</button>
+          </div>
+        `;
+
+      const bookBlock = book
+        ? `
+          <p style="margin:0 0 8px 0;"><b>Deal Book:</b> ${book.name}</p>
+          <div class="row-actions">
+            <button class="secondary" onclick="downloadDealBook('${d.id}')">Download Deal Book</button>
+          </div>
+          <small class="muted">If download shows “Demo limit”, the PDF was stored as name-only due to size.</small>
+        `
+        : `<p class="muted" style="margin:0;">No deal book uploaded for this deal yet.</p>`;
+
+      $("#pageTitle").textContent = `${d.country || "Deal"} • ${d.sector || ""}`.trim();
+      $("#pageMeta").innerHTML = `
+        <span class="tag ok">${region}</span>
+        <span class="tag muted">Stage: <b>${d.stage || "—"}</b></span>
+        ${status}
+      `;
+
+      $("#pageActions").innerHTML = `
+        <button class="secondary" onclick="setHash('${back}')">Back</button>
+        <button onclick="schedule('${d.id}')">Schedule 1:1</button>
+      `;
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Deal Details</h2>
+            <div class="hr"></div>
+            <p style="margin:0 0 8px 0;"><b>Country:</b> ${d.country || "—"}</p>
+            <p style="margin:0 0 8px 0;"><b>Sector:</b> ${d.sector || "—"}</p>
+            <p style="margin:0 0 8px 0;"><b>Ticket:</b> ${fmtMoney(d.ticket_usd_m)}</p>
+            <p style="margin:0 0 8px 0;"><b>Warmth:</b> ${badgeWarmth(d.warmth)}</p>
+            <p style="margin:0 0 8px 0;"><b>Owner:</b> ${d.owner || "—"}</p>
+            <div class="hr"></div>
+            <p style="color:var(--muted); line-height:1.55;">${String(d.summary || "No summary provided.").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</p>
+          </div>
+
+          <div style="display:grid; gap:14px;">
+            <div class="card">
+              <h2>Deal Book</h2>
+              <div class="hr"></div>
+              ${bookBlock}
+            </div>
+
+            <div class="card">
+              <h2>Prospectus</h2>
+              <div class="hr"></div>
+              ${prospectusBlock}
+              <div class="hr"></div>
+              <small class="muted">Prospectus requests are stored under <b>timp_prospectus_requests</b> for Admin review.</small>
+            </div>
+          </div>
+        </div>
+      `;
+
+      logMetric("deal_open", { deal_id: dealId, source: back });
     }
 
     // Auto-refresh Public when Admin changes
@@ -415,6 +624,11 @@
       }
       if(e.key === "timp_booths"){
         if(location.hash.startsWith("#expo")) renderExpo();
+      }
+
+      // ✅ inquiries refresh hook (admin reads it; public doesn't need)
+      if(e.key === INQUIRIES_KEY){
+        // no-op for public
       }
 
       // ✅ Region Profiles store refresh (Admin uses timp_region_profiles_v1)
@@ -527,6 +741,7 @@
       regs.push(reg);
       saveRegistrations(regs);
 
+      logMetric("event_registration_submitted", { event_id: reg.event_id, email: reg.email });
       setToast("Submitted", "Registration saved. Admin can now Approve/Reject.");
       updateRegStatus();
     }
@@ -537,7 +752,6 @@
     const RP_STORE_KEY = "timp_region_profiles_v1"; // ✅ Admin uses this
 
     function rp_asArrayFromAnyStore(){
-      // Try Admin v1 (object map) first, then legacy arrays
       const keysToTry = [RP_STORE_KEY, "timp_region_profiles", "timp_regionprofiles", "timp_regionStore"];
       for(const k of keysToTry){
         try{
@@ -546,7 +760,6 @@
           const x = JSON.parse(raw);
           if(Array.isArray(x)) return x;
           if(x && typeof x === "object"){
-            // Admin v1: { north:{...}, west:{...} } -> array
             return Object.values(x);
           }
         }catch(e){}
@@ -560,7 +773,6 @@
 
     window.rp_pickLangContent = window.rp_pickLangContent || function(profile, lang){
       if(!profile || typeof profile !== "object") return {};
-      // Admin v1: profile.content = { en:{...}, fr:{...} }
       const c = profile.content || profile.i18n || profile.text || null;
 
       if(c && typeof c === "object" && c[lang]) return c[lang];
@@ -586,12 +798,11 @@
     }
 
     function rp_isPublished(p){
-      // Admin v1 uses status: "draft" / "published"
       const st = String(p?.status || "").toLowerCase().trim();
       if(st === "published") return true;
       if(p?.published === true) return true;
       if(String(p?.visibility || "").toLowerCase() === "public") return true;
-      if(String(p?.status || "") === "Published") return true; // legacy
+      if(String(p?.status || "") === "Published") return true;
       return false;
     }
 
@@ -889,6 +1100,7 @@
             <ul style="margin:6px 0 0 0; padding-left:18px; color:var(--muted); line-height:1.45">${recHtml}</ul>
             <div class="hr"></div>
             <div class="row-actions">
+              <button class="secondary" onclick="openDealDetails('${d.id}', '#dealroom')">Open details</button>
               <button onclick="schedule('${d.id}')">Schedule 1:1</button>
               ${prospectusBtns}
             </div>
@@ -928,6 +1140,7 @@
 
     function schedule(dealId){
       const d = safeDeals().find(x => x.id === dealId);
+      logMetric("meeting_request", { deal_id: dealId });
       setToast("Meeting scheduled (demo)", `${d ? (d.country+' • '+d.sector) : 'Deal'} — real build creates calendar items + notifications.`);
     }
 
@@ -1005,10 +1218,9 @@
       `;
 
       const deals = filterByRegion(safeDeals()).filter(isDealVisibleOnPublic);
-      const dealBooks = getDealBooks();
-
       const rows = deals.map(d=>{
-        const book = dealBooks[d.id] ? `<small class="tag ok">Uploaded: ${dealBooks[d.id]}</small>` : `<small class="tag muted">No deal book uploaded</small>`;
+        const book = getDealBookEntry(d.id);
+        const bookTag = book ? `<small class="tag ok">Deal book: ${book.name}</small>` : `<small class="tag muted">No deal book uploaded</small>`;
         const status = d.status ? `<span class="tag ${String(d.status).toLowerCase()==='published'?'ok':'warn'}">${d.status}</span>` : "";
 
         return `
@@ -1016,13 +1228,14 @@
             <td>
               <b>${d.country}</b> ${status}<br>
               <small>${d.sector}</small><br>
-              ${book}
+              ${bookTag}
             </td>
             <td>${fmtMoney(d.ticket_usd_m)}</td>
             <td>${d.stage}</td>
             <td>${badgeWarmth(d.warmth)}</td>
             <td class="row-actions">
-              <button class="secondary" onclick="setToast('Deal opened', '${String(d.summary||"").replace(/'/g,"&#39;")}')">Open</button>
+              <button class="secondary" onclick="openDealDetails('${d.id}', '#opps')">Open</button>
+              <button class="secondary" onclick="requestProspectus('${d.id}')">Request</button>
             </td>
           </tr>
         `;
@@ -1120,13 +1333,35 @@
       deals.push(newDeal);
       saveDeals(deals);
 
+      // store deal book (name-only for large PDFs; dataURL for small PDFs)
       const f = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
       if(f){
         const map = getDealBooks();
-        map[id] = f.name;
+        const MAX = 2 * 1024 * 1024; // 2MB demo limit for storing dataURL safely
+
+        // always store filename
+        map[id] = { name: f.name, size: f.size, type: f.type, at: new Date().toISOString() };
         saveDealBooks(map);
+
+        if(f.size <= MAX){
+          const fr = new FileReader();
+          fr.onload = ()=>{
+            const updated = getDealBooks();
+            updated[id] = { name: f.name, size: f.size, type: f.type, at: new Date().toISOString(), data: fr.result };
+            saveDealBooks(updated);
+            setToast("Uploaded", "Deal book attached (demo).");
+            renderOpps();
+          };
+          fr.onerror = ()=>{
+            setToast("Uploaded (name only)", "Could not store PDF data. Filename saved.");
+          };
+          fr.readAsDataURL(f);
+        } else {
+          setToast("Uploaded (name only)", "PDF is large for demo storage. Filename saved; Admin can replace with hosted file in real build.");
+        }
       }
 
+      logMetric("opportunity_submitted", { deal_id: id, country, sector, ticket_usd_m: ticket, stage });
       setToast("Submitted", "Opportunity submitted (Pending). Admin can review and publish.");
       renderOpps();
     }
@@ -1163,6 +1398,7 @@
         return setToast("Demo limit", "Catalog name exists, but PDF data wasn’t stored (file too large in demo).");
       }
       downloadDataUrl(data, name);
+      logMetric("booth_catalog_download", { booth_id: b.id || boothKey, name });
     }
 
     function renderExpo(){
@@ -1184,8 +1420,9 @@
             <p><b>Catalog:</b> ${catalogLabel}<br><b>Offers:</b> ${offersLabel}</p>
             <div class="row-actions">
               <button class="secondary" onclick="viewBoothCatalog('${key}')">View catalog</button>
-              <button onclick="setToast('Inquiry sent', 'Demo: Follow-up analytics track inquiries and conversion.')">Send inquiry</button>
+              <button onclick="sendBoothInquiry('${key}')">Send inquiry</button>
             </div>
+            <small class="muted">Inquiries are stored in <b>${INQUIRIES_KEY}</b> for Admin notifications.</small>
           </div>
         `;
       }).join("");
@@ -1293,7 +1530,7 @@
 
             <button onclick="savePublicProfile()">Save</button>
             <div class="hr"></div>
-            <small>Registrations will use this profile (demo).</small>
+            <small>Registrations and inquiries use this profile (demo).</small>
           </div>
 
           <div class="card">
@@ -1321,6 +1558,7 @@
       };
       saveMyProfile(p);
       setToast("Saved", "Profile saved (demo).");
+      logMetric("profile_saved", { email: p.email || "" });
     }
 
     // -----------------------------
