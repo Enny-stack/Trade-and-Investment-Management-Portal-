@@ -5,14 +5,66 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ATIMP – Welcome</title>
   <link rel="stylesheet" href="styles.css" />
+
+  <style>
+    /* --- Fullscreen YouTube background --- */
+    .bg-video {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    .bg-video iframe {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 120vw;      /* overfill to avoid black bars */
+      height: 120vh;
+      transform: translate(-50%, -50%);
+      pointer-events: none; /* clicks go to your UI, not the video */
+      border: 0;
+    }
+
+    /* optional: dark overlay for readability */
+    .bg-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      background: rgba(0,0,0,0.45);
+    }
+
+    /* keep UI above the video */
+    .topbar, main {
+      position: relative;
+      z-index: 2;
+    }
+  </style>
 </head>
 <body>
+
+  <!-- Background Video -->
+  <div class="bg-video" aria-hidden="true">
+    <!--
+      Video ID from https://youtu.be/7vj2c8CliH8 is: 7vj2c8CliH8
+      autoplay=1, mute=1, loop=1, playlist=ID is required for looping YouTube embeds
+      controls=0 hides controls; modestbranding keeps it clean
+    -->
+    <iframe
+      src="https://www.youtube-nocookie.com/embed/7vj2c8CliH8?autoplay=1&mute=1&loop=1&playlist=7vj2c8CliH8&controls=0&showinfo=0&modestbranding=1&rel=0&playsinline=1"
+      title="Background video"
+      allow="autoplay; encrypted-media"
+      referrerpolicy="strict-origin-when-cross-origin"
+      loading="lazy"
+    ></iframe>
+  </div>
+  <div class="bg-overlay" aria-hidden="true"></div>
 
   <!-- KEEP ONLY the circled pills area -->
   <div class="topbar" style="justify-content:flex-end;">
     <div class="pills">
       <a class="pill" href="index.html"><small>Home</small></a>
-<a class="pill" id="openPortalBtn" href="public.html#events" style="display:none;"><small>Open Portal</small></a>
+      <a class="pill" id="openPortalBtn" href="public.html#events" style="display:none;"><small>Open Portal</small></a>
 
       <div class="pill">
         <small>Region</small>&nbsp;<select id="regionSel"></select>
@@ -30,7 +82,7 @@
     </div>
   </div>
 
-  <!-- Centered welcome content (everything else removed) -->
+  <!-- Centered welcome content -->
   <main
     style="
       min-height: calc(100vh - 72px);
@@ -42,9 +94,12 @@
     "
   >
     <div>
-      <h1 style="margin:0;">
+      <h1 style="margin:0; color: #fff;">
         Welcome to Afreximbank: African Trade and Investment Management Portal (ATIMP)
       </h1>
+      <p style="margin:14px 0 0 0; color: rgba(255,255,255,0.85); max-width: 860px;">
+        Select your region and language to continue.
+      </p>
     </div>
   </main>
 
@@ -66,11 +121,12 @@
     // Keeps language/region behavior consistent with your other pages
     if (typeof initTopbar === "function") initTopbar();
   </script>
+
   <script src="auth.js"></script>
-<script>
-  // show Open Portal only if registered on this browser
-  const btn = document.getElementById("openPortalBtn");
-  if (btn) btn.style.display = TIMP_AUTH.isAuthed() ? "inline-block" : "none";
-</script>
+  <script>
+    // show Open Portal only if registered on this browser
+    const btn = document.getElementById("openPortalBtn");
+    if (btn) btn.style.display = (window.TIMP_AUTH && TIMP_AUTH.isAuthed && TIMP_AUTH.isAuthed()) ? "inline-block" : "none";
+  </script>
 </body>
 </html>
