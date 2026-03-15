@@ -6,96 +6,76 @@
   <title>TIMP – Home</title>
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Small page-only helpers (no need to edit styles.css) -->
   <style>
-    .mediaBlock{
+    /* Hero layout like your Landing Page, but using your existing theme */
+    .heroGrid{
       display:grid;
       grid-template-columns: 1.15fr .85fr;
-      gap:16px;
+      gap:14px;
       align-items:stretch;
     }
-    @media (max-width: 860px){
-      .mediaBlock{ grid-template-columns: 1fr; }
+    @media (max-width: 980px){
+      .heroGrid{ grid-template-columns: 1fr; }
     }
+    .heroActions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .statsGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .statsGrid .card{ margin:0; }
+    .statsGrid .card.full{ grid-column: 1 / -1; }
 
-    /* ---- Video card (replaces imgSlot) ---- */
-    .videoSlot{
+    /* Video card (right column in overview section) */
+    .videoCard{
       border-radius:16px;
       border:1px solid rgba(255,255,255,.08);
       overflow:hidden;
-      min-height: 220px;
-      position:relative;
-
-      /* same look you had */
-      background:
-        radial-gradient(900px 260px at 40% 20%, rgba(255,255,255,0.10), transparent 60%),
-        linear-gradient(135deg, rgba(0,180,120,0.18), rgba(255,210,0,0.10));
+      min-height: 260px;
+      background: rgba(0,0,0,.25);
+      position: relative;
     }
-    .videoSlot iframe{
+    .videoCard iframe{
       position:absolute;
-      inset:0;
-      width:100%;
-      height:100%;
+      inset:-10%;
+      width:120%;
+      height:120%;
       border:0;
-      pointer-events:none; /* keeps it “background-like” inside the card */
-      transform: scale(1.02);
+      pointer-events:none; /* acts like background */
+      filter: saturate(1.05) brightness(0.85);
     }
-    .videoSlotOverlay{
+    .videoOverlay{
       position:absolute;
       inset:0;
-      background: linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.35));
+      background: radial-gradient(700px 260px at 35% 20%, rgba(255,255,255,0.10), transparent 60%),
+                  linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.45));
       pointer-events:none;
     }
 
-    .imgHint{
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.4;
+    .sectionTitleRow{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
     }
-
-    .featureGrid{
+    .miniCards{
       display:grid;
       grid-template-columns: repeat(3, 1fr);
       gap:14px;
     }
-    @media (max-width: 980px){
-      .featureGrid{ grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 640px){
-      .featureGrid{ grid-template-columns: 1fr; }
-    }
-    .featureCard .featureTop{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:10px;
-    }
-    .featureCard .featureImg{
-      width:100%;
-      height:140px;
-      border-radius:14px;
+    @media (max-width: 980px){ .miniCards{ grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px){ .miniCards{ grid-template-columns: 1fr; } }
+
+    .ctaBand{
+      margin-top:14px;
+      padding:18px;
+      border-radius:18px;
       border:1px solid rgba(255,255,255,.08);
-      overflow:hidden;
-      margin:10px 0;
       background:
-        radial-gradient(700px 200px at 40% 20%, rgba(255,255,255,0.10), transparent 60%),
-        linear-gradient(135deg, rgba(0,120,255,0.12), rgba(255,90,0,0.10));
-      display:flex;
-      align-items:center;
-      justify-content:center;
-    }
-    .featureCard .featureImg img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-    }
-    .ctaRow{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:10px;
+        radial-gradient(900px 260px at 25% 15%, rgba(255,255,255,0.08), transparent 60%),
+        linear-gradient(135deg, rgba(0,180,120,0.12), rgba(255,210,0,0.08));
     }
   </style>
 </head>
@@ -127,219 +107,166 @@
 
   <div class="main" style="max-width:1100px;margin:0 auto;">
 
-    <!-- HERO -->
+    <!-- HERO (landing-style structure, rephrased content) -->
     <div class="hero">
-      <h1 style="margin-bottom:8px;">Afreximbank Trade & Investment Management Portal (TIMP)</h1>
+      <div class="heroGrid">
+        <div>
+          <h1 style="margin-bottom:8px;">Trade & Investment Management Portal (TIMP)</h1>
 
-      <div class="meta">
-        <span class="tag ok">Admin + Public</span>
-        <span class="tag ok">Region-profiled</span>
-        <span class="tag warn">Demo data</span>
-        <span class="tag muted">Static prototype (GitHub Pages friendly)</span>
-      </div>
+          <div class="meta">
+            <span class="tag ok">Admin + Public</span>
+            <span class="tag ok">Region-based views</span>
+            <span class="tag warn">Demo mode</span>
+            <span class="tag muted">Static prototype (GitHub Pages friendly)</span>
+          </div>
 
-      <div class="ctaRow">
-        <a href="register.html"><button>Register</button></a>
+          <p class="muted" style="line-height:1.7; margin-top:10px; max-width:720px;">
+            TIMP is a practical workspace for showcasing bankable opportunities, organizing investment events,
+            and supporting structured engagement between project owners, investors, and public stakeholders.
+          </p>
 
-        <!-- Hidden until user is "authed" (registered) -->
-        <a href="public.html#events">
-          <button class="secondary" id="openPortalBtn" style="display:none;">Open Portal</button>
-        </a>
+          <div class="heroActions">
+            <a href="register.html"><button>Register</button></a>
 
-        <a href="admin.html"><button class="secondary">Admin Console</button></a>
-      </div>
+            <a href="public.html#events">
+              <button class="secondary" id="openPortalBtn" style="display:none;">Open Portal</button>
+            </a>
 
-      <div style="margin-top:8px;">
-        <small class="muted">
-          After registering, the “Open Portal” button will appear (demo access control).
-        </small>
+            <a href="admin.html"><button class="secondary">Admin Console</button></a>
+          </div>
+
+          <div style="margin-top:8px;">
+            <small class="muted">After registering, “Open Portal” appears on this browser (demo access control).</small>
+          </div>
+        </div>
+
+        <!-- Stats like landing page -->
+        <div class="statsGrid">
+          <div class="card full">
+            <div class="mini">
+              <div>
+                <div class="label">Published deal pipeline</div>
+                <div class="big" id="kpiPipeline">$0m</div>
+              </div>
+              <span class="tag ok">Pipeline</span>
+            </div>
+            <div class="hr"></div>
+            <small class="muted">Sum of tickets for Published/Active deals (auto-updates).</small>
+          </div>
+
+          <div class="card">
+            <div class="mini">
+              <div>
+                <div class="label">Published deals</div>
+                <div class="big" id="kpiDeals">0</div>
+              </div>
+              <span class="tag ok">Live</span>
+            </div>
+            <div class="hr"></div>
+            <small class="muted">Visible in Public Deal Room.</small>
+          </div>
+
+          <div class="card">
+            <div class="mini">
+              <div>
+                <div class="label">Upcoming events</div>
+                <div class="big" id="kpiEvents">0</div>
+              </div>
+              <span class="tag warn">Calendar</span>
+            </div>
+            <div class="hr"></div>
+            <small class="muted">Published events by region.</small>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- OVERVIEW + VIDEO CARD -->
+    <!-- OVERVIEW + RIGHT VIDEO CARD (muted YouTube) -->
     <div class="card" style="margin-top:14px;">
-      <div class="mediaBlock">
+      <div style="display:grid; grid-template-columns: 1.15fr .85fr; gap:16px; align-items:stretch;">
         <div>
-          <h2 style="margin-top:0;">Driving Trade and Investment Across Africa</h2>
+          <h2 style="margin-top:0;">A single place to coordinate opportunities and engagement</h2>
 
           <p style="color:var(--muted); line-height:1.7;">
-            The Trade and Investment Management Portal is Afreximbank’s digital gateway for facilitating trade,
-            mobilizing investment, and connecting African opportunities with global capital. The portal provides
-            a centralized platform where investors, businesses, governments, and financial institutions can
-            discover investment opportunities, promote projects, and engage with strategic partners.
+            TIMP brings key workflows into one portal: opportunity intake, deal visibility, event profiling,
+            and structured follow-up. Stakeholders can discover relevant opportunities, request materials,
+            and engage through lightweight messaging — while Admin curates and governs what goes public.
           </p>
 
           <div class="hr"></div>
 
-          <p style="color:var(--muted); line-height:1.7;">
-            Designed to support Afreximbank’s mandate of promoting intra-African trade and economic development,
-            the portal brings together key stakeholders across the investment ecosystem to accelerate deal-making,
-            strengthen partnerships, and unlock Africa’s growth potential.
-          </p>
-
           <p style="color:var(--muted); line-height:1.7; margin-bottom:0;">
-            Through the portal, users gain access to curated investment opportunities, structured networking
-            engagements, project promotion tools, and investor engagement platforms that enable efficient capital
-            mobilization and investment facilitation across the continent.
+            In the full build, the same structure supports controlled access, audit-ready publishing, analytics,
+            and integrations for scheduling, notifications, and document governance.
           </p>
         </div>
 
         <div>
-          <!-- ✅ Muted YouTube video card (right side) -->
-          <div class="videoSlot" aria-label="TIMP home highlight video">
-            <!-- Video ID for https://youtu.be/0BpqnFuiQeg is: 0BpqnFuiQeg -->
+          <div class="videoCard" aria-label="Home video">
             <iframe
-              src="https://www.youtube-nocookie.com/embed/0BpqnFuiQeg?autoplay=1&mute=1&loop=1&playlist=0BpqnFuiQeg&controls=0&modestbranding=1&rel=0&playsinline=1"
-              title="TIMP highlight video"
-              allow="autoplay; encrypted-media"
-              referrerpolicy="strict-origin-when-cross-origin"
-              loading="lazy"
-            ></iframe>
-            <div class="videoSlotOverlay" aria-hidden="true"></div>
+              src="https://www.youtube.com/embed/0BpqnFuiQeg?autoplay=1&mute=1&controls=0&loop=1&playlist=0BpqnFuiQeg&playsinline=1&modestbranding=1&rel=0"
+              title="TIMP video"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              referrerpolicy="strict-origin-when-cross-origin">
+            </iframe>
+            <div class="videoOverlay" aria-hidden="true"></div>
           </div>
           <div style="height:8px;"></div>
-          <div class="imgHint"></div>
+          <small class="muted">Note: mobile browsers may require a tap before autoplay begins (even when muted).</small>
         </div>
       </div>
     </div>
 
-    <!-- KEY FEATURES -->
+    <!-- FEATURED OPPORTUNITIES (preview cards) -->
     <div class="card" style="margin-top:14px;">
-      <h2 style="margin-top:0;">Key Features</h2>
-      <p style="color:var(--muted); line-height:1.7; margin-top:0;"></p>
-
-      <div class="featureGrid">
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Investment Opportunity Showcase</b>
-            <span class="tag ok">Discover</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-showcase.jpg" alt="Showcase"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-showcase.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
+      <div class="sectionTitleRow">
+        <div>
+          <h2 style="margin:0;">Featured opportunities (preview)</h2>
+          <div class="muted">A quick snapshot of published deals in the selected region.</div>
         </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Deal Room</b>
-            <span class="tag warn">Match</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-dealroom.jpg" alt="Deal Room"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-dealroom.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Investment Engagement Hub</b>
-            <span class="tag ok">Engage</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-engagement.jpg" alt="Engagement Hub"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-engagement.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Investment Forums</b>
-            <span class="tag muted">Events</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-forums.jpg" alt="Forums"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-forums.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Roadshows</b>
-            <span class="tag muted">Mobilize</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-roadshows.jpg" alt="Roadshows"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-roadshows.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Pitching of Investments</b>
-            <span class="tag warn">Quickfire</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-pitching.jpg" alt="Pitching"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-pitching.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;">.</p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Region Profile</b>
-            <span class="tag ok">Segment</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-region.jpg" alt="Region profile"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-region.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Investment Opportunity Submission</b>
-            <span class="tag muted">Onboard</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-submission.jpg" alt="Submission"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-submission.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Investor Access</b>
-            <span class="tag ok">Trusted</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-access.jpg" alt="Investor access"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-access.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
-        <div class="card featureCard" style="margin:0;">
-          <div class="featureTop">
-            <b>Security & Data Protection</b>
-            <span class="tag warn">Secure</span>
-          </div>
-          <div class="featureImg">
-            <img src="assets/feature-security.jpg" alt="Security"
-              onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;imgHint&quot;>Image slot: <code>assets/feature-security.jpg</code></div>'; ">
-          </div>
-          <p style="color:var(--muted); line-height:1.6; margin:0;"></p>
-        </div>
-
+        <a class="pill" href="public.html#dealroom"><small>Open Deal Room</small></a>
       </div>
 
-      <div class="hr"></div>
+      <div class="miniCards" id="dealsPreview"></div>
 
-      <div class="ctaRow">
-        <a href="register.html"><button>Register</button></a>
-        <a href="public.html#events">
-          <button class="secondary" id="openPortalBtn2" style="display:none;">Open Portal</button>
-        </a>
-        <a href="admin.html"><button class="secondary">Admin Console</button></a>
+      <div class="hr"></div>
+      <div class="ctaBand">
+        <b>Looking to submit an opportunity?</b>
+        <div class="muted" style="margin-top:6px;">
+          Download the proposal template, complete it, then submit through the Public “Opportunities” page.
+        </div>
+        <div style="margin-top:10px;" class="heroActions">
+          <a href="public.html#opps"><button class="secondary">Go to Opportunities</button></a>
+          <a href="public.html#opps"><button>Submit Opportunity</button></a>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPCOMING EVENTS (preview list) -->
+    <div class="card" style="margin-top:14px;">
+      <div class="sectionTitleRow">
+        <div>
+          <h2 style="margin:0;">Events & roadshows (preview)</h2>
+          <div class="muted">Published events appear here automatically once Admin publishes.</div>
+        </div>
+        <a class="pill" href="public.html#events"><small>View Events</small></a>
+      </div>
+
+      <div id="eventsPreview"></div>
+    </div>
+
+    <!-- DEAL ROOM CTA -->
+    <div class="card" style="margin-top:14px;">
+      <h2 style="margin-top:0;">Deal Room & engagement</h2>
+      <p style="color:var(--muted); line-height:1.7;">
+        The Deal Room is designed for curated visibility and structured engagement:
+        prospectus requests, deal book downloads, meeting scheduling, and activity signals that support follow-up.
+      </p>
+      <div class="hr"></div>
+      <div class="heroActions">
+        <a href="public.html#dealroom"><button>Explore Deal Room</button></a>
+        <a href="public.html#expo"><button class="secondary">Virtual Exhibition</button></a>
+        <a href="admin.html#analytics"><button class="secondary">View Analytics (Admin)</button></a>
       </div>
     </div>
 
@@ -349,12 +276,10 @@
   <script src="data.js"></script>
   <script src="util.js"></script>
   <script src="app.js"></script>
-
-  <!-- ✅ Add auth.js (controls whether Open Portal shows) -->
   <script src="auth.js"></script>
 
   <script>
-    // Fill region selector
+    // Fill region selector (keeps behavior consistent)
     const regionSel = document.getElementById("regionSel");
     if (window.TIMP_REGIONS && regionSel){
       TIMP_REGIONS.forEach(r=>{
@@ -366,15 +291,113 @@
     }
     if (typeof initTopbar === "function") initTopbar();
 
-    // Show Open Portal buttons only if registered/authed
-    const authed = (window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function")
-      ? TIMP_AUTH.isAuthed()
-      : false;
+    // Open Portal visibility
+    const authed = (window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function") ? TIMP_AUTH.isAuthed() : false;
+    const openPortalBtn = document.getElementById("openPortalBtn");
+    if (openPortalBtn) openPortalBtn.style.display = authed ? "inline-block" : "none";
 
-    ["openPortalBtn","openPortalBtn2"].forEach(id=>{
-      const b = document.getElementById(id);
-      if (b) b.style.display = authed ? "inline-block" : "none";
+    // Safe getters (localStorage-first)
+    function getEventsSafe(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_events") || "null");
+        if (Array.isArray(x)) return x;
+      }catch(e){}
+      return (window.TIMP_DATA && Array.isArray(TIMP_DATA.events)) ? TIMP_DATA.events : [];
+    }
+    function getDealsSafe(){
+      try{
+        const x = JSON.parse(localStorage.getItem("timp_deals") || "null");
+        if (Array.isArray(x)) return x;
+      }catch(e){}
+      return (window.TIMP_DATA && Array.isArray(TIMP_DATA.deals)) ? TIMP_DATA.deals : [];
+    }
+
+    function regionId(){
+      return document.getElementById("regionSel")?.value || localStorage.getItem("timp_region") || "non_reg";
+    }
+    function byRegion(rows){
+      const r = regionId();
+      if (r === "non_reg") return rows;
+      return (rows || []).filter(x => !x?.region || x.region === r);
+    }
+    function isPublishedDeal(d){
+      const s = String(d?.status || "").toLowerCase().trim();
+      return (s === "published" || s === "active");
+    }
+    function isPublishedEvent(e){
+      return String(e?.status || "").toLowerCase().trim() === "published";
+    }
+    function fmtPipeline(totalM){
+      const totalB = totalM / 1000;
+      if (totalB >= 1) return `$${totalB.toFixed(2)}bn`;
+      return `$${Math.round(totalM).toLocaleString()}m`;
+    }
+
+    function renderHome(){
+      const deals = byRegion(getDealsSafe()).filter(isPublishedDeal);
+      const events = byRegion(getEventsSafe()).filter(isPublishedEvent);
+
+      // KPIs
+      const pipelineM = deals.reduce((sum, d)=> sum + Number(d.ticket_usd_m || 0), 0);
+      const kpiPipeline = document.getElementById("kpiPipeline");
+      const kpiDeals = document.getElementById("kpiDeals");
+      const kpiEvents = document.getElementById("kpiEvents");
+      if (kpiPipeline) kpiPipeline.textContent = fmtPipeline(pipelineM);
+      if (kpiDeals) kpiDeals.textContent = String(deals.length);
+      if (kpiEvents) kpiEvents.textContent = String(events.length);
+
+      // Deals preview
+      const dealsEl = document.getElementById("dealsPreview");
+      if (dealsEl){
+        const top = deals.slice(0, 6);
+        dealsEl.innerHTML = top.length ? top.map(d => `
+          <div class="card" style="margin:0;">
+            <div class="mini">
+              <div>
+                <div style="font-weight:700;">${(d.country || "Deal")} • ${(d.sector || "")}</div>
+                <div class="muted" style="margin-top:4px;">Stage: <b>${(d.stage || "—")}</b></div>
+              </div>
+              <span class="tag ${String(d.warmth||"Warm")==="Hot"?"ok":String(d.warmth||"Warm")==="Cold"?"muted":"warn"}">${(d.warmth || "Warm")}</span>
+            </div>
+            <div class="hr"></div>
+            <div class="muted">${(d.summary || "Opportunity summary will appear here.").slice(0, 120)}${(d.summary||"").length>120?"…":""}</div>
+            <div style="height:10px;"></div>
+            <a href="public.html#dealroom"><button class="secondary" style="width:100%;">View in Deal Room</button></a>
+          </div>
+        `).join("") : `<div class="muted"><small>No published deals yet for this region.</small></div>`;
+      }
+
+      // Events preview
+      const evEl = document.getElementById("eventsPreview");
+      if (evEl){
+        const topE = events.slice(0, 6);
+        evEl.innerHTML = topE.length ? `
+          <table class="table">
+            <thead><tr><th>Event</th><th>Date</th><th>Venue</th><th></th></tr></thead>
+            <tbody>
+              ${topE.map(e => `
+                <tr>
+                  <td><b>${e.title || "Event"}</b><br><small class="muted">${e.type || ""}</small></td>
+                  <td>${e.date || ""} <small class="muted">${e.time || ""}</small></td>
+                  <td>${e.venue || ""}</td>
+                  <td class="row-actions">
+                    <a href="public.html#events"><button class="secondary">Open</button></a>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        ` : `<div class="muted"><small>No published events yet for this region.</small></div>`;
+      }
+    }
+
+    // Re-render when region/lang changes
+    document.getElementById("regionSel")?.addEventListener("change", renderHome);
+    window.addEventListener("storage", (e)=>{
+      if (e.key === "timp_deals" || e.key === "timp_events") renderHome();
     });
+
+    renderHome();
   </script>
 </body>
 </html>
