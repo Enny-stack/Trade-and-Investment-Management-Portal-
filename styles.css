@@ -13,6 +13,9 @@
   --shadow: 0 10px 25px rgba(0,0,0,.35);
   --radius:18px;
   --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+
+  /* ✅ Helps native dropdown menus render in dark mode */
+  color-scheme: dark;
 }
 
 *{box-sizing:border-box}
@@ -61,9 +64,12 @@ kbd{border:1px solid var(--line); padding:2px 8px; border-radius:999px; backgrou
   background:rgba(255,255,255,.03);
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
 }
+
 select, input, textarea, button{
   font-family:inherit;
 }
+
+/* ✅ Inputs + selects */
 select, input, textarea{
   background: rgba(255,255,255,.03);
   border:1px solid rgba(255,255,255,.10);
@@ -72,7 +78,25 @@ select, input, textarea{
   border-radius:12px;
   outline:none;
 }
-select:focus, input:focus, textarea:focus{border-color: rgba(201,162,39,.55)}
+
+/* ✅ Fix: dropdown menu options were white-on-white */
+select option,
+select optgroup{
+  background-color: #0b1224; /* dark menu */
+  color: var(--text);       /* readable text */
+}
+
+/* Some browsers apply this to the popup list */
+select{
+  background-color: rgba(255,255,255,.03);
+  color: var(--text);
+}
+
+select:focus, input:focus, textarea:focus{
+  border-color: rgba(201,162,39,.55);
+  box-shadow: 0 0 0 3px rgba(201,162,39,.14);
+}
+
 button{
   cursor:pointer;
   background: linear-gradient(135deg, rgba(201,162,39,.95), rgba(10,123,85,.45));
