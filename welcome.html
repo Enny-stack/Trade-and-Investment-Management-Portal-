@@ -55,9 +55,86 @@
       flex-wrap:wrap;
       margin-top:14px;
     }
+    <style>
+  .bgVideo{
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    background: #000;
+  }
+  /* Make the iframe behave like a cover background */
+  .bgVideo iframe{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 120vw;
+    height: 120vh;
+    transform: translate(-50%, -50%);
+    border: 0;
+    pointer-events: none; /* prevents clicks (no pause/play UI) */
+  }
+  .bgOverlay{
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(900px 500px at 30% 20%, rgba(255,255,255,0.10), transparent 60%),
+      linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.65));
+  }
+
+  /* Ensure your page content sits above the video */
+  body > *{ position: relative; z-index: 1; }
+</style>
   </style>
 </head>
+<script>
+  // YouTube Iframe API loader
+  (function(){
+    const tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+  })();
 
+  const YT_VIDEO_ID = "7vj2c8CliH8";
+  let ytPlayer = null;
+
+  function onYouTubeIframeAPIReady() {
+    ytPlayer = new YT.Player("ytBg", {
+      videoId: YT_VIDEO_ID,
+      playerVars: {
+        autoplay: 1,
+        mute: 1,
+        controls: 0,
+        playsinline: 1,
+        modestbranding: 1,
+        rel: 0,
+        iv_load_policy: 3,
+        disablekb: 1,
+        fs: 0,
+        // Loop trick: YouTube requires playlist=ID for loop to work reliably
+        loop: 1,
+        playlist: YT_VIDEO_ID
+      },
+      events: {
+        onReady: (e) => {
+          try{
+            e.target.mute();
+            e.target.playVideo();
+          }catch(err){}
+        },
+        onStateChange: (e) => {
+          // Force replay instantly when ended (minimizes end-screen flash)
+          if (e.data === YT.PlayerState.ENDED) {
+            try{
+              e.target.seekTo(0, true);
+              e.target.playVideo();
+            }catch(err){}
+          }
+        }
+      }
+    });
+  }
+</script>
 <body>
   <!-- Background video -->
   <div class="yt-bg" aria-hidden="true">
