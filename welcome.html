@@ -3,97 +3,112 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TIMP – Home</title>
+  <title>TIMP – Welcome</title>
   <link rel="stylesheet" href="styles.css" />
 
   <style>
-    /* Hero layout like your Landing Page, but using your existing theme */
-    .heroGrid{
-      display:grid;
-      grid-template-columns: 1.15fr .85fr;
-      gap:14px;
-      align-items:stretch;
+    /* --- Fullscreen YouTube background --- */
+    .bg-video {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      background: #000;
+      /* subtle “cinema” treatment */
+      filter: blur(1.5px) brightness(0.85) contrast(1.08) saturate(1.05);
+      transform: scale(1.02); /* prevents edge blur seams */
     }
-    @media (max-width: 980px){
-      .heroGrid{ grid-template-columns: 1fr; }
-    }
-    .heroActions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
-    .statsGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-    }
-    .statsGrid .card{ margin:0; }
-    .statsGrid .card.full{ grid-column: 1 / -1; }
 
-    /* Video card (right column in overview section) */
-    .videoCard{
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.08);
-      overflow:hidden;
-      min-height: 260px;
-      background: rgba(0,0,0,.25);
+    .bg-video iframe {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 120vw;      /* overfill to avoid black bars */
+      height: 120vh;
+      transform: translate(-50%, -50%) scale(1.02);
+      pointer-events: none; /* clicks go to your UI, not the video */
+      border: 0;
+      opacity: 0.98;
+      /* gentle breathing motion */
+      animation: bgBreath 18s ease-in-out infinite;
+    }
+
+    @keyframes bgBreath {
+      0%   { transform: translate(-50%, -50%) scale(1.02); }
+      50%  { transform: translate(-50%, -50%) scale(1.06); }
+      100% { transform: translate(-50%, -50%) scale(1.02); }
+    }
+
+    /* Respect reduced-motion preference */
+    @media (prefers-reduced-motion: reduce) {
+      .bg-video iframe { animation: none; }
+    }
+
+    /* dark overlay for readability */
+    .bg-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      background: radial-gradient(circle at 30% 20%, rgba(0,0,0,0.35), rgba(0,0,0,0.65));
+    }
+
+    /* keep UI above the video */
+    .topbar, main {
       position: relative;
-    }
-    .videoCard iframe{
-      position:absolute;
-      inset:-10%;
-      width:120%;
-      height:120%;
-      border:0;
-      pointer-events:none; /* acts like background */
-      filter: saturate(1.05) brightness(0.85);
-    }
-    .videoOverlay{
-      position:absolute;
-      inset:0;
-      background: radial-gradient(700px 260px at 35% 20%, rgba(255,255,255,0.10), transparent 60%),
-                  linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.45));
-      pointer-events:none;
+      z-index: 2;
     }
 
-    .sectionTitleRow{
-      display:flex;
-      align-items:flex-end;
-      justify-content:space-between;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-bottom:10px;
+    /* Make the heading pop on video */
+    .welcome-title {
+      color: #fff;
+      text-shadow: 0 10px 35px rgba(0,0,0,0.55);
     }
-    .miniCards{
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap:14px;
-    }
-    @media (max-width: 980px){ .miniCards{ grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 640px){ .miniCards{ grid-template-columns: 1fr; } }
-
-    .ctaBand{
-      margin-top:14px;
-      padding:18px;
-      border-radius:18px;
-      border:1px solid rgba(255,255,255,.08);
-      background:
-        radial-gradient(900px 260px at 25% 15%, rgba(255,255,255,0.08), transparent 60%),
-        linear-gradient(135deg, rgba(0,180,120,0.12), rgba(255,210,0,0.08));
+    .welcome-sub {
+      color: rgba(255,255,255,0.85);
+      max-width: 860px;
+      margin: 14px auto 0 auto;
+      line-height: 1.5;
+      text-shadow: 0 10px 35px rgba(0,0,0,0.45);
     }
   </style>
 </head>
-
 <body>
-  <div class="topbar">
-    <div class="brand">
-      <div class="logo"></div>
-      <div>
-        <div><b>Trade & Investment Management Portal (TIMP)</b></div>
-        <span class="sub">Afreximbank’s digital gateway for trade + investment facilitation</span>
-      </div>
-    </div>
 
+  <!-- Background Video -->
+  <div class="bg-video" aria-hidden="true">
+    <!--
+      Video ID: 7vj2c8CliH8
+      IMPORTANT for loop: loop=1 + playlist=VIDEO_ID
+      IMPORTANT for play/pause toggle: enablejsapi=1
+    -->
+    <iframe
+      id="bgPlayer"
+      src="https://www.youtube-nocookie.com/embed/7vj2c8CliH8?autoplay=1&mute=1&loop=1&playlist=7vj2c8CliH8&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1"
+      title="Background video"
+      allow="autoplay; encrypted-media"
+      referrerpolicy="strict-origin-when-cross-origin"
+      loading="lazy"
+    ></iframe>
+  </div>
+  <div class="bg-overlay" aria-hidden="true"></div>
+
+  <!-- KEEP ONLY the pills area -->
+  <div class="topbar" style="justify-content:flex-end;">
     <div class="pills">
       <a class="pill" href="index.html"><small>Home</small></a>
-      <div class="pill"><small>Region</small>&nbsp;<select id="regionSel"></select></div>
-      <div class="pill"><small>Language</small>&nbsp;
+      <a class="pill" id="openPortalBtn" href="public.html#events" style="display:none;"><small>Open Portal</small></a>
+
+      <!-- NEW: video toggle -->
+      <button class="pill" id="bgToggleBtn" type="button" style="cursor:pointer;">
+        <small id="bgToggleLabel">Pause background</small>
+      </button>
+
+      <div class="pill">
+        <small>Region</small>&nbsp;<select id="regionSel"></select>
+      </div>
+
+      <div class="pill">
+        <small>Language</small>&nbsp;
         <select id="langSel">
           <option value="en">English</option>
           <option value="fr">Français</option>
@@ -101,303 +116,118 @@
           <option value="pt">Português</option>
         </select>
       </div>
-      <a class="pill" href="welcome.html"><small>Welcome</small></a>
     </div>
   </div>
 
-  <div class="main" style="max-width:1100px;margin:0 auto;">
-
-    <!-- HERO (landing-style structure, rephrased content) -->
-    <div class="hero">
-      <div class="heroGrid">
-        <div>
-          <h1 style="margin-bottom:8px;">Trade & Investment Management Portal (TIMP)</h1>
-
-          <div class="meta">
-            <span class="tag ok">Admin + Public</span>
-            <span class="tag ok">Region-based views</span>
-            <span class="tag warn">Demo mode</span>
-            <span class="tag muted">Static prototype (GitHub Pages friendly)</span>
-          </div>
-
-          <p class="muted" style="line-height:1.7; margin-top:10px; max-width:720px;">
-            TIMP is a practical workspace for showcasing bankable opportunities, organizing investment events,
-            and supporting structured engagement between project owners, investors, and public stakeholders.
-          </p>
-
-          <div class="heroActions">
-            <a href="register.html"><button>Register</button></a>
-
-            <a href="public.html#events">
-              <button class="secondary" id="openPortalBtn" style="display:none;">Open Portal</button>
-            </a>
-
-            <a href="admin.html"><button class="secondary">Admin Console</button></a>
-          </div>
-
-          <div style="margin-top:8px;">
-            <small class="muted">After registering, “Open Portal” appears on this browser (demo access control).</small>
-          </div>
-        </div>
-
-        <!-- Stats like landing page -->
-        <div class="statsGrid">
-          <div class="card full">
-            <div class="mini">
-              <div>
-                <div class="label">Published deal pipeline</div>
-                <div class="big" id="kpiPipeline">$0m</div>
-              </div>
-              <span class="tag ok">Pipeline</span>
-            </div>
-            <div class="hr"></div>
-            <small class="muted">Sum of tickets for Published/Active deals (auto-updates).</small>
-          </div>
-
-          <div class="card">
-            <div class="mini">
-              <div>
-                <div class="label">Published deals</div>
-                <div class="big" id="kpiDeals">0</div>
-              </div>
-              <span class="tag ok">Live</span>
-            </div>
-            <div class="hr"></div>
-            <small class="muted">Visible in Public Deal Room.</small>
-          </div>
-
-          <div class="card">
-            <div class="mini">
-              <div>
-                <div class="label">Upcoming events</div>
-                <div class="big" id="kpiEvents">0</div>
-              </div>
-              <span class="tag warn">Calendar</span>
-            </div>
-            <div class="hr"></div>
-            <small class="muted">Published events by region.</small>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- OVERVIEW + RIGHT VIDEO CARD (muted YouTube) -->
-    <div class="card" style="margin-top:14px;">
-      <div style="display:grid; grid-template-columns: 1.15fr .85fr; gap:16px; align-items:stretch;">
-        <div>
-          <h2 style="margin-top:0;">A single place to coordinate opportunities and engagement</h2>
-
-          <p style="color:var(--muted); line-height:1.7;">
-            TIMP brings key workflows into one portal: opportunity intake, deal visibility, event profiling,
-            and structured follow-up. Stakeholders can discover relevant opportunities, request materials,
-            and engage through lightweight messaging — while Admin curates and governs what goes public.
-          </p>
-
-          <div class="hr"></div>
-
-          <p style="color:var(--muted); line-height:1.7; margin-bottom:0;">
-            In the full build, the same structure supports controlled access, audit-ready publishing, analytics,
-            and integrations for scheduling, notifications, and document governance.
-          </p>
-        </div>
-
-        <div>
-          <div class="videoCard" aria-label="Home video">
-            <iframe
-              src="https://www.youtube.com/embed/0BpqnFuiQeg?autoplay=1&mute=1&controls=0&loop=1&playlist=0BpqnFuiQeg&playsinline=1&modestbranding=1&rel=0"
-              title="TIMP video"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              referrerpolicy="strict-origin-when-cross-origin">
-            </iframe>
-            <div class="videoOverlay" aria-hidden="true"></div>
-          </div>
-          <div style="height:8px;"></div>
-          <small class="muted">Note: mobile browsers may require a tap before autoplay begins (even when muted).</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- FEATURED OPPORTUNITIES (preview cards) -->
-    <div class="card" style="margin-top:14px;">
-      <div class="sectionTitleRow">
-        <div>
-          <h2 style="margin:0;">Featured opportunities (preview)</h2>
-          <div class="muted">A quick snapshot of published deals in the selected region.</div>
-        </div>
-        <a class="pill" href="public.html#dealroom"><small>Open Deal Room</small></a>
-      </div>
-
-      <div class="miniCards" id="dealsPreview"></div>
-
-      <div class="hr"></div>
-      <div class="ctaBand">
-        <b>Looking to submit an opportunity?</b>
-        <div class="muted" style="margin-top:6px;">
-          Download the proposal template, complete it, then submit through the Public “Opportunities” page.
-        </div>
-        <div style="margin-top:10px;" class="heroActions">
-          <a href="public.html#opps"><button class="secondary">Go to Opportunities</button></a>
-          <a href="public.html#opps"><button>Submit Opportunity</button></a>
-        </div>
-      </div>
-    </div>
-
-    <!-- UPCOMING EVENTS (preview list) -->
-    <div class="card" style="margin-top:14px;">
-      <div class="sectionTitleRow">
-        <div>
-          <h2 style="margin:0;">Events & roadshows (preview)</h2>
-          <div class="muted">Published events appear here automatically once Admin publishes.</div>
-        </div>
-        <a class="pill" href="public.html#events"><small>View Events</small></a>
-      </div>
-
-      <div id="eventsPreview"></div>
-    </div>
-
-    <!-- DEAL ROOM CTA -->
-    <div class="card" style="margin-top:14px;">
-      <h2 style="margin-top:0;">Deal Room & engagement</h2>
-      <p style="color:var(--muted); line-height:1.7;">
-        The Deal Room is designed for curated visibility and structured engagement:
-        prospectus requests, deal book downloads, meeting scheduling, and activity signals that support follow-up.
+  <!-- Centered welcome content -->
+  <main
+    style="
+      min-height: calc(100vh - 72px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    "
+  >
+    <div>
+      <h1 class="welcome-title" style="margin:0;">
+        Welcome to Afreximbank: Trade and Investment Management Portal (TIMP)
+      </h1>
+      <p class="welcome-sub">
+        Select your region and language to continue.
       </p>
-      <div class="hr"></div>
-      <div class="heroActions">
-        <a href="public.html#dealroom"><button>Explore Deal Room</button></a>
-        <a href="public.html#expo"><button class="secondary">Virtual Exhibition</button></a>
-        <a href="admin.html#analytics"><button class="secondary">View Analytics (Admin)</button></a>
-      </div>
     </div>
-
-    <div style="height:18px;"></div>
-  </div>
+  </main>
 
   <script src="data.js"></script>
   <script src="util.js"></script>
   <script src="app.js"></script>
-  <script src="auth.js"></script>
 
   <script>
-    // Fill region selector (keeps behavior consistent)
+    // Fill region selector
     const regionSel = document.getElementById("regionSel");
-    if (window.TIMP_REGIONS && regionSel){
-      TIMP_REGIONS.forEach(r=>{
+    if (regionSel && window.TIMP_REGIONS) {
+      TIMP_REGIONS.forEach(r => {
         const opt = document.createElement("option");
         opt.value = r.id;
-        opt.textContent = r.name[pickLang()] || r.name.en;
+        opt.textContent = (r.name && (r.name[pickLang()] || r.name.en)) ? (r.name[pickLang()] || r.name.en) : r.id;
         regionSel.appendChild(opt);
       });
     }
+
+    // Keeps language/region behavior consistent with your other pages
     if (typeof initTopbar === "function") initTopbar();
-
-    // Open Portal visibility
-    const authed = (window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function") ? TIMP_AUTH.isAuthed() : false;
-    const openPortalBtn = document.getElementById("openPortalBtn");
-    if (openPortalBtn) openPortalBtn.style.display = authed ? "inline-block" : "none";
-
-    // Safe getters (localStorage-first)
-    function getEventsSafe(){
-      try{
-        const x = JSON.parse(localStorage.getItem("timp_events") || "null");
-        if (Array.isArray(x)) return x;
-      }catch(e){}
-      return (window.TIMP_DATA && Array.isArray(TIMP_DATA.events)) ? TIMP_DATA.events : [];
-    }
-    function getDealsSafe(){
-      try{
-        const x = JSON.parse(localStorage.getItem("timp_deals") || "null");
-        if (Array.isArray(x)) return x;
-      }catch(e){}
-      return (window.TIMP_DATA && Array.isArray(TIMP_DATA.deals)) ? TIMP_DATA.deals : [];
-    }
-
-    function regionId(){
-      return document.getElementById("regionSel")?.value || localStorage.getItem("timp_region") || "non_reg";
-    }
-    function byRegion(rows){
-      const r = regionId();
-      if (r === "non_reg") return rows;
-      return (rows || []).filter(x => !x?.region || x.region === r);
-    }
-    function isPublishedDeal(d){
-      const s = String(d?.status || "").toLowerCase().trim();
-      return (s === "published" || s === "active");
-    }
-    function isPublishedEvent(e){
-      return String(e?.status || "").toLowerCase().trim() === "published";
-    }
-    function fmtPipeline(totalM){
-      const totalB = totalM / 1000;
-      if (totalB >= 1) return `$${totalB.toFixed(2)}bn`;
-      return `$${Math.round(totalM).toLocaleString()}m`;
-    }
-
-    function renderHome(){
-      const deals = byRegion(getDealsSafe()).filter(isPublishedDeal);
-      const events = byRegion(getEventsSafe()).filter(isPublishedEvent);
-
-      // KPIs
-      const pipelineM = deals.reduce((sum, d)=> sum + Number(d.ticket_usd_m || 0), 0);
-      const kpiPipeline = document.getElementById("kpiPipeline");
-      const kpiDeals = document.getElementById("kpiDeals");
-      const kpiEvents = document.getElementById("kpiEvents");
-      if (kpiPipeline) kpiPipeline.textContent = fmtPipeline(pipelineM);
-      if (kpiDeals) kpiDeals.textContent = String(deals.length);
-      if (kpiEvents) kpiEvents.textContent = String(events.length);
-
-      // Deals preview
-      const dealsEl = document.getElementById("dealsPreview");
-      if (dealsEl){
-        const top = deals.slice(0, 6);
-        dealsEl.innerHTML = top.length ? top.map(d => `
-          <div class="card" style="margin:0;">
-            <div class="mini">
-              <div>
-                <div style="font-weight:700;">${(d.country || "Deal")} • ${(d.sector || "")}</div>
-                <div class="muted" style="margin-top:4px;">Stage: <b>${(d.stage || "—")}</b></div>
-              </div>
-              <span class="tag ${String(d.warmth||"Warm")==="Hot"?"ok":String(d.warmth||"Warm")==="Cold"?"muted":"warn"}">${(d.warmth || "Warm")}</span>
-            </div>
-            <div class="hr"></div>
-            <div class="muted">${(d.summary || "Opportunity summary will appear here.").slice(0, 120)}${(d.summary||"").length>120?"…":""}</div>
-            <div style="height:10px;"></div>
-            <a href="public.html#dealroom"><button class="secondary" style="width:100%;">View in Deal Room</button></a>
-          </div>
-        `).join("") : `<div class="muted"><small>No published deals yet for this region.</small></div>`;
-      }
-
-      // Events preview
-      const evEl = document.getElementById("eventsPreview");
-      if (evEl){
-        const topE = events.slice(0, 6);
-        evEl.innerHTML = topE.length ? `
-          <table class="table">
-            <thead><tr><th>Event</th><th>Date</th><th>Venue</th><th></th></tr></thead>
-            <tbody>
-              ${topE.map(e => `
-                <tr>
-                  <td><b>${e.title || "Event"}</b><br><small class="muted">${e.type || ""}</small></td>
-                  <td>${e.date || ""} <small class="muted">${e.time || ""}</small></td>
-                  <td>${e.venue || ""}</td>
-                  <td class="row-actions">
-                    <a href="public.html#events"><button class="secondary">Open</button></a>
-                  </td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        ` : `<div class="muted"><small>No published events yet for this region.</small></div>`;
-      }
-    }
-
-    // Re-render when region/lang changes
-    document.getElementById("regionSel")?.addEventListener("change", renderHome);
-    window.addEventListener("storage", (e)=>{
-      if (e.key === "timp_deals" || e.key === "timp_events") renderHome();
-    });
-
-    renderHome();
   </script>
+
+  <script src="auth.js"></script>
+  <script>
+    // show Open Portal only if registered on this browser
+    const btn = document.getElementById("openPortalBtn");
+    if (btn) btn.style.display = (window.TIMP_AUTH && TIMP_AUTH.isAuthed && TIMP_AUTH.isAuthed()) ? "inline-block" : "none";
+  </script>
+
+  <!-- YouTube Iframe API for Play/Pause -->
+  <script>
+    let bgPlayer = null;
+    let bgPlaying = true;
+
+    function setBgLabel() {
+      const label = document.getElementById("bgToggleLabel");
+      if (label) label.textContent = bgPlaying ? "Pause background" : "Play background";
+    }
+
+    // Load YouTube Iframe API
+    (function loadYT(){
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    })();
+
+    // Called by YouTube API when ready
+    window.onYouTubeIframeAPIReady = function () {
+      try {
+        bgPlayer = new YT.Player("bgPlayer", {
+          events: {
+            onReady: (e) => {
+              // Force mute (autoplay policy + user request)
+              try { e.target.mute(); } catch(_) {}
+              // Autoplay best-effort
+              try { e.target.playVideo(); } catch(_) {}
+              bgPlaying = true;
+              setBgLabel();
+            }
+          }
+        });
+      } catch (err) {
+        // If API fails, hide toggle (video still plays by URL params)
+        const t = document.getElementById("bgToggleBtn");
+        if (t) t.style.display = "none";
+      }
+    };
+
+    // Toggle button
+    document.getElementById("bgToggleBtn")?.addEventListener("click", () => {
+      if (!bgPlayer || typeof bgPlayer.getPlayerState !== "function") return;
+
+      try {
+        // Always keep muted
+        try { bgPlayer.mute(); } catch(_) {}
+
+        const state = bgPlayer.getPlayerState(); // 1 playing, 2 paused, etc.
+        if (state === 1) {
+          bgPlayer.pauseVideo();
+          bgPlaying = false;
+        } else {
+          bgPlayer.playVideo();
+          bgPlaying = true;
+        }
+        setBgLabel();
+      } catch (e) {
+        // Fail quietly
+      }
+    });
+  </script>
+
 </body>
 </html>
