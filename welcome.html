@@ -7,101 +7,72 @@
   <link rel="stylesheet" href="styles.css" />
 
   <style>
-    /* --- Fullscreen YouTube background --- */
-    .bg-video {
+    .yt-bg{
       position: fixed;
       inset: 0;
-      z-index: 0;
+      z-index: -2;
       overflow: hidden;
+      pointer-events: none;
       background: #000;
-      /* subtle “cinema” treatment */
-      filter: blur(1.5px) brightness(0.85) contrast(1.08) saturate(1.05);
-      transform: scale(1.02); /* prevents edge blur seams */
     }
-
-    .bg-video iframe {
+    .yt-bg iframe{
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 120vw;      /* overfill to avoid black bars */
-      height: 120vh;
-      transform: translate(-50%, -50%) scale(1.02);
-      pointer-events: none; /* clicks go to your UI, not the video */
+      width: 140vw;
+      height: 140vh;
+      transform: translate(-50%, -50%);
       border: 0;
-      opacity: 0.98;
-      /* gentle breathing motion */
-      animation: bgBreath 18s ease-in-out infinite;
     }
-
-    @keyframes bgBreath {
-      0%   { transform: translate(-50%, -50%) scale(1.02); }
-      50%  { transform: translate(-50%, -50%) scale(1.06); }
-      100% { transform: translate(-50%, -50%) scale(1.02); }
+    .yt-bg::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: rgba(0,0,0,.58);
     }
-
-    /* Respect reduced-motion preference */
-    @media (prefers-reduced-motion: reduce) {
-      .bg-video iframe { animation: none; }
+    .welcomeShell{
+      min-height: calc(100vh - 72px);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 24px;
+      text-align:center;
     }
-
-    /* dark overlay for readability */
-    .bg-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 1;
-      background: radial-gradient(circle at 30% 20%, rgba(0,0,0,0.35), rgba(0,0,0,0.65));
+    .welcomeCard{
+      width: min(980px, 100%);
+      padding: 22px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.28);
+      backdrop-filter: blur(10px);
     }
-
-    /* keep UI above the video */
-    .topbar, main {
-      position: relative;
-      z-index: 2;
-    }
-
-    /* Make the heading pop on video */
-    .welcome-title {
-      color: #fff;
-      text-shadow: 0 10px 35px rgba(0,0,0,0.55);
-    }
-    .welcome-sub {
-      color: rgba(255,255,255,0.85);
-      max-width: 860px;
-      margin: 14px auto 0 auto;
-      line-height: 1.5;
-      text-shadow: 0 10px 35px rgba(0,0,0,0.45);
+    .welcomeCard h1{ margin:0 0 10px 0; }
+    .welcomeCard p{ color: var(--muted); line-height:1.7; margin:0; }
+    .ctaRow{
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      flex-wrap:wrap;
+      margin-top:14px;
     }
   </style>
 </head>
+
 <body>
-
-  <!-- Background Video -->
-  <div class="bg-video" aria-hidden="true">
-    <!--
-      Video ID: 7vj2c8CliH8
-      IMPORTANT for loop: loop=1 + playlist=VIDEO_ID
-      IMPORTANT for play/pause toggle: enablejsapi=1
-    -->
+  <!-- Background video -->
+  <div class="yt-bg" aria-hidden="true">
     <iframe
-      id="bgPlayer"
-      src="https://www.youtube-nocookie.com/embed/7vj2c8CliH8?autoplay=1&mute=1&loop=1&playlist=7vj2c8CliH8&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1"
-      title="Background video"
-      allow="autoplay; encrypted-media"
+      src="https://www.youtube.com/embed/7vj2c8CliH8?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&playsinline=1&loop=1&playlist=7vj2c8CliH8"
+      allow="autoplay; encrypted-media; picture-in-picture"
       referrerpolicy="strict-origin-when-cross-origin"
-      loading="lazy"
-    ></iframe>
+      title="TIMP background video">
+    </iframe>
   </div>
-  <div class="bg-overlay" aria-hidden="true"></div>
 
-  <!-- KEEP ONLY the pills area -->
+  <!-- Topbar (NO Pause/Play button here) -->
   <div class="topbar" style="justify-content:flex-end;">
     <div class="pills">
       <a class="pill" href="index.html"><small>Home</small></a>
-      <a class="pill" id="openPortalBtn" href="public.html#events" style="display:none;"><small>Open Portal</small></a>
-
-      <!-- NEW: video toggle -->
-      <button class="pill" id="bgToggleBtn" type="button" style="cursor:pointer;">
-        <small id="bgToggleLabel">Pause background</small>
-      </button>
 
       <div class="pill">
         <small>Region</small>&nbsp;<select id="regionSel"></select>
@@ -119,29 +90,34 @@
     </div>
   </div>
 
-  <!-- Centered welcome content -->
-  <main
-    style="
-      min-height: calc(100vh - 72px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-    "
-  >
-    <div>
-      <h1 class="welcome-title" style="margin:0;">
-        Welcome to Afreximbank: Trade and Investment Management Portal (TIMP)
-      </h1>
-      <p class="welcome-sub">
+  <main class="welcomeShell">
+    <div class="welcomeCard">
+      <h1>Welcome to Afreximbank: Trade and Investment Management Portal (TIMP)</h1>
+      <p>
+        A single access point for events, curated opportunities, deal discovery, and structured investor engagement.
       </p>
+
+      <div class="ctaRow">
+        <a href="register.html"><button>Register</button></a>
+
+        <!-- Open Portal only if registered on this browser -->
+        <a href="public.html#events">
+          <button class="secondary" id="openPortalBtn" style="display:none;">Open Portal</button>
+        </a>
+
+        <a href="admin.html"><button class="secondary">Admin Console</button></a>
+      </div>
+
+      <div style="margin-top:10px;">
+        <small class="muted">Tip: Register once on this browser to unlock “Open Portal” (demo access control).</small>
+      </div>
     </div>
   </main>
 
   <script src="data.js"></script>
   <script src="util.js"></script>
   <script src="app.js"></script>
+  <script src="auth.js"></script>
 
   <script>
     // Fill region selector
@@ -154,79 +130,12 @@
         regionSel.appendChild(opt);
       });
     }
-
-    // Keeps language/region behavior consistent with your other pages
     if (typeof initTopbar === "function") initTopbar();
+
+    // Open Portal button only for authed users
+    const authed = (window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function") ? TIMP_AUTH.isAuthed() : false;
+    const openBtn = document.getElementById("openPortalBtn");
+    if(openBtn) openBtn.style.display = authed ? "inline-block" : "none";
   </script>
-
-  <script src="auth.js"></script>
-  <script>
-    // show Open Portal only if registered on this browser
-    const btn = document.getElementById("openPortalBtn");
-    if (btn) btn.style.display = (window.TIMP_AUTH && TIMP_AUTH.isAuthed && TIMP_AUTH.isAuthed()) ? "inline-block" : "none";
-  </script>
-
-  <!-- YouTube Iframe API for Play/Pause -->
-  <script>
-    let bgPlayer = null;
-    let bgPlaying = true;
-
-    function setBgLabel() {
-      const label = document.getElementById("bgToggleLabel");
-      if (label) label.textContent = bgPlaying ? "Pause background" : "Play background";
-    }
-
-    // Load YouTube Iframe API
-    (function loadYT(){
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.head.appendChild(tag);
-    })();
-
-    // Called by YouTube API when ready
-    window.onYouTubeIframeAPIReady = function () {
-      try {
-        bgPlayer = new YT.Player("bgPlayer", {
-          events: {
-            onReady: (e) => {
-              // Force mute (autoplay policy + user request)
-              try { e.target.mute(); } catch(_) {}
-              // Autoplay best-effort
-              try { e.target.playVideo(); } catch(_) {}
-              bgPlaying = true;
-              setBgLabel();
-            }
-          }
-        });
-      } catch (err) {
-        // If API fails, hide toggle (video still plays by URL params)
-        const t = document.getElementById("bgToggleBtn");
-        if (t) t.style.display = "none";
-      }
-    };
-
-    // Toggle button
-    document.getElementById("bgToggleBtn")?.addEventListener("click", () => {
-      if (!bgPlayer || typeof bgPlayer.getPlayerState !== "function") return;
-
-      try {
-        // Always keep muted
-        try { bgPlayer.mute(); } catch(_) {}
-
-        const state = bgPlayer.getPlayerState(); // 1 playing, 2 paused, etc.
-        if (state === 1) {
-          bgPlayer.pauseVideo();
-          bgPlaying = false;
-        } else {
-          bgPlayer.playVideo();
-          bgPlaying = true;
-        }
-        setBgLabel();
-      } catch (e) {
-        // Fail quietly
-      }
-    });
-  </script>
-
 </body>
 </html>
