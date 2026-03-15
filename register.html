@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ATIMP – Register</title>
+  <title>TIMP – Register</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,9 +15,11 @@
         <span class="sub">Create your portal profile to continue</span>
       </div>
     </div>
+
+    <!-- ✅ Fixed links -->
     <div class="pills">
-      <a class="pill" href="index.html"><small>Welcome</small></a>
-      <a class="pill" href="home.html"><small>Home</small></a>
+      <a class="pill" href="welcome.html"><small>Welcome</small></a>
+      <a class="pill" href="index.html"><small>Home</small></a>
     </div>
   </div>
 
@@ -62,7 +64,8 @@
 
       <div class="row-actions">
         <button onclick="doRegister()">Register & Continue</button>
-        <button class="secondary" onclick="location.href='home.html'">Back</button>
+        <!-- ✅ Back goes to index (Home) -->
+        <button class="secondary" onclick="location.href='index.html'">Back</button>
       </div>
 
       <div style="height:10px"></div>
@@ -98,11 +101,9 @@
       saveMyProfile(p);
       TIMP_AUTH.login(p.email);
 
-      // send user into the full portal (Events page)
       location.href = "public.html#events";
     }
 
-    // If already registered, show quick message and route to portal
     if(TIMP_AUTH.isAuthed()){
       $("msg").innerHTML = "You’re already registered on this browser. Redirecting to portal...";
       setTimeout(()=> location.href="public.html#events", 700);
