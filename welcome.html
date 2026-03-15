@@ -7,150 +7,58 @@
   <link rel="stylesheet" href="styles.css" />
 
   <style>
-    .yt-bg{
+    /* Full-screen background video layer */
+    .bgVideo{
       position: fixed;
       inset: 0;
-      z-index: -2;
+      z-index: -1;          /* always behind page content */
       overflow: hidden;
-      pointer-events: none;
       background: #000;
+      pointer-events: none; /* prevents any pause/play UI interactions */
     }
-    .yt-bg iframe{
+
+    /* Make the YouTube iframe behave like a cover background */
+    .bgVideo iframe{
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 140vw;
-      height: 140vh;
+      width: 120vw;
+      height: 120vh;
       transform: translate(-50%, -50%);
       border: 0;
+      pointer-events: none;
+      filter: saturate(1.05) brightness(0.85);
     }
-    .yt-bg::after{
-      content:"";
+
+    /* Dark overlay for readability */
+    .bgOverlay{
       position:absolute;
       inset:0;
-      background: rgba(0,0,0,.58);
+      background:
+        radial-gradient(900px 500px at 30% 20%, rgba(255,255,255,0.10), transparent 60%),
+        linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.65));
     }
-    .welcomeShell{
-      min-height: calc(100vh - 72px);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding: 24px;
-      text-align:center;
-    }
-    .welcomeCard{
-      width: min(980px, 100%);
-      padding: 22px;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(0,0,0,.28);
-      backdrop-filter: blur(10px);
-    }
-    .welcomeCard h1{ margin:0 0 10px 0; }
-    .welcomeCard p{ color: var(--muted); line-height:1.7; margin:0; }
-    .ctaRow{
-      display:flex;
-      gap:10px;
-      justify-content:center;
-      flex-wrap:wrap;
-      margin-top:14px;
-    }
-    <style>
-  .bgVideo{
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    background: #000;
-  }
-  /* Make the iframe behave like a cover background */
-  .bgVideo iframe{
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 120vw;
-    height: 120vh;
-    transform: translate(-50%, -50%);
-    border: 0;
-    pointer-events: none; /* prevents clicks (no pause/play UI) */
-  }
-  .bgOverlay{
-    position:absolute;
-    inset:0;
-    background:
-      radial-gradient(900px 500px at 30% 20%, rgba(255,255,255,0.10), transparent 60%),
-      linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.65));
-  }
 
-  /* Ensure your page content sits above the video */
-  body > *{ position: relative; z-index: 1; }
-</style>
+    /* Centered title only */
+    .welcomeMain{
+      min-height: calc(100vh - 72px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
   </style>
 </head>
-<script>
-  // YouTube Iframe API loader
-  (function(){
-    const tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    document.head.appendChild(tag);
-  })();
 
-  const YT_VIDEO_ID = "7vj2c8CliH8";
-  let ytPlayer = null;
-
-  function onYouTubeIframeAPIReady() {
-    ytPlayer = new YT.Player("ytBg", {
-      videoId: YT_VIDEO_ID,
-      playerVars: {
-        autoplay: 1,
-        mute: 1,
-        controls: 0,
-        playsinline: 1,
-        modestbranding: 1,
-        rel: 0,
-        iv_load_policy: 3,
-        disablekb: 1,
-        fs: 0,
-        // Loop trick: YouTube requires playlist=ID for loop to work reliably
-        loop: 1,
-        playlist: YT_VIDEO_ID
-      },
-      events: {
-        onReady: (e) => {
-          try{
-            e.target.mute();
-            e.target.playVideo();
-          }catch(err){}
-        },
-        onStateChange: (e) => {
-          // Force replay instantly when ended (minimizes end-screen flash)
-          if (e.data === YT.PlayerState.ENDED) {
-            try{
-              e.target.seekTo(0, true);
-              e.target.playVideo();
-            }catch(err){}
-          }
-        }
-      }
-    });
-  }
-</script>
 <body>
-  <!-- Background video -->
-  <div class="yt-bg" aria-hidden="true">
-    <iframe
-      src="https://www.youtube.com/embed/7vj2c8CliH8?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&playsinline=1&loop=1&playlist=7vj2c8CliH8"
-      allow="autoplay; encrypted-media; picture-in-picture"
-      referrerpolicy="strict-origin-when-cross-origin"
-      title="TIMP background video">
-    </iframe>
+  <!-- Background video (YouTube via API) -->
+  <div class="bgVideo" aria-hidden="true">
+    <div id="ytBg"></div>
+    <div class="bgOverlay"></div>
   </div>
-<!-- Background video (YouTube) -->
-<div class="bgVideo" aria-hidden="true">
-  <div id="ytBg"></div>
-  <div class="bgOverlay"></div>
-</div>
-  <!-- Topbar (NO Pause/Play button here) -->
+
+  <!-- Topbar -->
   <div class="topbar" style="justify-content:flex-end;">
     <div class="pills">
       <a class="pill" href="index.html"><small>Home</small></a>
@@ -171,17 +79,8 @@
     </div>
   </div>
 
-   <!-- Centered welcome content (ONLY the title) -->
-  <main
-    style="
-      min-height: calc(100vh - 72px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-    "
-  >
+  <!-- Centered welcome content (ONLY the title) -->
+  <main class="welcomeMain">
     <div>
       <h1 style="margin:0;">
         Welcome to Afreximbank: Trade and Investment Management Portal (TIMP)
@@ -201,16 +100,63 @@
       TIMP_REGIONS.forEach(r => {
         const opt = document.createElement("option");
         opt.value = r.id;
-        opt.textContent = (r.name && (r.name[pickLang()] || r.name.en)) ? (r.name[pickLang()] || r.name.en) : r.id;
+        opt.textContent = (r.name && (r.name[pickLang()] || r.name.en))
+          ? (r.name[pickLang()] || r.name.en)
+          : r.id;
         regionSel.appendChild(opt);
       });
     }
     if (typeof initTopbar === "function") initTopbar();
+  </script>
 
-    // Open Portal button only for authed users
-    const authed = (window.TIMP_AUTH && typeof TIMP_AUTH.isAuthed === "function") ? TIMP_AUTH.isAuthed() : false;
-    const openBtn = document.getElementById("openPortalBtn");
-    if(openBtn) openBtn.style.display = authed ? "inline-block" : "none";
+  <script>
+    // Load YouTube Iframe API
+    (function(){
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    })();
+
+    const YT_VIDEO_ID = "7vj2c8CliH8";
+    let ytPlayer = null;
+
+    function onYouTubeIframeAPIReady() {
+      ytPlayer = new YT.Player("ytBg", {
+        videoId: YT_VIDEO_ID,
+        playerVars: {
+          autoplay: 1,
+          mute: 1,
+          controls: 0,
+          playsinline: 1,
+          modestbranding: 1,
+          rel: 0,
+          iv_load_policy: 3,
+          disablekb: 1,
+          fs: 0,
+
+          // Loop trick: playlist is required for loop to work reliably
+          loop: 1,
+          playlist: YT_VIDEO_ID
+        },
+        events: {
+          onReady: (e) => {
+            try {
+              e.target.mute();
+              e.target.playVideo();
+            } catch(err) {}
+          },
+          onStateChange: (e) => {
+            // Force replay instantly when ended (minimizes end-screen flash)
+            if (e.data === YT.PlayerState.ENDED) {
+              try {
+                e.target.seekTo(0, true);
+                e.target.playVideo();
+              } catch(err) {}
+            }
+          }
+        }
+      });
+    }
   </script>
 </body>
 </html>
