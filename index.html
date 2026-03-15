@@ -184,42 +184,18 @@
       </div>
     </div>
 
-    <!-- OVERVIEW + RIGHT VIDEO CARD (muted YouTube) -->
-    <div class="card" style="margin-top:14px;">
-      <div style="display:grid; grid-template-columns: 1.15fr .85fr; gap:16px; align-items:stretch;">
-        <div>
-          <h2 style="margin-top:0;">A single place to coordinate opportunities and engagement</h2>
-
-          <p style="color:var(--muted); line-height:1.7;">
-            TIMP brings key workflows into one portal: opportunity intake, deal visibility, event profiling,
-            and structured follow-up. Stakeholders can discover relevant opportunities, request materials,
-            and engage through lightweight messaging — while Admin curates and governs what goes public.
-          </p>
-
-          <div class="hr"></div>
-
-          <p style="color:var(--muted); line-height:1.7; margin-bottom:0;">
-            In the full build, the same structure supports controlled access, audit-ready publishing, analytics,
-            and integrations for scheduling, notifications, and document governance.
-          </p>
-        </div>
-
-        <div>
-          <div class="videoCard" aria-label="Home video">
-            <iframe
-              src="https://www.youtube.com/embed/0BpqnFuiQeg?autoplay=1&mute=1&controls=0&loop=1&playlist=0BpqnFuiQeg&playsinline=1&modestbranding=1&rel=0"
-              title="TIMP video"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              referrerpolicy="strict-origin-when-cross-origin">
-            </iframe>
-            <div class="videoOverlay" aria-hidden="true"></div>
-          </div>
-          <div style="height:8px;"></div>
-          <small class="muted">Note: mobile browsers may require a tap before autoplay begins (even when muted).</small>
-        </div>
-      </div>
-    </div>
-
+    <!-- FULL-WIDTH VIDEO CARD (replaces the text+video split section) -->
+<div class="card" style="margin-top:14px; padding:0; overflow:hidden;">
+  <div class="videoCard" aria-label="Home video" style="min-height:360px; border:0; border-radius:18px;">
+    <iframe
+      src="https://www.youtube.com/embed/0BpqnFuiQeg?autoplay=1&mute=1&controls=0&loop=1&playlist=0BpqnFuiQeg&playsinline=1&modestbranding=1&rel=0"
+      title="TIMP video"
+      allow="autoplay; encrypted-media; picture-in-picture"
+      referrerpolicy="strict-origin-when-cross-origin">
+    </iframe>
+    <div class="videoOverlay" aria-hidden="true"></div>
+  </div>
+</div>
     <!-- FEATURED OPPORTUNITIES (preview cards) -->
     <div class="card" style="margin-top:14px;">
       <div class="sectionTitleRow">
