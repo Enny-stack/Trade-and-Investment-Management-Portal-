@@ -1,4 +1,4 @@
-<!-- admin.html (UPDATED: Engagement Hub ↔ Public Chat sync + Event Banner preview + Deal Pipeline KPI + Attendance clarity + Robust Bulk Deals Upload) -->
+<!-- admin.html (UPDATED: Prospectus Requests workflow + requester details + upload + notify) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -39,18 +39,16 @@
         <a href="#regs" data-nav="registrations"><span class="i18n" data-key="registrations">Registrations</span><span class="badge" id="regCount"></span></a>
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
 
-        <!-- ✅ Approve opportunities submitted from Public -->
         <a href="#submissions" data-nav="submissions"><span>Opportunity Submissions</span><span class="badge" id="subCount"></span></a>
 
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
 
-        <!-- ✅ Virtual Exhibition Admin -->
         <a href="#expo" data-nav="expo"><span>Virtual Exhibition</span></a>
 
-        <!-- ✅ Public "Send Inquiry" inbox -->
         <a href="#inquiries" data-nav="inquiries"><span>Inquiries</span><span class="badge" id="inqCount"></span></a>
 
-        <!-- ✅ Engagement Hub (messages/chat) -->
+        <a href="#prospectus-requests" data-nav="prospectus_requests"><span>Prospectus Requests</span><span class="badge" id="prospectusReqCount"></span></a>
+
         <a href="#engagement" data-nav="engagement"><span>Engagement Hub</span><span class="badge" id="msgCount"></span></a>
 
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
@@ -88,9 +86,6 @@
   <script src="app.js"></script>
 
   <script>
-    /* =========================================================
-       Safety fallbacks (so demo works even if util.js not updated)
-       ========================================================= */
     if(typeof getEvents !== "function"){
       function getEvents(){
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
@@ -124,8 +119,6 @@
         localStorage.setItem("timp_regs", JSON.stringify(r || []));
       }
     }
-
-    // ✅ booths storage fallback (Virtual Exhibition)
     if(typeof getBooths !== "function"){
       function getBooths(){
         const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
@@ -138,7 +131,6 @@
       }
     }
 
-    // ✅ inquiries storage (Public "Send inquiry" -> Admin inbox)
     function getInquiries(){
       try{ return JSON.parse(localStorage.getItem("timp_inquiries") || "[]"); }catch(e){ return []; }
     }
@@ -146,9 +138,6 @@
       localStorage.setItem("timp_inquiries", JSON.stringify(rows || []));
     }
 
-    /* =========================================================
-       ✅ Engagement Hub ↔ Public Event Chat sync (single inbox)
-       ========================================================= */
     const TIMP_MSG_STORE_KEY = "timp_messages";
     const TIMP_EVENT_CHAT_KEYS = [
       "timp_event_chat",
@@ -242,7 +231,6 @@
       base.unshift(m);
       lsWriteArray(TIMP_MSG_STORE_KEY, base);
 
-      // Mirror to a canonical event chat store if it’s clearly event-related (demo sync)
       const eventId = m?.context?.event_id || m?.context?.eventId || "";
       const isEventThread = (String(m.to||"").toLowerCase() === "event") || !!eventId;
 
@@ -254,7 +242,6 @@
       }
     }
 
-    // ✅ analytics metrics storage
     function getMetrics(){
       try{ return JSON.parse(localStorage.getItem("timp_metrics") || "[]"); }catch(e){ return []; }
     }
@@ -278,9 +265,35 @@
       }catch(e){ return []; }
     }
 
-    /* =========================
-       Small helpers
-       ========================= */
+    function saveProspectusRequests(rows){
+      localStorage.setItem("timp_prospectus_requests", JSON.stringify(rows || []));
+    }
+
+    function getAdminProspectusRequests(){
+      const deals = getDeals();
+      const region = pickRegion();
+
+      return getProspectusRequests()
+        .filter(r => {
+          const d = deals.find(x => x.id === r.deal_id);
+          if(!d) return region === "non_reg";
+          return region === "non_reg" || d.region === region;
+        })
+        .sort((a,b) => new Date(b.updated_at || b.created_at || b.at || 0) - new Date(a.updated_at || a.created_at || a.at || 0));
+    }
+
+    function getProspectusRequestById(id){
+      return getProspectusRequests().find(x => x.id === id);
+    }
+
+    function adminProspectusStatusTag(status){
+      const s = String(status || "Pending");
+      const cls = /available|approved|closed/i.test(s) ? "ok" : (s === "Declined" ? "muted" : "warn");
+      return `<span class="tag ${cls}">${escapeHtml(s)}</span>`;
+    }
+
+    let ACTIVE_PROSPECTUS_REQUEST_ID = "";
+
     function escapeHtml(s){
       return String(s || "")
         .replace(/&/g,"&amp;")
@@ -317,7 +330,6 @@
       if(navigator.clipboard && navigator.clipboard.writeText){
         return navigator.clipboard.writeText(t).then(()=>true).catch(()=>false);
       }
-      // fallback
       try{
         const ta = document.createElement("textarea");
         ta.value = t;
@@ -349,8 +361,8 @@
         const subs = adminFilter(deals).filter(d => String(d.status||"").toLowerCase() === "pending");
         const inquiries = getInquiries().filter(x => (x.status||"New") !== "Handled");
         const msgs = getMessages().filter(m => String(m.status||"Unread") !== "Read" && (m.to === "Admin" || m.to === "All" || !m.to));
+        const prospectusOpen = getAdminProspectusRequests().filter(r => String(r.status || "Pending") !== "Closed").length;
 
-        // registrations badge is region-aware (same logic you already used)
         const regs = regsAll.filter(r=>{
           const ev = events.find(e=>e.id===r.event_id);
           if(!ev) return (pickRegion()==="non_reg");
@@ -361,12 +373,10 @@
         if ($("#subCount")) $("#subCount").textContent = subs.length;
         if ($("#inqCount")) $("#inqCount").textContent = inquiries.length;
         if ($("#msgCount")) $("#msgCount").textContent = msgs.length;
+        if ($("#prospectusReqCount")) $("#prospectusReqCount").textContent = prospectusOpen;
       }catch(e){}
     }
 
-    /* =========================
-       Topbar init
-       ========================= */
     const regionSel = document.getElementById("regionSel");
     TIMP_REGIONS.forEach(r=>{
       const opt = document.createElement("option");
@@ -376,11 +386,9 @@
     });
     initTopbar();
 
-    // ✅ Re-render current page when region/lang changes (keeps views in sync)
     document.getElementById("regionSel")?.addEventListener("change", () => route());
     document.getElementById("langSel")?.addEventListener("change", () => route());
 
-    // ✅ Refresh badges when other tab updates localStorage
     window.addEventListener("storage", ()=> updateBadges());
 
     function setActive(navKey){
@@ -393,9 +401,6 @@
       return filterByRegion(items);
     }
 
-    /* =========================
-       Dashboard
-       ========================= */
     function renderDashboard(){
       setActive("dashboard");
       $("#pageTitle").textContent = "Admin Dashboard";
@@ -452,9 +457,11 @@
             <small>Investment Engagement Hub (chat).</small>
           </div>
           <div class="card">
-            <div class="mini"><div><div class="label">Prospectus requests</div><div class="big">${getProspectusRequests().length}</div></div><span class="tag ok">Signals</span></div>
+            <div class="mini"><div><div class="label">Prospectus requests</div><div class="big">${getProspectusRequests().length}</div></div><span class="tag ok">Workflow</span></div>
             <div class="hr"></div>
-            <small>From Deal Room “Request Prospectus”.</small>
+            <small>Review requester details, upload material, and notify users.</small>
+            <div style="height:10px"></div>
+            <button class="secondary" onclick="location.hash='#prospectus-requests'">Open Queue</button>
           </div>
         </div>
 
@@ -468,6 +475,7 @@
               <button class="secondary" onclick="location.hash='#regs'">Approve Registrations</button>
               <button class="secondary" onclick="location.hash='#submissions'">Approve Opportunities</button>
               <button class="secondary" onclick="location.hash='#inquiries'">View Inquiries</button>
+              <button class="secondary" onclick="location.hash='#prospectus-requests'">Prospectus Requests</button>
               <button class="secondary" onclick="location.hash='#engagement'">Engagement Hub</button>
               <button class="secondary" onclick="location.hash='#analytics'">View Analytics</button>
             </div>
@@ -487,9 +495,6 @@
       updateBadges();
     }
 
-    /* =========================
-       Event Manager
-       ========================= */
     function renderEventManager(){
       setActive("events");
       $("#pageTitle").textContent = t("create_event");
@@ -752,7 +757,6 @@
       renderEventManager();
     }
 
-    // ✅ WORKING: copies a real deep-link to Public that includes eventId
     function copyInviteLink(){
       const id = ($("#evId").value || "").trim();
       if(!id) return setToast("Missing", "Save the event first (needs an ID).");
@@ -822,9 +826,6 @@
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
     }
 
-    /* =========================
-       Registrations (with Attendance toggle)
-       ========================= */
     function renderRegistrations(){
       setActive("registrations");
       $("#pageTitle").textContent = t("registrations");
@@ -987,9 +988,6 @@
       renderDashboard();
     }
 
-    /* =========================
-       Deal Book (cap 40 + download HTML)
-       ========================= */
     let LAST_DEALBOOK = null;
 
     function renderDealBook(){
@@ -1109,9 +1107,6 @@
       logMetric("dealbook_download", { title: LAST_DEALBOOK.title || "Deal_Book", count: LAST_DEALBOOK.list.length });
     }
 
-    /* =========================
-       Opportunity Submissions (Approve deals submitted from Public)
-       ========================= */
     function renderSubmissions(){
       setActive("submissions");
       $("#pageTitle").textContent = "Opportunity Submissions";
@@ -1177,9 +1172,6 @@
       renderDashboard();
     }
 
-    /* =========================
-       Deals Manager + Prospectus upload + Robust Bulk CSV Import
-       ========================= */
     function renderDealsManager(){
       setActive("deals");
       $("#pageTitle").textContent = "Deals Manager";
@@ -1420,7 +1412,6 @@
       logMetric("prospectus_download", { deal_id: id, filename: d.prospectus_name });
     }
 
-    // ✅ Robust CSV helpers (supports comma/semicolon/tab, quotes, and skips duplicates)
     function detectDelimiter(line){
       const commas = (line.match(/,/g) || []).length;
       const semis  = (line.match(/;/g) || []).length;
@@ -1483,7 +1474,6 @@
 
         const fallbackRegion = (pickRegion()==="non_reg") ? "north" : pickRegion();
 
-        // Duplicate key = country+sector+ticket+stage
         const existingKeys = new Set(
           deals.map(d => [
             normKey(d.country),
@@ -1654,9 +1644,6 @@
       updateBadges();
     }
 
-    /* =========================
-       Virtual Exhibition Admin (unchanged from your version)
-       ========================= */
     function renderExpoAdmin(){
       setActive("expo");
       $("#pageTitle").textContent = "Virtual Exhibition";
@@ -1905,9 +1892,6 @@
       renderExpoAdmin();
     }
 
-    /* =========================
-       Inquiries Inbox (Public "Send inquiry")
-       ========================= */
     function renderInquiries(){
       setActive("inquiries");
       $("#pageTitle").textContent = "Inquiries";
@@ -1994,9 +1978,216 @@
       renderDashboard();
     }
 
-    /* =========================
-       Engagement Hub (Admin inbox + replies)
-       ========================= */
+    function renderProspectusRequests(){
+      setActive("prospectus_requests");
+
+      $("#pageTitle").textContent = "Prospectus Requests";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Review, upload, reply, and notify requesters</span>`;
+      $("#pageActions").innerHTML = `<button onclick="renderProspectusRequests()">Refresh</button>`;
+
+      const rows = getAdminProspectusRequests();
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Request Queue</h2>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Requester</th>
+                <th>Deal</th>
+                <th>Status</th>
+                <th>Requested</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                rows.length
+                ? rows.map(r => `
+                  <tr>
+                    <td>
+                      <b>${escapeHtml(r.requester_name || "Public User")}</b><br>
+                      <small>${escapeHtml(r.requester_email || "-")}</small>
+                      ${r.requester_org ? `<br><small>${escapeHtml(r.requester_org)}</small>` : ""}
+                    </td>
+                    <td>${escapeHtml(r.deal_label || r.deal_id || "-")}</td>
+                    <td>${adminProspectusStatusTag(r.status)}</td>
+                    <td><small>${new Date(r.created_at || r.at || Date.now()).toLocaleString()}</small></td>
+                    <td><button class="secondary" onclick="openProspectusRequest('${r.id}')">Open</button></td>
+                  </tr>
+                `).join("")
+                : `<tr><td colspan="5"><small>No prospectus requests for this region yet.</small></td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="card" id="prospectusRequestDetail">
+          <small class="muted">Select a request to view details.</small>
+        </div>
+      `;
+
+      updateBadges();
+
+      if(rows.length){
+        renderProspectusRequestDetail(ACTIVE_PROSPECTUS_REQUEST_ID || rows[0].id);
+      }
+    }
+
+    function openProspectusRequest(id){
+      renderProspectusRequestDetail(id);
+    }
+
+    function renderProspectusRequestDetail(id){
+      ACTIVE_PROSPECTUS_REQUEST_ID = id;
+
+      const r = getProspectusRequestById(id);
+      const host = $("#prospectusRequestDetail");
+      if(!host || !r) return;
+
+      host.innerHTML = `
+        <h2>Request Details</h2>
+
+        <div class="grid cols-2">
+          <div>
+            <p><b>Requester:</b> ${escapeHtml(r.requester_name || "Public User")}</p>
+            <p><b>Email:</b> ${escapeHtml(r.requester_email || "-")}</p>
+            <p><b>Organisation:</b> ${escapeHtml(r.requester_org || "-")}</p>
+            <p><b>Phone:</b> ${escapeHtml(r.requester_phone || "-")}</p>
+            <p><b>Deal:</b> ${escapeHtml(r.deal_label || r.deal_id || "-")}</p>
+            <p><b>Requester Note:</b> ${r.requester_message ? escapeHtml(r.requester_message) : "<span class='muted'>None</span>"}</p>
+          </div>
+
+          <div>
+            <label>Status</label>
+            <select id="prStatus" style="width:100%;margin-top:6px;">
+              <option value="Pending" ${String(r.status||"") === "Pending" ? "selected" : ""}>Pending</option>
+              <option value="Under Review" ${String(r.status||"") === "Under Review" ? "selected" : ""}>Under Review</option>
+              <option value="Material Available" ${String(r.status||"") === "Material Available" ? "selected" : ""}>Material Available</option>
+              <option value="Declined" ${String(r.status||"") === "Declined" ? "selected" : ""}>Declined</option>
+              <option value="Closed" ${String(r.status||"") === "Closed" ? "selected" : ""}>Closed</option>
+            </select>
+
+            <div style="height:12px"></div>
+
+            <label>Admin Reply</label>
+            <textarea id="prAdminReply" rows="5" style="width:100%;margin-top:6px;">${escapeHtml(r.admin_reply || "")}</textarea>
+
+            <div style="height:12px"></div>
+
+            <label>Notification Message</label>
+            <textarea id="prNotifyText" rows="3" style="width:100%;margin-top:6px;">${escapeHtml(r.notification_text || "The requested prospectus is now available. Kindly check your profile.")}</textarea>
+
+            <div style="height:12px"></div>
+
+            <label>Upload Prospectus / Material</label>
+            <input type="file" id="prFile" onchange="uploadProspectusMaterial('${r.id}', this)" style="width:100%;margin-top:6px;">
+
+            ${
+              r.material_data_url
+              ? `
+                <div style="margin-top:10px;">
+                  <small><b>Current upload:</b> ${escapeHtml(r.material_name || "Uploaded file")}</small><br>
+                  <a href="${escapeHtml(r.material_data_url)}" download="${escapeHtml(r.material_name || "prospectus")}" class="secondary">Download current file</a>
+                </div>
+              `
+              : `<small class="muted" style="display:block;margin-top:8px;">No file uploaded yet.</small>`
+            }
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="row-actions">
+          <button onclick="saveProspectusAdminReview('${r.id}')">Save</button>
+          <button class="secondary" onclick="notifyProspectusRequester('${r.id}')">Save & Notify</button>
+          <button class="secondary" onclick="renderProspectusRequests()">Back to Queue</button>
+        </div>
+
+        ${
+          r.notified_at
+          ? `<small class="muted" style="display:block;margin-top:10px;">Last notified: ${new Date(r.notified_at).toLocaleString()}</small>`
+          : ""
+        }
+      `;
+    }
+
+    function saveProspectusAdminReview(id){
+      const rows = getProspectusRequests();
+      const i = rows.findIndex(x => x.id === id);
+      if(i < 0) return setToast("Not found", "Request not found.");
+
+      rows[i].status = $("#prStatus")?.value || rows[i].status || "Pending";
+      rows[i].admin_reply = ($("#prAdminReply")?.value || "").trim();
+      rows[i].notification_text = ($("#prNotifyText")?.value || "").trim();
+      rows[i].updated_at = new Date().toISOString();
+
+      saveProspectusRequests(rows);
+      setToast("Saved", "Prospectus request updated.");
+      renderProspectusRequests();
+      renderProspectusRequestDetail(id);
+    }
+
+    function uploadProspectusMaterial(id, input){
+      const file = input?.files?.[0];
+      if(!file) return;
+
+      if(file.size > 2 * 1024 * 1024){
+        input.value = "";
+        return setToast("File too large", "Keep demo uploads below 2 MB because this version uses localStorage.");
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(){
+        const rows = getProspectusRequests();
+        const i = rows.findIndex(x => x.id === id);
+        if(i < 0) return setToast("Not found", "Request not found.");
+
+        rows[i].material_name = file.name;
+        rows[i].material_type = file.type || "";
+        rows[i].material_data_url = String(reader.result || "");
+        rows[i].status = "Material Available";
+        rows[i].updated_at = new Date().toISOString();
+
+        saveProspectusRequests(rows);
+        setToast("Uploaded", `${file.name} attached to the request.`);
+        renderProspectusRequests();
+        renderProspectusRequestDetail(id);
+      };
+
+      reader.readAsDataURL(file);
+    }
+
+    function notifyProspectusRequester(id){
+      const rows = getProspectusRequests();
+      const i = rows.findIndex(x => x.id === id);
+      if(i < 0) return setToast("Not found", "Request not found.");
+
+      rows[i].status = $("#prStatus")?.value || rows[i].status || "Pending";
+      rows[i].admin_reply = ($("#prAdminReply")?.value || "").trim();
+      rows[i].notification_text = ($("#prNotifyText")?.value || "").trim() || "The requested prospectus is now available. Kindly check your profile.";
+      rows[i].notified_at = new Date().toISOString();
+      rows[i].read_by_user = false;
+      rows[i].updated_at = new Date().toISOString();
+
+      if(rows[i].material_data_url && ["Pending","Under Review"].includes(String(rows[i].status || ""))){
+        rows[i].status = "Material Available";
+      }
+
+      saveProspectusRequests(rows);
+      logMetric("prospectus_request_notified", {
+        request_id: id,
+        deal_id: rows[i].deal_id,
+        requester_email: rows[i].requester_email || ""
+      });
+
+      setToast("Notified", "Requester will now see this update in My Profile.");
+      renderProspectusRequests();
+      renderProspectusRequestDetail(id);
+    }
+
     function renderEngagement(){
       setActive("engagement");
       $("#pageTitle").textContent = "Engagement Hub";
@@ -2086,10 +2277,6 @@
       renderDashboard();
     }
 
-    /* =========================
-       Matchmaking / RBAC / Region Profiles / Archive
-       (unchanged from your version)
-       ========================= */
     function renderMatchmaking(){
       setActive("matchmaking");
       $("#pageTitle").textContent = t("matchmaking");
@@ -2128,9 +2315,6 @@
       `;
     }
 
-    /* =========================================================
-       ✅ Region Profiles (unchanged)
-       ========================================================= */
     const RP_STORE_KEY = "timp_region_profiles_v1";
 
     function rp_loadAll(){
@@ -2369,9 +2553,6 @@
       `;
     }
 
-    /* =========================
-       Analytics (UPDATED: Deal Pipeline in USD + clearer attendance calc)
-       ========================= */
     function renderAnalytics(){
       setActive("analytics");
       $("#pageTitle").textContent = t("analytics");
@@ -2401,7 +2582,7 @@
       const dealPipelineUsdM = activePublished.reduce((sum,d)=> sum + (Number(d.ticket_usd_m)||0), 0);
 
       function fmtUsdBillionsFromMillions(m){
-        const b = Number(m||0) / 1000; // millions -> billions
+        const b = Number(m||0) / 1000;
         const decimals = (b && b < 10) ? 1 : 0;
         return "$" + (b ? b.toFixed(decimals) : "0.0") + "B";
       }
@@ -2561,9 +2742,6 @@
         : `<small>No results.</small>`;
     }
 
-    /* =========================
-       Router
-       ========================= */
     function route(){
       const h = location.hash || "#dashboard";
       if(h.startsWith("#dashboard")) renderDashboard();
@@ -2574,6 +2752,7 @@
       else if(h.startsWith("#deals")) renderDealsManager();
       else if(h.startsWith("#expo")) renderExpoAdmin();
       else if(h.startsWith("#inquiries")) renderInquiries();
+      else if(h.startsWith("#prospectus-requests")) renderProspectusRequests();
       else if(h.startsWith("#engagement")) renderEngagement();
       else if(h.startsWith("#matchmaking")) renderMatchmaking();
       else if(h.startsWith("#regionprofiles")) renderRegionProfiles();
