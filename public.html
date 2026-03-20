@@ -1,4 +1,4 @@
-<!-- public.html (UPDATED: Published Events show Banner in LIST + Banner resolver supports banner_data_url) -->
+<!-- public.html (UPDATED: Prospectus request workflow + My Profile notifications/inbox) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -292,16 +292,59 @@
 
     function requestProspectus(dealId){
       const d = safeDeals().find(x => x.id === dealId);
-      const log = JSON.parse(localStorage.getItem("timp_prospectus_requests") || "[]");
-      log.push({
+      const p = getMyProfile();
+
+      const email = String((p && p.email) || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
+      const fullName = `${(p && p.first_name) || ""} ${(p && p.last_name) || ""}`.trim() || "Public User";
+
+      if(!email){
+        location.hash = "#profile";
+        setToast("Profile required", "Please update your profile email before requesting a prospectus.");
+        return;
+      }
+
+      const optionalMessage = (window.prompt("Optional: add a short note or purpose for this request.", "") || "").trim();
+
+      const rows = getProspectusRequestsStore();
+
+      const existingOpen = rows.find(r =>
+        r.deal_id === dealId &&
+        String(r.requester_email || "").trim().toLowerCase() === email &&
+        !["Closed", "Declined"].includes(String(r.status || "Pending"))
+      );
+
+      if(existingOpen){
+        existingOpen.updated_at = new Date().toISOString();
+        saveProspectusRequestsStore(rows);
+        location.hash = "#profile";
+        setToast("Already requested", "An open request for this deal already exists in My Profile.");
+        return;
+      }
+
+      rows.unshift({
         id: "pr" + Date.now(),
         deal_id: dealId,
         deal_label: d ? `${d.country} • ${d.sector}` : dealId,
-        at: new Date().toISOString()
+        requester_name: fullName,
+        requester_email: email,
+        requester_org: (p && p.org) || "",
+        requester_phone: (p && p.phone) || "",
+        requester_message: optionalMessage,
+        status: "Pending",
+        admin_reply: "",
+        material_name: "",
+        material_type: "",
+        material_data_url: "",
+        notification_text: "",
+        notified_at: "",
+        read_by_user: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
-      localStorage.setItem("timp_prospectus_requests", JSON.stringify(log));
-      logMetric("prospectus_request", { deal_id: dealId });
-      setToast("Requested", "Prospectus request recorded (demo signal).");
+
+      saveProspectusRequestsStore(rows);
+      logMetric("prospectus_request", { deal_id: dealId, from_email: email });
+      setToast("Requested", "Prospectus request submitted. Updates will appear in My Profile.");
     }
 
     // registrations store
@@ -368,6 +411,70 @@
       };
       saveMyProfile(next);
     };
+
+    // Prospectus request store
+    const PROSPECTUS_REQUESTS_KEY = "timp_prospectus_requests";
+
+    function getProspectusRequestsStore(){
+      try{
+        const rows = JSON.parse(localStorage.getItem(PROSPECTUS_REQUESTS_KEY) || "[]");
+        return Array.isArray(rows) ? rows : [];
+      }catch(e){
+        return [];
+      }
+    }
+
+    function saveProspectusRequestsStore(rows){
+      localStorage.setItem(PROSPECTUS_REQUESTS_KEY, JSON.stringify(rows || []));
+    }
+
+    function getCurrentProspectusEmail(){
+      const p = getMyProfile();
+      return String((p && p.email) || localStorage.getItem("timp_user_email") || "").trim().toLowerCase();
+    }
+
+    function getMyProspectusRequests(){
+      const email = getCurrentProspectusEmail();
+      if(!email) return [];
+      return getProspectusRequestsStore()
+        .filter(r => String(r.requester_email || "").trim().toLowerCase() === email)
+        .sort((a,b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+    }
+
+    function prospectusStatusTag(status){
+      const s = String(status || "Pending");
+      const cls = /available|approved|closed/i.test(s) ? "ok" : (s === "Declined" ? "muted" : "warn");
+      return `<span class="tag ${cls}">${escapeHtml(s)}</span>`;
+    }
+
+    function markProspectusRequestSeen(id){
+      const rows = getProspectusRequestsStore();
+      const i = rows.findIndex(x => x.id === id);
+      if(i < 0) return;
+
+      rows[i].read_by_user = true;
+      rows[i].updated_at = new Date().toISOString();
+      saveProspectusRequestsStore(rows);
+
+      if(location.hash.startsWith("#profile")) renderProfile();
+    }
+
+    function downloadProspectusMaterial(id){
+      const row = getProspectusRequestsStore().find(x => x.id === id);
+      if(!row || !row.material_data_url){
+        setToast("Not available", "No uploaded prospectus is attached to this request yet.");
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.href = row.material_data_url;
+      a.download = row.material_name || "prospectus";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      markProspectusRequestSeen(id);
+    }
 
     /* =========================================================
        Deal book storage
@@ -642,7 +749,7 @@
         ? `
           <div class="row-actions">
             <button class="secondary" onclick="downloadDealProspectus('${d.id}')">Download Prospectus</button>
-            <button class="secondary" onclick="requestProspectus('${d.id}')">Request (signal)</button>
+            <button class="secondary" onclick="requestProspectus('${d.id}')">Request Updated Prospectus</button>
           </div>
         `
         : `
@@ -699,7 +806,7 @@
               <div class="hr"></div>
               ${prospectusBlock}
               <div class="hr"></div>
-              <small class="muted">Prospectus requests are stored under <b>timp_prospectus_requests</b> for Admin review.</small>
+              <small class="muted">Prospectus requests are reviewed by Admin. Replies and uploaded files will appear in <b>My Profile</b>.</small>
             </div>
 
             <!-- ✅ Investment Hub (Deal Engagement Chat) -->
@@ -762,6 +869,23 @@
       }
       if(e.key === DEAL_CHAT_KEY && OPEN_DEAL_ID){
         renderDealChatList(OPEN_DEAL_ID);
+      }
+
+      if(e.key === PROSPECTUS_REQUESTS_KEY){
+        if(location.hash.startsWith("#profile")){
+          renderProfile();
+        }
+
+        const email = getCurrentProspectusEmail();
+        if(email){
+          const latestUnread = getMyProspectusRequests().find(r => r.notified_at && !r.read_by_user);
+          if(latestUnread){
+            setToast(
+              "Prospectus update",
+              latestUnread.notification_text || "A requested prospectus has been updated. Check My Profile."
+            );
+          }
+        }
       }
 
       const regionKeys = ["timp_region_profiles_v1","timp_region_profiles","timp_regionprofiles","timp_regionStore"];
@@ -886,7 +1010,7 @@
       if(!ev || typeof ev !== "object") return null;
 
       const raw =
-        ev.banner_data_url || ev.bannerDataUrl ||   /* ✅ NEW */
+        ev.banner_data_url || ev.bannerDataUrl ||
         ev.banner_data || ev.bannerData ||
         ev.banner_url || ev.bannerUrl ||
         ev.banner ||
@@ -895,12 +1019,10 @@
       if(!raw) return null;
       const s = String(raw);
 
-      // dataURL or http(s) or relative
       if(s.startsWith("data:")) return s;
       if(s.startsWith("http://") || s.startsWith("https://")) return s;
       if(s.startsWith("./") || s.startsWith("/") || s.includes("assets/")) return s;
 
-      // filename only → assume assets/events/
       if(/\.(png|jpg|jpeg|webp|gif)$/i.test(s)) return "assets/events/" + s;
 
       return null;
@@ -908,8 +1030,6 @@
 
     // -----------------------------
     // EVENTS (Public)
-    // ✅ UPDATED: published check is case-insensitive
-    // ✅ UPDATED: list view shows banner thumbnail
     // -----------------------------
     function renderEvents(){
       setActive("events");
@@ -1115,7 +1235,7 @@
 
         const prospectusBtns = d.prospectus_name
           ? `<button class="secondary" onclick="downloadDealProspectus('${d.id}')">Download Prospectus</button>
-             <button class="secondary" onclick="requestProspectus('${d.id}')">Request (signal)</button>`
+             <button class="secondary" onclick="requestProspectus('${d.id}')">Request Updated Prospectus</button>`
           : `<button class="secondary" onclick="requestProspectus('${d.id}')">Request Prospectus</button>`;
 
         return `
@@ -1522,6 +1642,8 @@
       $("#pageActions").innerHTML = ``;
 
       const p = getMyProfile();
+      const requests = getMyProspectusRequests();
+      const unreadCount = requests.filter(r => r.notified_at && !r.read_by_user).length;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
@@ -1568,7 +1690,69 @@
             <label><input type="checkbox" checked /> New recordings/presentations</label><br>
             <label><input type="checkbox" checked /> Deal book updates</label><br>
             <label><input type="checkbox" /> Matchmaking suggestions</label><br>
+
+            <div class="hr"></div>
+            <p>
+              <b>Prospectus updates</b>
+              ${unreadCount ? `<span class="tag warn">${unreadCount} new</span>` : `<span class="tag ok">Up to date</span>`}
+            </p>
+            <small class="muted">Admin responses and uploaded prospectus files will appear below.</small>
           </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="card">
+          <h2>Requested Prospectus / Materials</h2>
+          <p>Track all prospectus requests made from the Deal Room.</p>
+
+          ${
+            requests.length
+            ? `
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Deal</th>
+                    <th>Status</th>
+                    <th>Admin Reply</th>
+                    <th>Material</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${requests.map(r => `
+                    <tr>
+                      <td>
+                        <b>${escapeHtml(r.deal_label || r.deal_id || "-")}</b>
+                        ${r.requester_message ? `<br><small>Note: ${escapeHtml(r.requester_message)}</small>` : ""}
+                        ${r.notified_at && !r.read_by_user ? `<br><span class="tag warn">New</span>` : ""}
+                      </td>
+                      <td>${prospectusStatusTag(r.status)}</td>
+                      <td>
+                        ${r.admin_reply ? escapeHtml(r.admin_reply) : `<small class="muted">No reply yet</small>`}
+                        ${r.notification_text ? `<div style="margin-top:6px;"><small><b>Notification:</b> ${escapeHtml(r.notification_text)}</small></div>` : ""}
+                      </td>
+                      <td>
+                        ${
+                          r.material_data_url
+                          ? `
+                            <button class="secondary" onclick="downloadProspectusMaterial('${r.id}')">Download</button>
+                            <div style="margin-top:6px;"><small>${escapeHtml(r.material_name || "Uploaded file")}</small></div>
+                          `
+                          : `<small class="muted">Pending upload</small>`
+                        }
+                      </td>
+                      <td>
+                        <small>${new Date(r.updated_at || r.created_at || Date.now()).toLocaleString()}</small>
+                        ${r.notified_at && !r.read_by_user ? `<div style="margin-top:6px;"><button class="secondary" onclick="markProspectusRequestSeen('${r.id}')">Mark seen</button></div>` : ""}
+                      </td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            `
+            : `<small class="muted">No prospectus requests yet. Use the Deal Room request button and updates will show here.</small>`
+          }
         </div>
       `;
     }
@@ -1621,7 +1805,6 @@
         </div>
       `;
 
-      // region profile search functions are in your existing code; keep as-is in your original file
       if(typeof initRegionProfileSearch === "function") initRegionProfileSearch();
     }
 
@@ -1671,7 +1854,9 @@
       sendEventChat,
       sendDealChat,
       renderEventChatList,
-      renderDealChatList
+      renderDealChatList,
+      markProspectusRequestSeen,
+      downloadProspectusMaterial
     });
 
   }
