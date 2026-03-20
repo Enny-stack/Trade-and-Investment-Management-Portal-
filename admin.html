@@ -1,4 +1,3 @@
-<!-- admin.html (UPDATED: Prospectus Requests workflow + requester details + upload + notify) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -86,6 +85,9 @@
   <script src="app.js"></script>
 
   <script>
+    /* =========================================================
+       Safety fallbacks
+       ========================================================= */
     if(typeof getEvents !== "function"){
       function getEvents(){
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
@@ -138,6 +140,9 @@
       localStorage.setItem("timp_inquiries", JSON.stringify(rows || []));
     }
 
+    /* =========================================================
+       Engagement / chat
+       ========================================================= */
     const TIMP_MSG_STORE_KEY = "timp_messages";
     const TIMP_EVENT_CHAT_KEYS = [
       "timp_event_chat",
@@ -242,6 +247,9 @@
       }
     }
 
+    /* =========================================================
+       Metrics / requests
+       ========================================================= */
     function getMetrics(){
       try{ return JSON.parse(localStorage.getItem("timp_metrics") || "[]"); }catch(e){ return []; }
     }
@@ -294,6 +302,9 @@
 
     let ACTIVE_PROSPECTUS_REQUEST_ID = "";
 
+    /* =========================
+       Small helpers
+       ========================= */
     function escapeHtml(s){
       return String(s || "")
         .replace(/&/g,"&amp;")
@@ -377,6 +388,9 @@
       }catch(e){}
     }
 
+    /* =========================
+       Topbar init
+       ========================= */
     const regionSel = document.getElementById("regionSel");
     TIMP_REGIONS.forEach(r=>{
       const opt = document.createElement("option");
@@ -401,6 +415,9 @@
       return filterByRegion(items);
     }
 
+    /* =========================
+       Dashboard
+       ========================= */
     function renderDashboard(){
       setActive("dashboard");
       $("#pageTitle").textContent = "Admin Dashboard";
@@ -495,6 +512,9 @@
       updateBadges();
     }
 
+    /* =========================
+       Event Manager
+       ========================= */
     function renderEventManager(){
       setActive("events");
       $("#pageTitle").textContent = t("create_event");
@@ -826,1158 +846,9 @@
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
     }
 
-    function renderRegistrations(){
-      setActive("registrations");
-      $("#pageTitle").textContent = t("registrations");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject workflow + attendance (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="exportRegistrationsCsv()">Export (CSV)</button>`;
-
-      const events = getEvents();
-      const regsAll = getRegistrations();
-
-      const regs = regsAll.filter(r=>{
-        const ev = events.find(e=>e.id===r.event_id);
-        if(!ev) return (pickRegion()==="non_reg");
-        return (pickRegion()==="non_reg" || ev.region===pickRegion());
-      });
-
-      const rows = regs.map(r=>{
-        const ev = events.find(e=>e.id===r.event_id);
-        const evTitle = ev ? ev.title : r.event_id;
-
-        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
-        const first = r.first_name || nm?.first_name || "";
-        const last  = r.last_name  || nm?.last_name  || "";
-        const sal = (r.salutation || "").trim();
-        const displayName = [sal, first, last].filter(Boolean).join(" ").trim() || (r.name || "");
-
-        const state = (r.state || "Pending");
-        const stateClass =
-          state==="Approved" ? "ok" :
-          state==="Pending" ? "warn" :
-          state==="Rejected" ? "muted" : "muted";
-
-        const disableApprove = state === "Approved";
-        const disableReject = state === "Rejected";
-
-        const attended = !!r.attended;
-        const attendedLabel = attended ? `<span class="tag ok">Yes</span>` : `<span class="tag muted">No</span>`;
-        const canToggleAttendance = (state === "Approved");
-
-        return `
-          <tr>
-            <td>
-              <b>${escapeHtml(displayName)}</b><br>
-              <small>${escapeHtml(r.org || "")} • ${escapeHtml(r.position || r.title || "")}</small>
-              ${r.phone ? `<br><small class="muted">${escapeHtml(r.phone)}</small>` : ``}
-            </td>
-            <td><small>${escapeHtml(r.email || "")}</small></td>
-            <td>${escapeHtml(evTitle)}</td>
-            <td><span class="tag ${stateClass}">${escapeHtml(state)}</span></td>
-            <td>${attendedLabel}</td>
-            <td class="row-actions">
-              <button ${disableApprove ? "disabled" : ""} onclick="approve('${r.id}')">Approve</button>
-              <button class="danger" ${disableReject ? "disabled" : ""} onclick="reject('${r.id}')">Reject</button>
-              <button class="secondary" ${canToggleAttendance ? "" : "disabled"} onclick="toggleAttendance('${r.id}')">${attended ? "Unmark" : "Mark"} attended</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
-
-      $("#pageBody").innerHTML = `
-        <div class="card">
-          <h2>Registration Queue</h2>
-          <p>Approve/reject, then mark attendance for reporting.</p>
-          <table class="table">
-            <thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Status</th><th>Attended</th><th>Actions</th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="6"><small>No registrations found for this region.</small></td></tr>`}</tbody>
-          </table>
-          <div class="hr"></div>
-          <small class="muted">Attendance can only be marked for <b>Approved</b> registrations (demo).</small>
-        </div>
-      `;
-
-      updateBadges();
-    }
-
-    function exportRegistrationsCsv(){
-      const events = getEvents();
-      const regsAll = getRegistrations();
-
-      const regs = regsAll.filter(r=>{
-        const ev = events.find(e=>e.id===r.event_id);
-        if(!ev) return (pickRegion()==="non_reg");
-        return (pickRegion()==="non_reg" || ev.region===pickRegion());
-      });
-
-      const rows = regs.map(r=>{
-        const ev = events.find(e=>e.id===r.event_id);
-        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
-        const first = r.first_name || nm?.first_name || "";
-        const last  = r.last_name  || nm?.last_name  || "";
-        return {
-          Event: ev ? ev.title : r.event_id,
-          Salutation: r.salutation || "",
-          FirstName: first,
-          LastName: last,
-          Organisation: r.org || "",
-          Position: r.position || r.title || "",
-          Email: r.email || "",
-          Phone: r.phone || "",
-          Status: r.state || "Pending",
-          Attended: r.attended ? "Yes" : "No"
-        };
-      });
-
-      const headers = Object.keys(rows[0]||{
-        Event:"",Salutation:"",FirstName:"",LastName:"",Organisation:"",Position:"",Email:"",Phone:"",Status:"",Attended:""
-      });
-
-      const csv = [
-        headers.join(","),
-        ...rows.map(o=>headers.map(h=>`"${String(o[h] ?? "").replace(/"/g,'""')}"`).join(","))
-      ].join("\n");
-
-      const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "registrations_export.csv";
-      a.click();
-
-      setToast("Exported", "CSV downloaded. Open with Excel.");
-    }
-
-    function approve(id){
-      const r = getRegistrations();
-      const i = r.findIndex(x=>x.id===id);
-      if(i < 0) return setToast("Not found", "Registration not found.");
-
-      r[i].state = "Approved";
-      saveRegistrations(r);
-      setToast("Approved", "Participant approved (demo).");
-      logMetric("registration_approved", { reg_id: id });
-      renderRegistrations();
-      renderDashboard();
-    }
-
-    function reject(id){
-      const r = getRegistrations();
-      const i = r.findIndex(x=>x.id===id);
-      if(i < 0) return setToast("Not found", "Registration not found.");
-
-      r[i].state = "Rejected";
-      saveRegistrations(r);
-      setToast("Rejected", "Participant rejected (demo).");
-      logMetric("registration_rejected", { reg_id: id });
-      renderRegistrations();
-      renderDashboard();
-    }
-
-    function toggleAttendance(id){
-      const r = getRegistrations();
-      const i = r.findIndex(x=>x.id===id);
-      if(i < 0) return setToast("Not found", "Registration not found.");
-      if((r[i].state || "Pending") !== "Approved"){
-        return setToast("Not allowed", "Only Approved registrations can be marked attended.");
-      }
-      r[i].attended = !r[i].attended;
-      saveRegistrations(r);
-      setToast("Updated", `Attendance: ${r[i].attended ? "Yes" : "No"}`);
-      logMetric("attendance_toggled", { reg_id: id, attended: !!r[i].attended });
-      renderRegistrations();
-      renderDashboard();
-    }
-
-    let LAST_DEALBOOK = null;
-
-    function renderDealBook(){
-      setActive("dealbook");
-      $("#pageTitle").textContent = t("dealbook");
-      $("#pageMeta").innerHTML = `<span class="tag ok">Branded</span> <span class="tag muted">Generate by country or sector (demo)</span>`;
-      $("#pageActions").innerHTML = `
-        <button onclick="genDealBook()">Generate</button>
-        <button class="secondary" onclick="downloadLastDealBook()">Download (HTML)</button>
-      `;
-
-      const deals = adminFilter(getDeals());
-      const countries = Array.from(new Set(deals.map(d=>d.country).filter(Boolean))).sort();
-      const sectors = Array.from(new Set(deals.map(d=>d.sector).filter(Boolean))).sort();
-
-      $("#pageBody").innerHTML = `
-        <div class="grid cols-2">
-          <div class="card">
-            <h2>Deal Book Generator</h2>
-            <p>Instantly aggregates verified opportunities into a branded PDF/digital book (demo action).</p>
-            <div class="hr"></div>
-
-            <label>Filter: Country</label>
-            <select id="country" style="width:100%">
-              <option value="">All</option>
-              ${countries.map(c=>`<option>${escapeHtml(c)}</option>`).join("")}
-            </select>
-
-            <div style="height:10px"></div>
-
-            <label>Filter: Sector</label>
-            <select id="sector" style="width:100%">
-              <option value="">All</option>
-              ${sectors.map(s=>`<option>${escapeHtml(s)}</option>`).join("")}
-            </select>
-
-            <div style="height:10px"></div>
-
-            <label>Include rich media</label><br>
-            <label><input type="checkbox" checked /> Embed video pitches + secure links (demo)</label>
-
-            <div class="hr"></div>
-
-            <button onclick="genDealBook()">Generate Deal Book</button>
-            <button class="secondary" onclick="downloadLastDealBook()">Download (HTML)</button>
-            <button class="secondary" onclick="setToast('Shared', 'Demo: Share access link with selected investor groups without full onboarding.')">Share investor link</button>
-
-            <div class="hr"></div>
-            <small class="muted">Demo tip: after download, open the HTML then Print → Save as PDF.</small>
-          </div>
-
-          <div class="card">
-            <h2>Preview (demo)</h2>
-            <div id="dealPreview"><small>Select filters then click Generate.</small></div>
-          </div>
-        </div>
-      `;
-    }
-
-    function genDealBook(){
-      const deals = adminFilter(getDeals()).filter(d => isActiveDealStatus(d.status) || String(d.status||"").toLowerCase() === "draft");
-      const c = ($("#country")?.value || "");
-      const s = ($("#sector")?.value || "");
-
-      const outAll = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
-      const out = outAll.slice(0, 40);
-
-      const title = `${c || "All"}_${s || "All"}_Deal_Book`;
-      LAST_DEALBOOK = { list: out, title };
-
-      const truncatedMsg = outAll.length > 40
-        ? `<p><small class="muted">Showing first 40 of ${outAll.length} matches (demo cap).</small></p>`
-        : ``;
-
-      $("#dealPreview").innerHTML = `
-        <p><b>Generated:</b> ${out.length} opportunities</p>
-        ${truncatedMsg}
-        <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
-          ${out.map(d=>`<li>${escapeHtml(d.country || "")} • ${escapeHtml(d.sector || "")} • ${fmtMoney(d.ticket_usd_m)}${d.video ? " • "+escapeHtml(d.video) : ""}</li>`).join("") || "<li>No matches.</li>"}
-        </ul>
-        <div class="hr"></div>
-        <button onclick="downloadLastDealBook()">Download Deal Book (HTML)</button>
-        <p style="margin-top:10px"><small>Real build: export branded PDF + tracking for downloads and investor engagement.</small></p>
-      `;
-
-      setToast("Deal Book generated (demo)", "Open downloaded HTML → Print → Save as PDF.");
-    }
-
-    function downloadDealBookHtml(list, title){
-      const html = `
-      <html><head><meta charset="utf-8"><title>${title}</title></head>
-      <body style="font-family:Arial; padding:18px;">
-        <h1>${escapeHtml(title.replace(/_/g," "))}</h1>
-        <p>Generated: ${new Date().toISOString()}</p>
-        <hr/>
-        ${list.map((d,i)=>`
-          <h3>${i+1}. ${escapeHtml(d.country||"")} – ${escapeHtml(d.sector||"")} (${fmtMoney(d.ticket_usd_m)})</h3>
-          <p><b>Status:</b> ${escapeHtml(d.status||"Draft")}<br/>
-             <b>Stage:</b> ${escapeHtml(d.stage||"")}<br/>${escapeHtml(d.summary||"")}</p>
-          <hr/>
-        `).join("")}
-        <p><small>Demo: Use Print → Save as PDF.</small></p>
-      </body></html>`;
-
-      const blob = new Blob([html], {type:"text/html"});
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = title.replace(/\s+/g,"_") + ".html";
-      a.click();
-    }
-
-    function downloadLastDealBook(){
-      if(!LAST_DEALBOOK || !Array.isArray(LAST_DEALBOOK.list)){
-        return setToast("Nothing to download", "Click Generate first.");
-      }
-      downloadDealBookHtml(LAST_DEALBOOK.list, LAST_DEALBOOK.title || "Deal_Book");
-      logMetric("dealbook_download", { title: LAST_DEALBOOK.title || "Deal_Book", count: LAST_DEALBOOK.list.length });
-    }
-
-    function renderSubmissions(){
-      setActive("submissions");
-      $("#pageTitle").textContent = "Opportunity Submissions";
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject public-submitted opportunities (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This is localStorage demo. In real build this is workflow + audit.')">Info</button>`;
-
-      const all = getDeals();
-      const pending = adminFilter(all).filter(d => String(d.status||"").toLowerCase() === "pending");
-
-      const rows = pending.map(d=>`
-        <tr>
-          <td>
-            <b>${escapeHtml(d.country||"")}</b><br>
-            <small>${escapeHtml(d.sector||"")}</small><br>
-            <small class="muted">${escapeHtml(d.owner||"Public submission")}</small>
-          </td>
-          <td>${regionLabel(d.region || pickRegion())}</td>
-          <td>${fmtMoney(d.ticket_usd_m)}</td>
-          <td>${escapeHtml(d.stage||"")}</td>
-          <td class="row-actions">
-            <button onclick="approveSubmission('${d.id}')">Approve</button>
-            <button class="danger" onclick="rejectSubmission('${d.id}')">Reject</button>
-            <button class="secondary" onclick="loadDeal('${d.id}'); location.hash='#deals'">Open</button>
-          </td>
-        </tr>
-      `).join("");
-
-      $("#pageBody").innerHTML = `
-        <div class="card">
-          <h2>Pending Queue</h2>
-          <p>Public submissions arrive as <b>Pending</b>. Approve to make them <b>Active</b> (Public can see in demo once Public filtering is updated).</p>
-          <table class="table">
-            <thead><tr><th>Deal</th><th>Region</th><th>Ticket</th><th>Stage</th><th>Actions</th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="5"><small>No pending submissions for this region.</small></td></tr>`}</tbody>
-          </table>
-        </div>
-      `;
-
-      updateBadges();
-    }
-
-    function approveSubmission(id){
-      const deals = getDeals();
-      const i = deals.findIndex(d=>d.id===id);
-      if(i < 0) return setToast("Not found", "Deal not found.");
-      deals[i].status = "Active";
-      saveDeals(deals);
-      setToast("Approved", "Submission approved → status set to Active.");
-      logMetric("deal_submission_approved", { deal_id: id });
-      renderSubmissions();
-      renderDashboard();
-    }
-
-    function rejectSubmission(id){
-      const deals = getDeals();
-      const i = deals.findIndex(d=>d.id===id);
-      if(i < 0) return setToast("Not found", "Deal not found.");
-      deals[i].status = "Rejected";
-      saveDeals(deals);
-      setToast("Rejected", "Submission rejected.");
-      logMetric("deal_submission_rejected", { deal_id: id });
-      renderSubmissions();
-      renderDashboard();
-    }
-
-    function renderDealsManager(){
-      setActive("deals");
-      $("#pageTitle").textContent = "Deals Manager";
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Add/edit opportunities (stored in browser for demo)</span>`;
-      $("#pageActions").innerHTML = `
-        <button onclick="addDeal()">Add Deal</button>
-        <button class="secondary" onclick="resetDeals()">Reset to sample</button>
-      `;
-
-      const deals = adminFilter(getDeals());
-      const allDeals = getDeals();
-
-      const rows = deals.map(d=>{
-        const st = String(d.status || "Draft");
-        const stClass = isActiveDealStatus(st) ? "ok" : (st.toLowerCase()==="pending" ? "warn" : (st.toLowerCase()==="rejected" ? "muted" : "warn"));
-        const pendingActions = (st.toLowerCase()==="pending")
-          ? `<button onclick="approveSubmission('${d.id}')">Approve</button><button class="danger" onclick="rejectSubmission('${d.id}')">Reject</button>`
-          : ``;
-
-        return `
-          <tr>
-            <td>
-              <b>${escapeHtml(d.country)}</b>
-              <span class="tag ${stClass}" style="margin-left:6px">${escapeHtml(st)}</span><br>
-              <small>${escapeHtml(d.sector)}</small><br>
-              ${
-                d.prospectus_name
-                  ? `<small class="tag ok">Prospectus: ${escapeHtml(d.prospectus_name)}</small>`
-                  : `<small class="tag muted">Prospectus: not attached</small>`
-              }
-            </td>
-            <td>${regionLabel(d.region)}</td>
-            <td>${fmtMoney(d.ticket_usd_m)}</td>
-            <td>${escapeHtml(d.stage)}</td>
-            <td>${badgeWarmth(d.warmth)}</td>
-            <td class="row-actions">
-              <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
-              ${pendingActions}
-              <button class="danger" onclick="deleteDeal('${d.id}')">Delete</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
-
-      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
-
-      $("#pageBody").innerHTML = `
-        <div class="grid cols-2">
-          <div class="card">
-            <h2>Deal Entry</h2>
-            <p>Use this to add opportunities for the demo. Data is saved in your browser (localStorage).</p>
-
-            <div class="hr"></div>
-            <h3 style="margin:0 0 8px 0;">Bulk Upload (CSV)</h3>
-            <input type="file" id="bulkDeals" accept=".csv" />
-            <button class="secondary" onclick="importDealsCsv()">Import</button>
-            <div style="height:6px"></div>
-            <small class="muted">Columns: country, sector, ticket_usd_m, stage, summary, region, status, warmth, owner, video (comma/semicolon supported)</small>
-
-            <div class="hr"></div>
-
-            <input type="hidden" id="dealId" value="" />
-
-            <label>Region</label>
-            <select id="dealRegion" style="width:100%">${regionOpts}</select>
-            <div style="height:10px"></div>
-
-            <label>Status</label>
-            <select id="dealStatus" style="width:100%">
-              <option>Draft</option>
-              <option>Active</option>
-              <option>Published</option>
-              <option>Pending</option>
-              <option>Rejected</option>
-            </select>
-            <div style="height:10px"></div>
-
-            <label>Country</label>
-            <input id="dealCountry" placeholder="e.g., Nigéria" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <label>Sector</label>
-            <input id="dealSector" placeholder="e.g., Énergie" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <label>Ticket size (USD millions)</label>
-            <input id="dealTicket" type="number" min="1" step="1" placeholder="e.g., 80" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <div class="grid cols-2">
-              <div>
-                <label>Stage</label>
-                <select id="dealStage" style="width:100%">
-                  <option>Origination</option>
-                  <option>Screening</option>
-                  <option>Due Diligence</option>
-                  <option>Term Sheet</option>
-                  <option>Approved</option>
-                  <option>Disbursed</option>
-                </select>
-              </div>
-              <div>
-                <label>Warmth</label>
-                <select id="dealWarmth" style="width:100%">
-                  <option>Cold</option>
-                  <option>Warm</option>
-                  <option>Hot</option>
-                </select>
-              </div>
-            </div>
-
-            <div style="height:10px"></div>
-            <label>Owner / Sponsor</label>
-            <input id="dealOwner" placeholder="e.g., TFIP" style="width:100%" />
-
-            <div style="height:10px"></div>
-            <label>Short summary</label>
-            <textarea id="dealSummary" rows="4" maxlength="500" placeholder="What is the opportunity? (max 500 chars)" style="width:100%"></textarea>
-
-            <div style="height:10px"></div>
-            <label>Video / pitch label (optional)</label>
-            <input id="dealVideo" placeholder="e.g., Video pitch (demo)" style="width:100%" />
-
-            <div class="hr"></div>
-
-            <h3 style="margin:0 0 8px 0;">Prospectus / Deal Pack (PDF)</h3>
-            <input type="file" id="dealProspectus" accept="application/pdf" />
-            <div style="height:6px"></div>
-            <div id="dealProspectusStatus"><small class="muted">No prospectus attached.</small></div>
-            <div style="height:10px"></div>
-            <div class="row-actions">
-              <button class="secondary" onclick="attachProspectus()">Attach prospectus</button>
-              <button class="secondary" onclick="downloadProspectus()">Download prospectus</button>
-            </div>
-
-            <div class="hr"></div>
-            <div class="row-actions">
-              <button class="secondary" onclick="saveDeal()">Save</button>
-              <button class="ghost" onclick="clearDealForm()">Clear</button>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>Deals (Current Region View)</h2>
-            <p><small>Tip: set Region to “Non-Regional” to view and edit all deals.</small></p>
-            <table class="table">
-              <thead><tr><th>Deal</th><th>Region</th><th>Ticket</th><th>Stage</th><th>Lead</th><th>Actions</th></tr></thead>
-              <tbody>${rows || `<tr><td colspan="6"><small>No deals in this region yet.</small></td></tr>`}</tbody>
-            </table>
-          </div>
-        </div>
-      `;
-
-      const r = pickRegion();
-      $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
-      updateProspectusStatusUi();
-      updateBadges();
-    }
-
-    function updateProspectusStatusUi(){
-      const statusEl = $("#dealProspectusStatus");
-      if(!statusEl) return;
-
-      const id = ($("#dealId")?.value || "").trim();
-      if(!id){
-        statusEl.innerHTML = `<small class="muted">Save the deal first, then attach a prospectus.</small>`;
-        return;
-      }
-
-      const d = getDeals().find(x=>x.id===id);
-      if(d && d.prospectus_name){
-        const stored = d.prospectus_data ? "stored" : "name only";
-        const sizeTxt = d.prospectus_size ? ` • ${humanFileSize(d.prospectus_size)}` : "";
-        statusEl.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(d.prospectus_name)} (${stored}${sizeTxt})</small>`;
-      } else {
-        statusEl.innerHTML = `<small class="muted">No prospectus attached.</small>`;
-      }
-    }
-
-    function attachProspectus(){
-      const id = ($("#dealId")?.value || "").trim();
-      if(!id) return setToast("Save first", "Save the deal first, then attach a prospectus.");
-
-      const f = $("#dealProspectus")?.files?.[0];
-      if(!f) return setToast("Missing", "Choose a PDF file first.");
-
-      if(f.type !== "application/pdf"){
-        return setToast("Invalid file", "Please upload a PDF prospectus.");
-      }
-
-      const MAX_STORE_BYTES = 1_500_000;
-      const deals = getDeals();
-      const idx = deals.findIndex(x=>x.id===id);
-      if(idx < 0) return setToast("Not found", "Deal not found.");
-
-      deals[idx].prospectus_name = f.name;
-      deals[idx].prospectus_mime = f.type;
-      deals[idx].prospectus_size = f.size;
-      deals[idx].prospectus_updated_at = new Date().toISOString();
-
-      if(f.size > MAX_STORE_BYTES){
-        deals[idx].prospectus_data = "";
-        saveDeals(deals);
-        updateProspectusStatusUi();
-        setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = ()=>{
-        deals[idx].prospectus_data = String(reader.result || "");
-        saveDeals(deals);
-        updateProspectusStatusUi();
-        setToast("Attached", "Prospectus stored and ready for Public download (demo).");
-      };
-      reader.onerror = ()=> setToast("Error", "Could not read the PDF (demo).");
-      reader.readAsDataURL(f);
-    }
-
-    function downloadProspectus(){
-      const id = ($("#dealId")?.value || "").trim();
-      if(!id) return setToast("No deal", "Load a deal first.");
-
-      const d = getDeals().find(x=>x.id===id);
-      if(!d || !d.prospectus_name){
-        return setToast("None", "No prospectus attached to this deal.");
-      }
-
-      if(!d.prospectus_data){
-        return setToast("Demo limit", "Prospectus filename exists but PDF data was not stored (file too large).");
-      }
-
-      const a = document.createElement("a");
-      a.href = d.prospectus_data;
-      a.download = d.prospectus_name || ("prospectus_" + id + ".pdf");
-      a.click();
-
-      logMetric("prospectus_download", { deal_id: id, filename: d.prospectus_name });
-    }
-
-    function detectDelimiter(line){
-      const commas = (line.match(/,/g) || []).length;
-      const semis  = (line.match(/;/g) || []).length;
-      const tabs   = (line.match(/\t/g) || []).length;
-      if(tabs > commas && tabs > semis) return "\t";
-      if(semis > commas) return ";";
-      return ",";
-    }
-
-    function parseCsvLine(line, delim){
-      const out = [];
-      let cur = "";
-      let inQ = false;
-
-      for(let i=0;i<line.length;i++){
-        const ch = line[i];
-
-        if(ch === '"'){
-          if(inQ && line[i+1] === '"'){
-            cur += '"';
-            i++;
-          } else {
-            inQ = !inQ;
-          }
-          continue;
-        }
-
-        if(ch === delim && !inQ){
-          out.push(cur);
-          cur = "";
-          continue;
-        }
-
-        cur += ch;
-      }
-      out.push(cur);
-      return out.map(s => String(s||"").trim());
-    }
-
-    function normKey(s){
-      return String(s||"").trim().toLowerCase();
-    }
-
-    function importDealsCsv(){
-      const f = $("#bulkDeals")?.files?.[0];
-      if(!f) return setToast("Missing", "Choose a CSV file.");
-
-      const reader = new FileReader();
-      reader.onload = ()=>{
-        const text = String(reader.result||"").trim();
-        const lines = text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-        if(lines.length < 2) return setToast("Invalid", "CSV has no data rows.");
-
-        const delim = detectDelimiter(lines[0]);
-        const headers = parseCsvLine(lines.shift(), delim).map(h => normKey(h));
-
-        const deals = getDeals();
-        let added = 0;
-        let skipped = 0;
-
-        const fallbackRegion = (pickRegion()==="non_reg") ? "north" : pickRegion();
-
-        const existingKeys = new Set(
-          deals.map(d => [
-            normKey(d.country),
-            normKey(d.sector),
-            String(Number(d.ticket_usd_m)||0),
-            normKey(d.stage)
-          ].join("|"))
-        );
-
-        lines.forEach(line=>{
-          const cols = parseCsvLine(line, delim);
-          const obj = {};
-          headers.forEach((h,i)=> obj[h] = (cols[i] ?? "").trim());
-
-          const country = obj.country || obj.pays || obj["country_name"] || "";
-          const sector  = obj.sector  || obj.secteur || "";
-          if(!country || !sector) return;
-
-          const ticket = Number(obj.ticket_usd_m || obj.ticket || obj.amount_usd_m || 0) || 0;
-          const stage  = obj.stage || "Origination";
-
-          const dupeKey = [normKey(country), normKey(sector), String(ticket||0), normKey(stage)].join("|");
-          if(existingKeys.has(dupeKey)){
-            skipped += 1;
-            return;
-          }
-          existingKeys.add(dupeKey);
-
-          const statusRaw = (obj.status || "Draft").trim();
-          const status =
-            /^active$/i.test(statusRaw) ? "Active" :
-            /^published$/i.test(statusRaw) ? "Published" :
-            /^pending$/i.test(statusRaw) ? "Pending" :
-            /^rejected$/i.test(statusRaw) ? "Rejected" :
-            "Draft";
-
-          const warmthRaw = (obj.warmth || "Warm").trim();
-          const warmth =
-            /^hot$/i.test(warmthRaw) ? "Hot" :
-            /^warm$/i.test(warmthRaw) ? "Warm" :
-            "Cold";
-
-          deals.push({
-            id: "d" + Date.now() + Math.floor(Math.random()*100000),
-            country,
-            sector,
-            ticket_usd_m: ticket,
-            stage,
-            summary: obj.summary || "",
-            region: (obj.region || fallbackRegion).trim(),
-            status,
-            warmth,
-            owner: (obj.owner || obj.sponsor || "").trim(),
-            video: (obj.video || "").trim() || "Video pitch (demo)",
-            prospectus_name: "",
-            prospectus_data: "",
-            prospectus_mime: "",
-            prospectus_size: 0,
-            prospectus_updated_at: ""
-          });
-
-          added += 1;
-        });
-
-        saveDeals(deals);
-        setToast("Imported", `${added} deals imported • ${skipped} duplicates skipped (demo).`);
-        renderDealsManager();
-        renderAnalytics();
-        renderDashboard();
-      };
-      reader.readAsText(f);
-    }
-
-    function clearDealForm(){
-      $("#dealId").value = "";
-      $("#dealCountry").value = "";
-      $("#dealSector").value = "";
-      $("#dealTicket").value = "";
-      $("#dealOwner").value = "";
-      $("#dealSummary").value = "";
-      $("#dealVideo").value = "";
-      $("#dealStage").value = "Origination";
-      $("#dealWarmth").value = "Cold";
-      if($("#dealStatus")) $("#dealStatus").value = "Draft";
-      if($("#dealProspectus")) $("#dealProspectus").value = "";
-      updateProspectusStatusUi();
-      setToast("Cleared", "Deal form reset (demo).");
-    }
-
-    function loadDeal(id){
-      const d = getDeals().find(x=>x.id===id);
-      if(!d) return;
-      $("#dealId").value = d.id;
-      $("#dealRegion").value = d.region;
-      $("#dealCountry").value = d.country;
-      $("#dealSector").value = d.sector;
-      $("#dealTicket").value = d.ticket_usd_m;
-      $("#dealStage").value = d.stage;
-      $("#dealWarmth").value = d.warmth;
-      $("#dealOwner").value = d.owner || "";
-      $("#dealSummary").value = d.summary || "";
-      $("#dealVideo").value = d.video || "";
-      if($("#dealStatus")) $("#dealStatus").value = d.status || "Draft";
-      if($("#dealProspectus")) $("#dealProspectus").value = "";
-      updateProspectusStatusUi();
-      setToast("Loaded", "Deal loaded for editing (demo).");
-    }
-
-    function saveDeal(){
-      const id = ($("#dealId").value || "").trim();
-      const deals = getDeals();
-      const existing = id ? deals.find(x=>x.id===id) : null;
-
-      const deal = {
-        id: id || ("d" + Date.now()),
-        region: $("#dealRegion").value,
-        status: ($("#dealStatus")?.value || existing?.status || "Draft"),
-        country: ($("#dealCountry").value || "").trim(),
-        sector: ($("#dealSector").value || "").trim(),
-        ticket_usd_m: parseInt($("#dealTicket").value || "0", 10),
-        stage: $("#dealStage").value,
-        warmth: $("#dealWarmth").value,
-        owner: ($("#dealOwner").value || "").trim(),
-        summary: ($("#dealSummary").value || "").trim(),
-        video: ($("#dealVideo").value || "").trim() || "Video pitch (demo)",
-        prospectus_name: existing?.prospectus_name || "",
-        prospectus_data: existing?.prospectus_data || "",
-        prospectus_mime: existing?.prospectus_mime || "",
-        prospectus_size: existing?.prospectus_size || 0,
-        prospectus_updated_at: existing?.prospectus_updated_at || ""
-      };
-
-      if(!deal.country || !deal.sector || !deal.ticket_usd_m){
-        setToast("Missing fields", "Country, sector and ticket size are required in this demo.");
-        return;
-      }
-
-      const idx = deals.findIndex(x=>x.id===deal.id);
-      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
-      saveDeals(deals);
-
-      setToast("Saved", "Deal saved. Prospectus can be attached below.");
-      logMetric("deal_saved", { deal_id: deal.id, status: deal.status });
-      renderDealsManager();
-      loadDeal(deal.id);
-      updateBadges();
-    }
-
-    function deleteDeal(id){
-      const deals = getDeals().filter(d=>d.id!==id);
-      saveDeals(deals);
-      setToast("Deleted", "Deal removed (demo).");
-      logMetric("deal_deleted", { deal_id: id });
-      renderDealsManager();
-      renderSubmissions();
-      updateBadges();
-    }
-
-    function addDeal(){
-      clearDealForm();
-      setToast("New deal", "Fill the form and click Save.");
-    }
-
-    function resetDeals(){
-      localStorage.removeItem("timp_deals");
-      setToast("Reset", "Deals reset to sample dataset.");
-      renderDealsManager();
-      updateBadges();
-    }
-
-    function renderExpoAdmin(){
-      setActive("expo");
-      $("#pageTitle").textContent = "Virtual Exhibition";
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Booths + catalogs (demo)</span>`;
-      $("#pageActions").innerHTML = `
-        <button onclick="addBooth()">Add Booth</button>
-        <button class="secondary" onclick="resetBooths()">Reset</button>
-      `;
-
-      const booths = adminFilter(getBooths());
-      const allBooths = getBooths();
-
-      const rows = booths.map(b=>`
-        <tr>
-          <td>
-            <b>${escapeHtml(b.org || "")}</b><br>
-            <small>${escapeHtml(b.offers || "")}</small><br>
-            ${
-              (b.catalog_name || b.catalog)
-                ? `<small class="tag ok">Catalog: ${escapeHtml(b.catalog_name || b.catalog)}</small>`
-                : `<small class="tag muted">Catalog: not attached</small>`
-            }
-          </td>
-          <td>${regionLabel(b.region || pickRegion())}</td>
-          <td><span class="tag ${b.status==="Published" ? "ok" : "warn"}">${escapeHtml(b.status || "Published")}</span></td>
-          <td class="row-actions">
-            <button class="secondary" onclick="loadBooth('${b.id}')">Edit</button>
-            <button class="danger" onclick="deleteBooth('${b.id}')">Delete</button>
-          </td>
-        </tr>
-      `).join("");
-
-      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
-
-      $("#pageBody").innerHTML = `
-        <div class="grid cols-2">
-          <div class="card">
-            <h2>Booth Editor</h2>
-            <p>Create exhibitor booths and attach PDF catalogs. Public will only see <b>Published</b> booths.</p>
-
-            <div class="hr"></div>
-
-            <input type="hidden" id="boothId" value="" />
-
-            <label>Region</label>
-            <select id="boothRegion" style="width:100%">${regionOpts}</select>
-            <div style="height:10px"></div>
-
-            <label>Organisation</label>
-            <input id="boothOrg" placeholder="e.g., Afreximbank" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <label>Offers</label>
-            <input id="boothOffers" placeholder="e.g., Trade finance, Guarantees, Advisory" style="width:100%" />
-            <div style="height:10px"></div>
-
-            <label>Status</label>
-            <select id="boothStatus" style="width:100%">
-              <option>Published</option>
-              <option>Draft</option>
-            </select>
-
-            <div class="hr"></div>
-
-            <h3 style="margin:0 0 8px 0;">Catalog (PDF)</h3>
-            <input type="file" id="boothCatalog" accept="application/pdf" />
-            <div style="height:6px"></div>
-            <div id="boothCatalogStatus"><small class="muted">No catalog attached.</small></div>
-
-            <div style="height:10px"></div>
-            <div class="row-actions">
-              <button class="secondary" onclick="attachBoothCatalog()">Attach catalog</button>
-              <button class="secondary" onclick="downloadBoothCatalog()">Download catalog</button>
-            </div>
-
-            <div class="hr"></div>
-            <div class="row-actions">
-              <button class="secondary" onclick="saveBooth()">Save</button>
-              <button class="ghost" onclick="clearBoothForm()">Clear</button>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>Booths (Current Region View)</h2>
-            <p><small>Tip: set Region to “Non-Regional” to view and edit all booths.</small></p>
-            <table class="table">
-              <thead><tr><th>Booth</th><th>Region</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>${rows || `<tr><td colspan="4"><small>No booths in this region yet.</small></td></tr>`}</tbody>
-            </table>
-          </div>
-        </div>
-      `;
-
-      const r = pickRegion();
-      $("#boothRegion").value = (r === "non_reg") ? (allBooths[0]?.region || "north") : r;
-      updateBoothCatalogStatusUi();
-      updateBadges();
-    }
-
-    function updateBoothCatalogStatusUi(){
-      const el = $("#boothCatalogStatus");
-      if(!el) return;
-
-      const id = ($("#boothId")?.value || "").trim();
-      if(!id){
-        el.innerHTML = `<small class="muted">Save the booth first, then attach a catalog.</small>`;
-        return;
-      }
-
-      const b = getBooths().find(x=>x.id===id);
-      if(b && (b.catalog_name || b.catalog)){
-        const name = b.catalog_name || b.catalog;
-        const stored = b.catalog_data ? "stored" : "name only";
-        const sizeTxt = b.catalog_size ? ` • ${humanFileSize(b.catalog_size)}` : "";
-        el.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(name)} (${stored}${sizeTxt})</small>`;
-      } else {
-        el.innerHTML = `<small class="muted">No catalog attached.</small>`;
-      }
-    }
-
-    function attachBoothCatalog(){
-      const id = ($("#boothId")?.value || "").trim();
-      if(!id) return setToast("Save first", "Save the booth first, then attach a catalog.");
-
-      const f = $("#boothCatalog")?.files?.[0];
-      if(!f) return setToast("Missing", "Choose a PDF file first.");
-      if(f.type !== "application/pdf") return setToast("Invalid file", "Please upload a PDF catalog.");
-
-      const MAX_STORE_BYTES = 1_500_000;
-      const booths = getBooths();
-      const idx = booths.findIndex(x=>x.id===id);
-      if(idx < 0) return setToast("Not found", "Booth not found.");
-
-      booths[idx].catalog_name = f.name;
-      booths[idx].catalog_mime = f.type;
-      booths[idx].catalog_size = f.size;
-      booths[idx].catalog_updated_at = new Date().toISOString();
-
-      if(f.size > MAX_STORE_BYTES){
-        booths[idx].catalog_data = "";
-        saveBooths(booths);
-        updateBoothCatalogStatusUi();
-        return setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage. Stored filename only.`);
-      }
-
-      const reader = new FileReader();
-      reader.onload = ()=>{
-        booths[idx].catalog_data = String(reader.result || "");
-        saveBooths(booths);
-        updateBoothCatalogStatusUi();
-        setToast("Attached", "Catalog stored and ready for Public download (demo).");
-      };
-      reader.onerror = ()=> setToast("Error", "Could not read the PDF (demo).");
-      reader.readAsDataURL(f);
-    }
-
-    function downloadBoothCatalog(){
-      const id = ($("#boothId")?.value || "").trim();
-      if(!id) return setToast("No booth", "Load a booth first.");
-
-      const b = getBooths().find(x=>x.id===id);
-      const name = b?.catalog_name || b?.catalog || "";
-      if(!b || !name) return setToast("None", "No catalog attached to this booth.");
-      if(!b.catalog_data) return setToast("Demo limit", "Catalog filename exists but PDF data was not stored (file too large).");
-
-      const a = document.createElement("a");
-      a.href = b.catalog_data;
-      a.download = name || ("catalog_" + id + ".pdf");
-      a.click();
-
-      logMetric("catalog_download", { booth_id: id, filename: name });
-    }
-
-    function clearBoothForm(){
-      $("#boothId").value = "";
-      $("#boothOrg").value = "";
-      $("#boothOffers").value = "";
-      $("#boothStatus").value = "Published";
-      if($("#boothCatalog")) $("#boothCatalog").value = "";
-      updateBoothCatalogStatusUi();
-      setToast("Cleared", "Booth form reset (demo).");
-    }
-
-    function addBooth(){
-      clearBoothForm();
-      setToast("New booth", "Fill the form and click Save.");
-    }
-
-    function loadBooth(id){
-      const b = getBooths().find(x=>x.id===id);
-      if(!b) return;
-
-      $("#boothId").value = b.id;
-      $("#boothRegion").value = b.region || pickRegion();
-      $("#boothOrg").value = b.org || "";
-      $("#boothOffers").value = b.offers || "";
-      $("#boothStatus").value = b.status || "Published";
-      if($("#boothCatalog")) $("#boothCatalog").value = "";
-      updateBoothCatalogStatusUi();
-      setToast("Loaded", "Booth loaded for editing (demo).");
-    }
-
-    function saveBooth(){
-      const id = ($("#boothId").value || "").trim();
-      const booths = getBooths();
-      const existing = id ? booths.find(x=>x.id===id) : null;
-
-      const booth = {
-        id: id || ("b" + Date.now()),
-        region: $("#boothRegion").value,
-        org: ($("#boothOrg").value || "").trim(),
-        offers: ($("#boothOffers").value || "").trim(),
-        status: $("#boothStatus").value,
-        catalog_name: existing?.catalog_name || existing?.catalog || "",
-        catalog_data: existing?.catalog_data || "",
-        catalog_mime: existing?.catalog_mime || "",
-        catalog_size: existing?.catalog_size || 0,
-        catalog_updated_at: existing?.catalog_updated_at || ""
-      };
-
-      if(!booth.org){
-        return setToast("Missing fields", "Organisation is required.");
-      }
-
-      const idx = booths.findIndex(x=>x.id===booth.id);
-      if(idx >= 0) booths[idx] = booth; else booths.push(booth);
-      saveBooths(booths);
-
-      setToast("Saved", "Booth saved. Catalog can be attached below.");
-      logMetric("booth_saved", { booth_id: booth.id, status: booth.status });
-      renderExpoAdmin();
-      loadBooth(booth.id);
-    }
-
-    function deleteBooth(id){
-      const booths = getBooths().filter(b=>b.id!==id);
-      saveBooths(booths);
-      setToast("Deleted", "Booth removed (demo).");
-      logMetric("booth_deleted", { booth_id: id });
-      renderExpoAdmin();
-    }
-
-    function resetBooths(){
-      localStorage.removeItem("timp_booths");
-      setToast("Reset", "Booths reset to sample dataset.");
-      renderExpoAdmin();
-    }
-
-    function renderInquiries(){
-      setActive("inquiries");
-      $("#pageTitle").textContent = "Inquiries";
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Public inquiries from Virtual Exhibition (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This demo stores inquiries in localStorage.')">Info</button>`;
-
-      const rowsAll = getInquiries();
-      const rows = rowsAll
-        .filter(inq => (inq.status || "New") !== "Handled")
-        .sort((a,b)=> String(b.at||"").localeCompare(String(a.at||"")));
-
-      const tableRows = rows.map(inq=>{
-        const boothOrg = inq.booth_org || "Exhibitor";
-        const from = inq.from_name || inq.from_email || "Public user";
-        const msg = inq.message || "";
-        const at = inq.at ? new Date(inq.at).toLocaleString() : "";
-
-        return `
-          <tr>
-            <td><b>${escapeHtml(boothOrg)}</b><br><small class="muted">${escapeHtml(at)}</small></td>
-            <td><b>${escapeHtml(from)}</b><br><small>${escapeHtml(inq.from_email||"")}</small></td>
-            <td><small>${escapeHtml(msg)}</small></td>
-            <td class="row-actions">
-              <button onclick="replyInquiry('${inq.id}')">Reply</button>
-              <button class="secondary" onclick="markInquiryHandled('${inq.id}')">Mark handled</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
-
-      $("#pageBody").innerHTML = `
-        <div class="card">
-          <h2>Open Inquiries</h2>
-          <p>When Public clicks “Send inquiry”, it shows up here for Admin follow-up.</p>
-          <table class="table">
-            <thead><tr><th>Booth</th><th>From</th><th>Message</th><th>Actions</th></tr></thead>
-            <tbody>${tableRows || `<tr><td colspan="4"><small>No open inquiries.</small></td></tr>`}</tbody>
-          </table>
-          <div class="hr"></div>
-          <small class="muted">Reply creates a message in the Engagement Hub (demo).</small>
-        </div>
-      `;
-
-      updateBadges();
-    }
-
-    function markInquiryHandled(id){
-      const all = getInquiries();
-      const i = all.findIndex(x=>x.id===id);
-      if(i < 0) return setToast("Not found", "Inquiry not found.");
-      all[i].status = "Handled";
-      all[i].handled_at = new Date().toISOString();
-      saveInquiries(all);
-      setToast("Updated", "Inquiry marked as handled.");
-      logMetric("inquiry_handled", { inquiry_id: id });
-      renderInquiries();
-      renderDashboard();
-    }
-
-    function replyInquiry(id){
-      const all = getInquiries();
-      const inq = all.find(x=>x.id===id);
-      if(!inq) return setToast("Not found", "Inquiry not found.");
-
-      const reply = prompt("Type your reply (demo):", "Thanks for reaching out. We will follow up shortly.");
-      if(!reply) return;
-
-      const msg = {
-        id: "msg" + Date.now(),
-        from_email: "admin@timp.demo",
-        from_name: "TIMP Admin",
-        to: inq.from_email || "Public",
-        text: String(reply).trim(),
-        context: { inquiry_id: inq.id, booth_key: inq.booth_key, booth_org: inq.booth_org },
-        status: "Unread",
-        at: new Date().toISOString()
-      };
-
-      pushMessageEverywhere(msg);
-
-      setToast("Sent", "Reply saved to Engagement Hub (demo).");
-      logMetric("inquiry_replied", { inquiry_id: id, to: inq.from_email || "" });
-      renderInquiries();
-      renderDashboard();
-    }
-
+    /* =========================
+       Prospectus Requests
+       ========================= */
     function renderProspectusRequests(){
       setActive("prospectus_requests");
 
@@ -2004,7 +875,7 @@
               ${
                 rows.length
                 ? rows.map(r => `
-                  <tr>
+                  <tr onclick="openProspectusRequest('${r.id}')" style="cursor:pointer;">
                     <td>
                       <b>${escapeHtml(r.requester_name || "Public User")}</b><br>
                       <small>${escapeHtml(r.requester_email || "-")}</small>
@@ -2013,7 +884,7 @@
                     <td>${escapeHtml(r.deal_label || r.deal_id || "-")}</td>
                     <td>${adminProspectusStatusTag(r.status)}</td>
                     <td><small>${new Date(r.created_at || r.at || Date.now()).toLocaleString()}</small></td>
-                    <td><button class="secondary" onclick="openProspectusRequest('${r.id}')">Open</button></td>
+                    <td><button class="secondary" onclick="event.stopPropagation(); openProspectusRequest('${r.id}')">Open</button></td>
                   </tr>
                 `).join("")
                 : `<tr><td colspan="5"><small>No prospectus requests for this region yet.</small></td></tr>`
@@ -2025,19 +896,30 @@
         <div style="height:14px"></div>
 
         <div class="card" id="prospectusRequestDetail">
-          <small class="muted">Select a request to view details.</small>
+          <small class="muted">Click any request in the queue to open details.</small>
         </div>
       `;
 
+      ACTIVE_PROSPECTUS_REQUEST_ID = "";
       updateBadges();
-
-      if(rows.length){
-        renderProspectusRequestDetail(ACTIVE_PROSPECTUS_REQUEST_ID || rows[0].id);
-      }
     }
 
     function openProspectusRequest(id){
       renderProspectusRequestDetail(id);
+    }
+
+    function openProspectusMaterial(id){
+      const r = getProspectusRequestById(id);
+      if(!r || !r.material_data_url){
+        return setToast("Not available", "No uploaded material found for this request.");
+      }
+
+      const win = window.open();
+      if(!win){
+        return setToast("Popup blocked", "Please allow popups to open the uploaded file.");
+      }
+
+      win.location.href = r.material_data_url;
     }
 
     function renderProspectusRequestDetail(id){
@@ -2089,8 +971,11 @@
               r.material_data_url
               ? `
                 <div style="margin-top:10px;">
-                  <small><b>Current upload:</b> ${escapeHtml(r.material_name || "Uploaded file")}</small><br>
-                  <a href="${escapeHtml(r.material_data_url)}" download="${escapeHtml(r.material_name || "prospectus")}" class="secondary">Download current file</a>
+                  <small><b>Current upload:</b> ${escapeHtml(r.material_name || "Uploaded file")}</small>
+                  <div class="row-actions" style="margin-top:8px;">
+                    <button class="secondary" onclick="openProspectusMaterial('${r.id}')">Open file</button>
+                    <a href="${escapeHtml(r.material_data_url)}" download="${escapeHtml(r.material_name || "prospectus")}" class="secondary">Download file</a>
+                  </div>
                 </div>
               `
               : `<small class="muted" style="display:block;margin-top:8px;">No file uploaded yet.</small>`
@@ -2188,6 +1073,9 @@
       renderProspectusRequestDetail(id);
     }
 
+    /* =========================
+       Engagement Hub
+       ========================= */
     function renderEngagement(){
       setActive("engagement");
       $("#pageTitle").textContent = "Engagement Hub";
@@ -2277,6 +1165,9 @@
       renderDashboard();
     }
 
+    /* =========================
+       Other pages
+       ========================= */
     function renderMatchmaking(){
       setActive("matchmaking");
       $("#pageTitle").textContent = t("matchmaking");
