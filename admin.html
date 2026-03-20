@@ -37,25 +37,19 @@
         <a href="#events" data-nav="events"><span class="i18n" data-key="create_event">Create / Edit Event</span></a>
         <a href="#regs" data-nav="registrations"><span class="i18n" data-key="registrations">Registrations</span><span class="badge" id="regCount"></span></a>
         <a href="#dealbook" data-nav="dealbook"><span class="i18n" data-key="dealbook">Deal Book</span></a>
-
         <a href="#submissions" data-nav="submissions"><span>Opportunity Submissions</span><span class="badge" id="subCount"></span></a>
-
         <a href="#deals" data-nav="deals"><span>Deals</span></a>
-
         <a href="#expo" data-nav="expo"><span>Virtual Exhibition</span></a>
-
         <a href="#inquiries" data-nav="inquiries"><span>Inquiries</span><span class="badge" id="inqCount"></span></a>
-
         <a href="#prospectus-requests" data-nav="prospectus_requests"><span>Prospectus Requests</span><span class="badge" id="prospectusReqCount"></span></a>
-
         <a href="#engagement" data-nav="engagement"><span>Engagement Hub</span><span class="badge" id="msgCount"></span></a>
-
         <a href="#matchmaking" data-nav="matchmaking"><span class="i18n" data-key="matchmaking">Matchmaking</span></a>
         <a href="#regionprofiles" data-nav="region_profiles"><span class="i18n" data-key="region_profiles">Region Profiles</span></a>
         <a href="#rbac" data-nav="users_rbac"><span class="i18n" data-key="users_rbac">Users & RBAC</span></a>
         <a href="#analytics" data-nav="analytics"><span class="i18n" data-key="analytics">Analytics</span></a>
         <a href="#archive" data-nav="archive"><span class="i18n" data-key="archive">Archive</span></a>
       </nav>
+
       <div class="navtitle">Shortcut</div>
       <nav class="nav">
         <a href="public.html"><span>Switch to Public</span><span class="badge">demo</span></a>
@@ -86,12 +80,88 @@
 
   <script>
     /* =========================================================
-       Safety fallbacks
+       Safe fallbacks
+       ========================================================= */
+    window.$ = window.$ || function(sel){ return document.querySelector(sel); };
+    window.$$ = window.$$ || function(sel){ return Array.from(document.querySelectorAll(sel)); };
+
+    window.setToast = window.setToast || function(title, msg){
+      const t = document.getElementById("toast");
+      const tt = document.getElementById("toastTitle");
+      const tm = document.getElementById("toastMsg");
+      if(tt) tt.textContent = title || "";
+      if(tm) tm.textContent = msg || "";
+      if(t){
+        t.classList.add("show");
+        setTimeout(()=>t.classList.remove("show"), 2600);
+      }else{
+        console.log(title, msg);
+      }
+    };
+
+    window.pickLang = window.pickLang || function(){
+      return document.getElementById("langSel")?.value || localStorage.getItem("timp_lang") || "en";
+    };
+
+    window.pickRegion = window.pickRegion || function(){
+      return document.getElementById("regionSel")?.value || localStorage.getItem("timp_region") || "non_reg";
+    };
+
+    window.regionLabel = window.regionLabel || function(regionId){
+      const r = String(regionId || "").toLowerCase();
+      const map = {
+        north:"North",
+        west:"West",
+        central:"Central",
+        east:"East",
+        south:"South",
+        southern:"Southern",
+        non_reg:"Non-Regional"
+      };
+      return map[r] || regionId || "Region";
+    };
+
+    window.filterByRegion = window.filterByRegion || function(items){
+      const r = pickRegion();
+      if(r === "non_reg") return Array.isArray(items) ? items : [];
+      return (Array.isArray(items) ? items : []).filter(x => (x && x.region) ? x.region === r : true);
+    };
+
+    window.fmtMoney = window.fmtMoney || function(x){
+      const n = Number(x || 0);
+      return n ? (n.toLocaleString() + "m USD") : "0m USD";
+    };
+
+    window.badgeWarmth = window.badgeWarmth || function(w){
+      const v = String(w || "Warm");
+      const cls = v === "Hot" ? "ok" : (v === "Cold" ? "muted" : "warn");
+      return `<span class="tag ${cls}">${v}</span>`;
+    };
+
+    if(typeof initTopbar !== "function"){
+      window.initTopbar = function(){
+        const langSel = document.getElementById("langSel");
+        const regionSel = document.getElementById("regionSel");
+        if(langSel){
+          const savedLang = localStorage.getItem("timp_lang");
+          if(savedLang) langSel.value = savedLang;
+          langSel.addEventListener("change", () => localStorage.setItem("timp_lang", langSel.value));
+        }
+        if(regionSel){
+          const savedRegion = localStorage.getItem("timp_region");
+          if(savedRegion) regionSel.value = savedRegion;
+          regionSel.addEventListener("change", () => localStorage.setItem("timp_region", regionSel.value));
+        }
+      };
+    }
+
+    /* =========================================================
+       Data fallbacks
        ========================================================= */
     if(typeof getEvents !== "function"){
       function getEvents(){
         const x = JSON.parse(localStorage.getItem("timp_events") || "null");
-        return Array.isArray(x) ? x : (TIMP_DATA.events || []);
+        return Array.isArray(x) ? x : ((window.TIMP_DATA && TIMP_DATA.events) || []);
       }
     }
     if(typeof saveEvents !== "function"){
@@ -99,10 +169,11 @@
         localStorage.setItem("timp_events", JSON.stringify(evs || []));
       }
     }
+
     if(typeof getDeals !== "function"){
       function getDeals(){
         const x = JSON.parse(localStorage.getItem("timp_deals") || "null");
-        return Array.isArray(x) ? x : (TIMP_DATA.deals || []);
+        return Array.isArray(x) ? x : ((window.TIMP_DATA && TIMP_DATA.deals) || []);
       }
     }
     if(typeof saveDeals !== "function"){
@@ -110,10 +181,11 @@
         localStorage.setItem("timp_deals", JSON.stringify(deals || []));
       }
     }
+
     if(typeof getRegistrations !== "function"){
       function getRegistrations(){
         const x = JSON.parse(localStorage.getItem("timp_regs") || "null");
-        return Array.isArray(x) ? x : (TIMP_DATA.registrations || []);
+        return Array.isArray(x) ? x : ((window.TIMP_DATA && TIMP_DATA.registrations) || []);
       }
     }
     if(typeof saveRegistrations !== "function"){
@@ -121,10 +193,11 @@
         localStorage.setItem("timp_regs", JSON.stringify(r || []));
       }
     }
+
     if(typeof getBooths !== "function"){
       function getBooths(){
         const x = JSON.parse(localStorage.getItem("timp_booths") || "null");
-        return Array.isArray(x) ? x : (TIMP_DATA.booths || []);
+        return Array.isArray(x) ? x : ((window.TIMP_DATA && TIMP_DATA.booths) || []);
       }
     }
     if(typeof saveBooths !== "function"){
@@ -141,7 +214,7 @@
     }
 
     /* =========================================================
-       Engagement / chat
+       Engagement hub storage
        ========================================================= */
     const TIMP_MSG_STORE_KEY = "timp_messages";
     const TIMP_EVENT_CHAT_KEYS = [
@@ -156,20 +229,16 @@
       try{
         const x = JSON.parse(localStorage.getItem(key) || "[]");
         return Array.isArray(x) ? x : [];
-      }catch(e){
-        return [];
-      }
+      }catch(e){ return []; }
     }
+
     function lsWriteArray(key, arr){
       localStorage.setItem(key, JSON.stringify(Array.isArray(arr) ? arr : []));
     }
 
     function normalizeMessage(m, srcKey){
       const at = m?.at || m?.created_at || m?.timestamp || "";
-      const id =
-        m?.id ||
-        m?.message_id ||
-        ("msg_" + (at || Date.now()) + "_" + Math.random().toString(16).slice(2));
+      const id = m?.id || m?.message_id || ("msg_" + (at || Date.now()) + "_" + Math.random().toString(16).slice(2));
 
       return {
         id: String(id),
@@ -203,16 +272,11 @@
         const rows = lsReadArray(k);
         if(rows.length) extra.push(...rows.map(m => normalizeMessage(m, k)));
       }
-      return dedupeById([...extra, ...base])
-        .sort((a,b)=> String(b.at||"").localeCompare(String(a.at||"")));
-    }
-
-    function saveMessages(rows){
-      lsWriteArray(TIMP_MSG_STORE_KEY, rows || []);
+      return dedupeById([...extra, ...base]).sort((a,b)=> String(b.at||"").localeCompare(String(a.at||"")));
     }
 
     function updateMessageEverywhere(id, patch){
-      const targetId = String(id||"");
+      const targetId = String(id || "");
       if(!targetId) return false;
 
       let changed = false;
@@ -237,7 +301,7 @@
       lsWriteArray(TIMP_MSG_STORE_KEY, base);
 
       const eventId = m?.context?.event_id || m?.context?.eventId || "";
-      const isEventThread = (String(m.to||"").toLowerCase() === "event") || !!eventId;
+      const isEventThread = (String(m.to || "").toLowerCase() === "event") || !!eventId;
 
       if(isEventThread){
         const k = "timp_event_chat";
@@ -248,17 +312,18 @@
     }
 
     /* =========================================================
-       Metrics / requests
+       Metrics / prospectus request helpers
        ========================================================= */
     function getMetrics(){
       try{ return JSON.parse(localStorage.getItem("timp_metrics") || "[]"); }catch(e){ return []; }
     }
+
     function logMetric(type, payload){
       try{
         const rows = getMetrics();
         rows.unshift({
           id: "m" + Date.now() + Math.random().toString(16).slice(2),
-          type: String(type||""),
+          type: String(type || ""),
           payload: payload || {},
           at: new Date().toISOString()
         });
@@ -287,7 +352,7 @@
           if(!d) return region === "non_reg";
           return region === "non_reg" || d.region === region;
         })
-        .sort((a,b) => new Date(b.updated_at || b.created_at || b.at || 0) - new Date(a.updated_at || a.created_at || a.at || 0));
+        .sort((a,b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
     }
 
     function getProspectusRequestById(id){
@@ -302,9 +367,9 @@
 
     let ACTIVE_PROSPECTUS_REQUEST_ID = "";
 
-    /* =========================
-       Small helpers
-       ========================= */
+    /* =========================================================
+       Helpers
+       ========================================================= */
     function escapeHtml(s){
       return String(s || "")
         .replace(/&/g,"&amp;")
@@ -332,12 +397,12 @@
     }
 
     function isActiveDealStatus(s){
-      const x = String(s||"").toLowerCase();
-      return (x === "active" || x === "published");
+      const x = String(s || "").toLowerCase();
+      return x === "active" || x === "published";
     }
 
     function copyText(txt){
-      const t = String(txt||"");
+      const t = String(txt || "");
       if(navigator.clipboard && navigator.clipboard.writeText){
         return navigator.clipboard.writeText(t).then(()=>true).catch(()=>false);
       }
@@ -359,6 +424,7 @@
     function basePath(){
       return location.origin + location.pathname.replace(/[^/]+$/, "");
     }
+
     function makeEventInviteLink(eventId){
       return basePath() + "public.html?event=" + encodeURIComponent(eventId) + "#events";
     }
@@ -369,35 +435,38 @@
         const deals = getDeals();
         const regsAll = getRegistrations();
 
-        const subs = adminFilter(deals).filter(d => String(d.status||"").toLowerCase() === "pending");
-        const inquiries = getInquiries().filter(x => (x.status||"New") !== "Handled");
-        const msgs = getMessages().filter(m => String(m.status||"Unread") !== "Read" && (m.to === "Admin" || m.to === "All" || !m.to));
+        const subs = adminFilter(deals).filter(d => String(d.status || "").toLowerCase() === "pending");
+        const inquiries = getInquiries().filter(x => (x.status || "New") !== "Handled");
+        const msgs = getMessages().filter(m => String(m.status || "Unread") !== "Read" && (m.to === "Admin" || m.to === "All" || !m.to));
         const prospectusOpen = getAdminProspectusRequests().filter(r => String(r.status || "Pending") !== "Closed").length;
 
         const regs = regsAll.filter(r=>{
           const ev = events.find(e=>e.id===r.event_id);
-          if(!ev) return (pickRegion()==="non_reg");
-          return (pickRegion()==="non_reg" || ev.region===pickRegion());
+          if(!ev) return (pickRegion() === "non_reg");
+          return (pickRegion() === "non_reg" || ev.region === pickRegion());
         });
 
-        if ($("#regCount")) $("#regCount").textContent = regs.length;
-        if ($("#subCount")) $("#subCount").textContent = subs.length;
-        if ($("#inqCount")) $("#inqCount").textContent = inquiries.length;
-        if ($("#msgCount")) $("#msgCount").textContent = msgs.length;
-        if ($("#prospectusReqCount")) $("#prospectusReqCount").textContent = prospectusOpen;
+        if($("#regCount")) $("#regCount").textContent = regs.length;
+        if($("#subCount")) $("#subCount").textContent = subs.length;
+        if($("#inqCount")) $("#inqCount").textContent = inquiries.length;
+        if($("#msgCount")) $("#msgCount").textContent = msgs.length;
+        if($("#prospectusReqCount")) $("#prospectusReqCount").textContent = prospectusOpen;
       }catch(e){}
     }
 
-    /* =========================
-       Topbar init
-       ========================= */
-    const regionSel = document.getElementById("regionSel");
-    TIMP_REGIONS.forEach(r=>{
-      const opt = document.createElement("option");
-      opt.value = r.id;
-      opt.textContent = r.name[pickLang()] || r.name.en;
-      regionSel.appendChild(opt);
-    });
+    /* =========================================================
+       Topbar
+       ========================================================= */
+    const regionSelEl = document.getElementById("regionSel");
+    if(window.TIMP_REGIONS && Array.isArray(TIMP_REGIONS) && regionSelEl){
+      TIMP_REGIONS.forEach(r=>{
+        const opt = document.createElement("option");
+        opt.value = r.id;
+        opt.textContent = (r.name && (r.name[pickLang()] || r.name.en)) ? (r.name[pickLang()] || r.name.en) : r.id;
+        regionSelEl.appendChild(opt);
+      });
+    }
+
     initTopbar();
 
     document.getElementById("regionSel")?.addEventListener("change", () => route());
@@ -415,9 +484,9 @@
       return filterByRegion(items);
     }
 
-    /* =========================
+    /* =========================================================
        Dashboard
-       ========================= */
+       ========================================================= */
     function renderDashboard(){
       setActive("dashboard");
       $("#pageTitle").textContent = "Admin Dashboard";
@@ -436,10 +505,10 @@
 
       const dealsAll = getDeals();
       const deals = adminFilter(dealsAll);
-      const pendingSubs = deals.filter(d => String(d.status||"").toLowerCase() === "pending");
+      const pendingSubs = deals.filter(d => String(d.status || "").toLowerCase() === "pending");
       const activeDeals = deals.filter(d => isActiveDealStatus(d.status));
-      const inquiriesOpen = getInquiries().filter(x => (x.status||"New") !== "Handled");
-      const unreadMsgs = getMessages().filter(m => (m.to === "Admin" || m.to === "All" || !m.to) && String(m.status||"Unread") !== "Read");
+      const inquiriesOpen = getInquiries().filter(x => (x.status || "New") !== "Handled");
+      const unreadMsgs = getMessages().filter(m => (m.to === "Admin" || m.to === "All" || !m.to) && String(m.status || "Unread") !== "Read");
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-3">
@@ -448,11 +517,13 @@
             <div class="hr"></div>
             <small>Published events appear on Public.</small>
           </div>
+
           <div class="card">
             <div class="mini"><div><div class="label">Registrations</div><div class="big">${regs.length}</div></div><span class="tag warn">Workflow</span></div>
             <div class="hr"></div>
             <small>Approve/reject + track attendance.</small>
           </div>
+
           <div class="card">
             <div class="mini"><div><div class="label">Deals</div><div class="big">${deals.length}</div></div><span class="tag ok">Pipeline</span></div>
             <div class="hr"></div>
@@ -468,11 +539,13 @@
             <div class="hr"></div>
             <small>From Public “Send inquiry”.</small>
           </div>
+
           <div class="card">
             <div class="mini"><div><div class="label">Unread messages</div><div class="big">${unreadMsgs.length}</div></div><span class="tag warn">Engagement</span></div>
             <div class="hr"></div>
             <small>Investment Engagement Hub (chat).</small>
           </div>
+
           <div class="card">
             <div class="mini"><div><div class="label">Prospectus requests</div><div class="big">${getProspectusRequests().length}</div></div><span class="tag ok">Workflow</span></div>
             <div class="hr"></div>
@@ -512,12 +585,12 @@
       updateBadges();
     }
 
-    /* =========================
+    /* =========================================================
        Event Manager
-       ========================= */
+       ========================================================= */
     function renderEventManager(){
       setActive("events");
-      $("#pageTitle").textContent = t("create_event");
+      $("#pageTitle").textContent = "Create / Edit Event";
       $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Event profiling + publishing (demo)</span>`;
       $("#pageActions").innerHTML = `
         <button onclick="publishEvent()">Publish</button>
@@ -527,9 +600,9 @@
       const evs = adminFilter(getEvents());
       const rows = evs.map(e=>`
         <tr>
-          <td><b>${escapeHtml(e.title)}</b><br><small>${escapeHtml(e.type)} • ${escapeHtml(e.venue)}</small></td>
-          <td>${escapeHtml(e.date)}</td>
-          <td><span class="tag ${e.status==='Published'?'ok':'warn'}">${escapeHtml(e.status)}</span></td>
+          <td><b>${escapeHtml(e.title)}</b><br><small>${escapeHtml(e.type || "")} • ${escapeHtml(e.venue || "")}</small></td>
+          <td>${escapeHtml(e.date || "")}</td>
+          <td><span class="tag ${String(e.status || "").toLowerCase() === 'published' ? 'ok' : 'warn'}">${escapeHtml(e.status || "Draft")}</span></td>
           <td class="row-actions">
             <button class="secondary" onclick="editEvent('${e.id}')">Edit</button>
             <button class="danger" onclick="deleteEvent('${e.id}')">Delete</button>
@@ -584,7 +657,7 @@
 
             <div style="height:10px"></div>
             <label>Invitation Email (demo template)</label>
-            <textarea id="evInviteTpl" rows="4" style="width:100%" placeholder="Subject + Body... (demo template)"></textarea>
+            <textarea id="evInviteTpl" rows="4" style="width:100%" placeholder="Subject + Body..."></textarea>
 
             <div class="row-actions">
               <button class="secondary" onclick="copyInviteLink()">Copy registration link</button>
@@ -593,6 +666,7 @@
             </div>
 
             <div class="hr"></div>
+
             <h3 style="margin:0 0 8px 0;">Event Materials</h3>
             <label>Programme (PDF)</label><input type="file" id="evProgramme" accept="application/pdf" />
             <div style="height:10px"></div>
@@ -601,6 +675,7 @@
             <label>Recording link (URL)</label><input id="evRecordingUrl" placeholder="https://..." style="width:100%" />
 
             <div class="hr"></div>
+
             <div class="row-actions">
               <button class="secondary" onclick="saveEvent()">Save draft</button>
               <button class="ghost" onclick="clearEventForm()">Clear</button>
@@ -618,8 +693,8 @@
       `;
 
       const defaultRegion = (pickRegion() === "non_reg") ? "north" : pickRegion();
-      if ($("#evRegion")) $("#evRegion").value = defaultRegion;
-      if ($("#evId")) $("#evId").value = "";
+      if($("#evRegion")) $("#evRegion").value = defaultRegion;
+      if($("#evId")) $("#evId").value = "";
       refreshEventBannerPreview();
     }
 
@@ -656,7 +731,7 @@
 
       events[i].banner_data_url = "";
       saveEvents(events);
-      setToast("Cleared", "Event banner removed (demo).");
+      setToast("Cleared", "Event banner removed.");
       refreshEventBannerPreview();
     }
 
@@ -674,7 +749,7 @@
       if($("#evProgramme")) $("#evProgramme").value = "";
       if($("#evDeck")) $("#evDeck").value = "";
       refreshEventBannerPreview();
-      setToast("Cleared", "Event form reset (demo).");
+      setToast("Cleared", "Event form reset.");
     }
 
     function saveEvent(){
@@ -696,18 +771,15 @@
       };
 
       if(!base.title || !base.venue || !base.date){
-        setToast("Missing fields", "Title, Venue and Date are required.");
-        return;
+        return setToast("Missing fields", "Title, Venue and Date are required.");
       }
 
       const bannerFile = $("#evBanner")?.files?.[0] || null;
-
       const events = getEvents();
       const idx = events.findIndex(e=>e.id===base.id);
-      const existing = (idx >= 0) ? events[idx] : null;
-
+      const existing = idx >= 0 ? events[idx] : null;
       const existingStatus = existing?.status ? existing.status : "Draft";
-      const status = (existingStatus === "Published") ? "Published" : "Draft";
+      const status = existingStatus === "Published" ? "Published" : "Draft";
 
       function finalizeSave(bannerDataUrl){
         const eventToSave = {
@@ -717,9 +789,7 @@
           banner_data_url: bannerDataUrl || existing?.banner_data_url || ""
         };
 
-        if(idx >= 0) events[idx] = eventToSave;
-        else events.push(eventToSave);
-
+        if(idx >= 0) events[idx] = eventToSave; else events.push(eventToSave);
         saveEvents(events);
         setToast("Saved", `Event saved (${status}).`);
         renderEventManager();
@@ -745,8 +815,7 @@
 
       events[i].status = "Published";
       saveEvents(events);
-
-      setToast("Published", "Event is now visible on Public (demo).");
+      setToast("Published", "Event is now visible on Public.");
       renderEventManager();
       editEvent(id);
     }
@@ -773,13 +842,13 @@
     function deleteEvent(id){
       const events = getEvents().filter(e=>e.id!==id);
       saveEvents(events);
-      setToast("Deleted", "Event removed (demo).");
+      setToast("Deleted", "Event removed.");
       renderEventManager();
     }
 
     function copyInviteLink(){
       const id = ($("#evId").value || "").trim();
-      if(!id) return setToast("Missing", "Save the event first (needs an ID).");
+      if(!id) return setToast("Missing", "Save the event first.");
 
       const link = makeEventInviteLink(id);
       copyText(link).then(ok=>{
@@ -790,11 +859,10 @@
 
     function downloadInviteList(){
       const evId = ($("#evId")?.value || "").trim();
-      if(!evId) return setToast("Select event", "Click Edit on an event first, then download.");
+      if(!evId) return setToast("Select event", "Click Edit on an event first.");
 
       const events = getEvents();
       const ev = events.find(e=>e.id===evId);
-
       const regs = getRegistrations().filter(r => r.event_id === evId);
 
       const rows = regs.map(r=>{
@@ -828,7 +896,7 @@
       a.download = `invite_list_${(ev?.title||evId).replace(/[\\/:*?"<>|]+/g,"_").replace(/\s+/g,"_")}.csv`;
       a.click();
 
-      setToast("Downloaded", "Invite list CSV downloaded (open with Excel).");
+      setToast("Downloaded", "Invite list CSV downloaded.");
     }
 
     function openMailClient(){
@@ -839,16 +907,1167 @@
 
       const subject = encodeURIComponent(`Invitation: ${title}`);
       const body = encodeURIComponent(
-        (tpl ? tpl : `Dear [Name],\n\nYou are invited to ${title}.\n\nRegister here: ${link}\n\nRegards,\nTIMP Admin`)
-        + (id ? `\n\n(Event ID: ${id})` : "")
+        (tpl ? tpl : `Dear [Name],\n\nYou are invited to ${title}.\n\nRegister here: ${link}\n\nRegards,\nTIMP Admin`) +
+        (id ? `\n\n(Event ID: ${id})` : "")
       );
 
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
     }
 
-    /* =========================
+    /* =========================================================
+       Registrations
+       ========================================================= */
+    function renderRegistrations(){
+      setActive("registrations");
+      $("#pageTitle").textContent = "Registrations";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject workflow + attendance</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="exportRegistrationsCsv()">Export (CSV)</button>`;
+
+      const events = getEvents();
+      const regsAll = getRegistrations();
+
+      const regs = regsAll.filter(r=>{
+        const ev = events.find(e=>e.id===r.event_id);
+        if(!ev) return pickRegion()==="non_reg";
+        return pickRegion()==="non_reg" || ev.region===pickRegion();
+      });
+
+      const rows = regs.map(r=>{
+        const ev = events.find(e=>e.id===r.event_id);
+        const evTitle = ev ? ev.title : r.event_id;
+
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last = r.last_name || nm?.last_name || "";
+        const sal = (r.salutation || "").trim();
+        const displayName = [sal, first, last].filter(Boolean).join(" ").trim() || (r.name || "");
+
+        const state = r.state || "Pending";
+        const stateClass = state==="Approved" ? "ok" : (state==="Pending" ? "warn" : "muted");
+
+        const attended = !!r.attended;
+        const attendedLabel = attended ? `<span class="tag ok">Yes</span>` : `<span class="tag muted">No</span>`;
+        const canToggleAttendance = state === "Approved";
+
+        return `
+          <tr>
+            <td>
+              <b>${escapeHtml(displayName)}</b><br>
+              <small>${escapeHtml(r.org || "")} • ${escapeHtml(r.position || r.title || "")}</small>
+              ${r.phone ? `<br><small class="muted">${escapeHtml(r.phone)}</small>` : ``}
+            </td>
+            <td><small>${escapeHtml(r.email || "")}</small></td>
+            <td>${escapeHtml(evTitle)}</td>
+            <td><span class="tag ${stateClass}">${escapeHtml(state)}</span></td>
+            <td>${attendedLabel}</td>
+            <td class="row-actions">
+              <button ${state==="Approved" ? "disabled" : ""} onclick="approve('${r.id}')">Approve</button>
+              <button class="danger" ${state==="Rejected" ? "disabled" : ""} onclick="reject('${r.id}')">Reject</button>
+              <button class="secondary" ${canToggleAttendance ? "" : "disabled"} onclick="toggleAttendance('${r.id}')">${attended ? "Unmark" : "Mark"} attended</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Registration Queue</h2>
+          <p>Approve/reject, then mark attendance for reporting.</p>
+          <table class="table">
+            <thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Status</th><th>Attended</th><th>Actions</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="6"><small>No registrations found for this region.</small></td></tr>`}</tbody>
+          </table>
+          <div class="hr"></div>
+          <small class="muted">Attendance can only be marked for Approved registrations.</small>
+        </div>
+      `;
+
+      updateBadges();
+    }
+
+    function exportRegistrationsCsv(){
+      const events = getEvents();
+      const regsAll = getRegistrations();
+
+      const regs = regsAll.filter(r=>{
+        const ev = events.find(e=>e.id===r.event_id);
+        if(!ev) return pickRegion()==="non_reg";
+        return pickRegion()==="non_reg" || ev.region===pickRegion();
+      });
+
+      const rows = regs.map(r=>{
+        const ev = events.find(e=>e.id===r.event_id);
+        const nm = (!r.first_name && !r.last_name && r.name) ? splitName(r.name) : null;
+        const first = r.first_name || nm?.first_name || "";
+        const last = r.last_name || nm?.last_name || "";
+        return {
+          Event: ev ? ev.title : r.event_id,
+          Salutation: r.salutation || "",
+          FirstName: first,
+          LastName: last,
+          Organisation: r.org || "",
+          Position: r.position || r.title || "",
+          Email: r.email || "",
+          Phone: r.phone || "",
+          Status: r.state || "Pending",
+          Attended: r.attended ? "Yes" : "No"
+        };
+      });
+
+      const headers = Object.keys(rows[0] || {
+        Event:"",Salutation:"",FirstName:"",LastName:"",Organisation:"",Position:"",Email:"",Phone:"",Status:"",Attended:""
+      });
+
+      const csv = [
+        headers.join(","),
+        ...rows.map(o=>headers.map(h=>`"${String(o[h] ?? "").replace(/"/g,'""')}"`).join(","))
+      ].join("\n");
+
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "registrations_export.csv";
+      a.click();
+
+      setToast("Exported", "CSV downloaded.");
+    }
+
+    function approve(id){
+      const r = getRegistrations();
+      const i = r.findIndex(x=>x.id===id);
+      if(i < 0) return setToast("Not found", "Registration not found.");
+
+      r[i].state = "Approved";
+      saveRegistrations(r);
+      setToast("Approved", "Participant approved.");
+      logMetric("registration_approved", { reg_id: id });
+      renderRegistrations();
+      renderDashboard();
+    }
+
+    function reject(id){
+      const r = getRegistrations();
+      const i = r.findIndex(x=>x.id===id);
+      if(i < 0) return setToast("Not found", "Registration not found.");
+
+      r[i].state = "Rejected";
+      saveRegistrations(r);
+      setToast("Rejected", "Participant rejected.");
+      logMetric("registration_rejected", { reg_id: id });
+      renderRegistrations();
+      renderDashboard();
+    }
+
+    function toggleAttendance(id){
+      const r = getRegistrations();
+      const i = r.findIndex(x=>x.id===id);
+      if(i < 0) return setToast("Not found", "Registration not found.");
+      if((r[i].state || "Pending") !== "Approved"){
+        return setToast("Not allowed", "Only Approved registrations can be marked attended.");
+      }
+      r[i].attended = !r[i].attended;
+      saveRegistrations(r);
+      setToast("Updated", `Attendance: ${r[i].attended ? "Yes" : "No"}`);
+      logMetric("attendance_toggled", { reg_id: id, attended: !!r[i].attended });
+      renderRegistrations();
+      renderDashboard();
+    }
+
+    /* =========================================================
+       Deal Book
+       ========================================================= */
+    let LAST_DEALBOOK = null;
+
+    function renderDealBook(){
+      setActive("dealbook");
+      $("#pageTitle").textContent = "Deal Book";
+      $("#pageMeta").innerHTML = `<span class="tag ok">Branded</span> <span class="tag muted">Generate by country or sector</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="genDealBook()">Generate</button>
+        <button class="secondary" onclick="downloadLastDealBook()">Download (HTML)</button>
+      `;
+
+      const deals = adminFilter(getDeals());
+      const countries = Array.from(new Set(deals.map(d=>d.country).filter(Boolean))).sort();
+      const sectors = Array.from(new Set(deals.map(d=>d.sector).filter(Boolean))).sort();
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Deal Book Generator</h2>
+            <p>Instantly aggregates verified opportunities into a branded digital book.</p>
+            <div class="hr"></div>
+
+            <label>Filter: Country</label>
+            <select id="country" style="width:100%">
+              <option value="">All</option>
+              ${countries.map(c=>`<option>${escapeHtml(c)}</option>`).join("")}
+            </select>
+
+            <div style="height:10px"></div>
+
+            <label>Filter: Sector</label>
+            <select id="sector" style="width:100%">
+              <option value="">All</option>
+              ${sectors.map(s=>`<option>${escapeHtml(s)}</option>`).join("")}
+            </select>
+
+            <div style="height:10px"></div>
+
+            <label>Include rich media</label><br>
+            <label><input type="checkbox" checked /> Embed video pitches + secure links</label>
+
+            <div class="hr"></div>
+
+            <button onclick="genDealBook()">Generate Deal Book</button>
+            <button class="secondary" onclick="downloadLastDealBook()">Download (HTML)</button>
+            <button class="secondary" onclick="setToast('Shared', 'Demo: Share access link with selected investor groups.')">Share investor link</button>
+
+            <div class="hr"></div>
+            <small class="muted">Tip: after download, open the HTML then Print → Save as PDF.</small>
+          </div>
+
+          <div class="card">
+            <h2>Preview</h2>
+            <div id="dealPreview"><small>Select filters then click Generate.</small></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function genDealBook(){
+      const deals = adminFilter(getDeals()).filter(d => isActiveDealStatus(d.status) || String(d.status || "").toLowerCase() === "draft");
+      const c = ($("#country")?.value || "");
+      const s = ($("#sector")?.value || "");
+
+      const outAll = deals.filter(d => (!c || d.country===c) && (!s || d.sector===s));
+      const out = outAll.slice(0, 40);
+
+      const title = `${c || "All"}_${s || "All"}_Deal_Book`;
+      LAST_DEALBOOK = { list: out, title };
+
+      const truncatedMsg = outAll.length > 40
+        ? `<p><small class="muted">Showing first 40 of ${outAll.length} matches.</small></p>`
+        : ``;
+
+      $("#dealPreview").innerHTML = `
+        <p><b>Generated:</b> ${out.length} opportunities</p>
+        ${truncatedMsg}
+        <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
+          ${out.map(d=>`<li>${escapeHtml(d.country || "")} • ${escapeHtml(d.sector || "")} • ${fmtMoney(d.ticket_usd_m)}${d.video ? " • "+escapeHtml(d.video) : ""}</li>`).join("") || "<li>No matches.</li>"}
+        </ul>
+        <div class="hr"></div>
+        <button onclick="downloadLastDealBook()">Download Deal Book (HTML)</button>
+      `;
+
+      setToast("Deal Book generated", "Open downloaded HTML → Print → Save as PDF.");
+    }
+
+    function downloadDealBookHtml(list, title){
+      const html = `
+      <html><head><meta charset="utf-8"><title>${title}</title></head>
+      <body style="font-family:Arial; padding:18px;">
+        <h1>${escapeHtml(title.replace(/_/g," "))}</h1>
+        <p>Generated: ${new Date().toISOString()}</p>
+        <hr/>
+        ${list.map((d,i)=>`
+          <h3>${i+1}. ${escapeHtml(d.country||"")} – ${escapeHtml(d.sector||"")} (${fmtMoney(d.ticket_usd_m)})</h3>
+          <p><b>Status:</b> ${escapeHtml(d.status||"Draft")}<br/>
+             <b>Stage:</b> ${escapeHtml(d.stage||"")}<br/>${escapeHtml(d.summary||"")}</p>
+          <hr/>
+        `).join("")}
+        <p><small>Use Print → Save as PDF.</small></p>
+      </body></html>`;
+
+      const blob = new Blob([html], {type:"text/html"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = title.replace(/\s+/g,"_") + ".html";
+      a.click();
+    }
+
+    function downloadLastDealBook(){
+      if(!LAST_DEALBOOK || !Array.isArray(LAST_DEALBOOK.list)){
+        return setToast("Nothing to download", "Click Generate first.");
+      }
+      downloadDealBookHtml(LAST_DEALBOOK.list, LAST_DEALBOOK.title || "Deal_Book");
+      logMetric("dealbook_download", { title: LAST_DEALBOOK.title || "Deal_Book", count: LAST_DEALBOOK.list.length });
+    }
+
+    /* =========================================================
+       Opportunity Submissions
+       ========================================================= */
+    function renderSubmissions(){
+      setActive("submissions");
+      $("#pageTitle").textContent = "Opportunity Submissions";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Approve / reject public-submitted opportunities</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This is localStorage demo.')">Info</button>`;
+
+      const all = getDeals();
+      const pending = adminFilter(all).filter(d => String(d.status || "").toLowerCase() === "pending");
+
+      const rows = pending.map(d=>`
+        <tr>
+          <td>
+            <b>${escapeHtml(d.country || "")}</b><br>
+            <small>${escapeHtml(d.sector || "")}</small><br>
+            <small class="muted">${escapeHtml(d.owner || "Public submission")}</small>
+          </td>
+          <td>${regionLabel(d.region || pickRegion())}</td>
+          <td>${fmtMoney(d.ticket_usd_m)}</td>
+          <td>${escapeHtml(d.stage || "")}</td>
+          <td class="row-actions">
+            <button onclick="approveSubmission('${d.id}')">Approve</button>
+            <button class="danger" onclick="rejectSubmission('${d.id}')">Reject</button>
+            <button class="secondary" onclick="loadDeal('${d.id}'); location.hash='#deals'">Open</button>
+          </td>
+        </tr>
+      `).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Pending Queue</h2>
+          <p>Public submissions arrive as <b>Pending</b>. Approve to make them <b>Active</b>.</p>
+          <table class="table">
+            <thead><tr><th>Deal</th><th>Region</th><th>Ticket</th><th>Stage</th><th>Actions</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="5"><small>No pending submissions for this region.</small></td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+
+      updateBadges();
+    }
+
+    function approveSubmission(id){
+      const deals = getDeals();
+      const i = deals.findIndex(d=>d.id===id);
+      if(i < 0) return setToast("Not found", "Deal not found.");
+      deals[i].status = "Active";
+      saveDeals(deals);
+      setToast("Approved", "Submission approved.");
+      logMetric("deal_submission_approved", { deal_id: id });
+      renderSubmissions();
+      renderDashboard();
+    }
+
+    function rejectSubmission(id){
+      const deals = getDeals();
+      const i = deals.findIndex(d=>d.id===id);
+      if(i < 0) return setToast("Not found", "Deal not found.");
+      deals[i].status = "Rejected";
+      saveDeals(deals);
+      setToast("Rejected", "Submission rejected.");
+      logMetric("deal_submission_rejected", { deal_id: id });
+      renderSubmissions();
+      renderDashboard();
+    }
+
+    /* =========================================================
+       Deals Manager
+       ========================================================= */
+    function renderDealsManager(){
+      setActive("deals");
+      $("#pageTitle").textContent = "Deals Manager";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Add/edit opportunities</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="addDeal()">Add Deal</button>
+        <button class="secondary" onclick="resetDeals()">Reset to sample</button>
+      `;
+
+      const deals = adminFilter(getDeals());
+      const allDeals = getDeals();
+
+      const rows = deals.map(d=>{
+        const st = String(d.status || "Draft");
+        const stClass = isActiveDealStatus(st) ? "ok" : (st.toLowerCase()==="pending" ? "warn" : (st.toLowerCase()==="rejected" ? "muted" : "warn"));
+        const pendingActions = (st.toLowerCase()==="pending")
+          ? `<button onclick="approveSubmission('${d.id}')">Approve</button><button class="danger" onclick="rejectSubmission('${d.id}')">Reject</button>`
+          : ``;
+
+        return `
+          <tr>
+            <td>
+              <b>${escapeHtml(d.country || "")}</b>
+              <span class="tag ${stClass}" style="margin-left:6px">${escapeHtml(st)}</span><br>
+              <small>${escapeHtml(d.sector || "")}</small><br>
+              ${
+                d.prospectus_name
+                  ? `<small class="tag ok">Prospectus: ${escapeHtml(d.prospectus_name)}</small>`
+                  : `<small class="tag muted">Prospectus: not attached</small>`
+              }
+            </td>
+            <td>${regionLabel(d.region)}</td>
+            <td>${fmtMoney(d.ticket_usd_m)}</td>
+            <td>${escapeHtml(d.stage || "")}</td>
+            <td>${badgeWarmth(d.warmth)}</td>
+            <td class="row-actions">
+              <button class="secondary" onclick="loadDeal('${d.id}')">Edit</button>
+              ${pendingActions}
+              <button class="danger" onclick="deleteDeal('${d.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Deal Entry</h2>
+            <p>Use this to add opportunities for the demo. Data is saved in your browser.</p>
+
+            <div class="hr"></div>
+            <h3 style="margin:0 0 8px 0;">Bulk Upload (CSV)</h3>
+            <input type="file" id="bulkDeals" accept=".csv" />
+            <button class="secondary" onclick="importDealsCsv()">Import</button>
+            <div style="height:6px"></div>
+            <small class="muted">Columns: country, sector, ticket_usd_m, stage, summary, region, status, warmth, owner, video</small>
+
+            <div class="hr"></div>
+
+            <input type="hidden" id="dealId" value="" />
+
+            <label>Region</label>
+            <select id="dealRegion" style="width:100%">${regionOpts}</select>
+            <div style="height:10px"></div>
+
+            <label>Status</label>
+            <select id="dealStatus" style="width:100%">
+              <option>Draft</option>
+              <option>Active</option>
+              <option>Published</option>
+              <option>Pending</option>
+              <option>Rejected</option>
+            </select>
+            <div style="height:10px"></div>
+
+            <label>Country</label>
+            <input id="dealCountry" placeholder="e.g., Nigeria" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Sector</label>
+            <input id="dealSector" placeholder="e.g., Energy" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Ticket size (USD millions)</label>
+            <input id="dealTicket" type="number" min="1" step="1" placeholder="e.g., 80" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <div class="grid cols-2">
+              <div>
+                <label>Stage</label>
+                <select id="dealStage" style="width:100%">
+                  <option>Origination</option>
+                  <option>Screening</option>
+                  <option>Due Diligence</option>
+                  <option>Term Sheet</option>
+                  <option>Approved</option>
+                  <option>Disbursed</option>
+                </select>
+              </div>
+              <div>
+                <label>Warmth</label>
+                <select id="dealWarmth" style="width:100%">
+                  <option>Cold</option>
+                  <option>Warm</option>
+                  <option>Hot</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <label>Owner / Sponsor</label>
+            <input id="dealOwner" placeholder="e.g., TFIP" style="width:100%" />
+
+            <div style="height:10px"></div>
+
+            <label>Short summary</label>
+            <textarea id="dealSummary" rows="4" maxlength="500" placeholder="What is the opportunity?" style="width:100%"></textarea>
+
+            <div style="height:10px"></div>
+
+            <label>Video / pitch label (optional)</label>
+            <input id="dealVideo" placeholder="e.g., Video pitch" style="width:100%" />
+
+            <div class="hr"></div>
+
+            <h3 style="margin:0 0 8px 0;">Prospectus / Deal Pack (PDF)</h3>
+            <input type="file" id="dealProspectus" accept="application/pdf" />
+            <div style="height:6px"></div>
+            <div id="dealProspectusStatus"><small class="muted">No prospectus attached.</small></div>
+            <div style="height:10px"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="attachProspectus()">Attach prospectus</button>
+              <button class="secondary" onclick="downloadProspectus()">Download prospectus</button>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="row-actions">
+              <button class="secondary" onclick="saveDeal()">Save</button>
+              <button class="ghost" onclick="clearDealForm()">Clear</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Deals (Current Region View)</h2>
+            <p><small>Tip: set Region to “Non-Regional” to view and edit all deals.</small></p>
+            <table class="table">
+              <thead><tr><th>Deal</th><th>Region</th><th>Ticket</th><th>Stage</th><th>Lead</th><th>Actions</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="6"><small>No deals in this region yet.</small></td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      const r = pickRegion();
+      $("#dealRegion").value = (r === "non_reg") ? (allDeals[0]?.region || "north") : r;
+      updateProspectusStatusUi();
+      updateBadges();
+    }
+
+    function updateProspectusStatusUi(){
+      const statusEl = $("#dealProspectusStatus");
+      if(!statusEl) return;
+
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id){
+        statusEl.innerHTML = `<small class="muted">Save the deal first, then attach a prospectus.</small>`;
+        return;
+      }
+
+      const d = getDeals().find(x=>x.id===id);
+      if(d && d.prospectus_name){
+        const stored = d.prospectus_data ? "stored" : "name only";
+        const sizeTxt = d.prospectus_size ? ` • ${humanFileSize(d.prospectus_size)}` : "";
+        statusEl.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(d.prospectus_name)} (${stored}${sizeTxt})</small>`;
+      } else {
+        statusEl.innerHTML = `<small class="muted">No prospectus attached.</small>`;
+      }
+    }
+
+    function attachProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("Save first", "Save the deal first, then attach a prospectus.");
+
+      const f = $("#dealProspectus")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a PDF file first.");
+      if(f.type !== "application/pdf") return setToast("Invalid file", "Please upload a PDF prospectus.");
+
+      const MAX_STORE_BYTES = 1_500_000;
+      const deals = getDeals();
+      const idx = deals.findIndex(x=>x.id===id);
+      if(idx < 0) return setToast("Not found", "Deal not found.");
+
+      deals[idx].prospectus_name = f.name;
+      deals[idx].prospectus_mime = f.type;
+      deals[idx].prospectus_size = f.size;
+      deals[idx].prospectus_updated_at = new Date().toISOString();
+
+      if(f.size > MAX_STORE_BYTES){
+        deals[idx].prospectus_data = "";
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        return setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage.`);
+      }
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        deals[idx].prospectus_data = String(reader.result || "");
+        saveDeals(deals);
+        updateProspectusStatusUi();
+        setToast("Attached", "Prospectus stored and ready for Public download.");
+      };
+      reader.onerror = ()=> setToast("Error", "Could not read the PDF.");
+      reader.readAsDataURL(f);
+    }
+
+    function downloadProspectus(){
+      const id = ($("#dealId")?.value || "").trim();
+      if(!id) return setToast("No deal", "Load a deal first.");
+
+      const d = getDeals().find(x=>x.id===id);
+      if(!d || !d.prospectus_name) return setToast("None", "No prospectus attached to this deal.");
+      if(!d.prospectus_data) return setToast("Demo limit", "Prospectus filename exists but PDF data was not stored.");
+
+      const a = document.createElement("a");
+      a.href = d.prospectus_data;
+      a.download = d.prospectus_name || ("prospectus_" + id + ".pdf");
+      a.click();
+
+      logMetric("prospectus_download", { deal_id: id, filename: d.prospectus_name });
+    }
+
+    function detectDelimiter(line){
+      const commas = (line.match(/,/g) || []).length;
+      const semis = (line.match(/;/g) || []).length;
+      const tabs = (line.match(/\t/g) || []).length;
+      if(tabs > commas && tabs > semis) return "\t";
+      if(semis > commas) return ";";
+      return ",";
+    }
+
+    function parseCsvLine(line, delim){
+      const out = [];
+      let cur = "";
+      let inQ = false;
+
+      for(let i=0;i<line.length;i++){
+        const ch = line[i];
+
+        if(ch === '"'){
+          if(inQ && line[i+1] === '"'){
+            cur += '"';
+            i++;
+          }else{
+            inQ = !inQ;
+          }
+          continue;
+        }
+
+        if(ch === delim && !inQ){
+          out.push(cur);
+          cur = "";
+          continue;
+        }
+
+        cur += ch;
+      }
+      out.push(cur);
+      return out.map(s => String(s || "").trim());
+    }
+
+    function normKey(s){
+      return String(s || "").trim().toLowerCase();
+    }
+
+    function importDealsCsv(){
+      const f = $("#bulkDeals")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a CSV file.");
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        const text = String(reader.result || "").trim();
+        const lines = text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+        if(lines.length < 2) return setToast("Invalid", "CSV has no data rows.");
+
+        const delim = detectDelimiter(lines[0]);
+        const headers = parseCsvLine(lines.shift(), delim).map(h => normKey(h));
+
+        const deals = getDeals();
+        let added = 0;
+        let skipped = 0;
+        const fallbackRegion = (pickRegion()==="non_reg") ? "north" : pickRegion();
+
+        const existingKeys = new Set(
+          deals.map(d => [normKey(d.country), normKey(d.sector), String(Number(d.ticket_usd_m)||0), normKey(d.stage)].join("|"))
+        );
+
+        lines.forEach(line=>{
+          const cols = parseCsvLine(line, delim);
+          const obj = {};
+          headers.forEach((h,i)=> obj[h] = (cols[i] ?? "").trim());
+
+          const country = obj.country || obj.pays || obj["country_name"] || "";
+          const sector = obj.sector || obj.secteur || "";
+          if(!country || !sector) return;
+
+          const ticket = Number(obj.ticket_usd_m || obj.ticket || obj.amount_usd_m || 0) || 0;
+          const stage = obj.stage || "Origination";
+
+          const dupeKey = [normKey(country), normKey(sector), String(ticket||0), normKey(stage)].join("|");
+          if(existingKeys.has(dupeKey)){
+            skipped += 1;
+            return;
+          }
+          existingKeys.add(dupeKey);
+
+          const statusRaw = (obj.status || "Draft").trim();
+          const status =
+            /^active$/i.test(statusRaw) ? "Active" :
+            /^published$/i.test(statusRaw) ? "Published" :
+            /^pending$/i.test(statusRaw) ? "Pending" :
+            /^rejected$/i.test(statusRaw) ? "Rejected" :
+            "Draft";
+
+          const warmthRaw = (obj.warmth || "Warm").trim();
+          const warmth =
+            /^hot$/i.test(warmthRaw) ? "Hot" :
+            /^warm$/i.test(warmthRaw) ? "Warm" :
+            "Cold";
+
+          deals.push({
+            id: "d" + Date.now() + Math.floor(Math.random()*100000),
+            country,
+            sector,
+            ticket_usd_m: ticket,
+            stage,
+            summary: obj.summary || "",
+            region: (obj.region || fallbackRegion).trim(),
+            status,
+            warmth,
+            owner: (obj.owner || obj.sponsor || "").trim(),
+            video: (obj.video || "").trim() || "Video pitch",
+            prospectus_name: "",
+            prospectus_data: "",
+            prospectus_mime: "",
+            prospectus_size: 0,
+            prospectus_updated_at: ""
+          });
+
+          added += 1;
+        });
+
+        saveDeals(deals);
+        setToast("Imported", `${added} deals imported • ${skipped} duplicates skipped.`);
+        renderDealsManager();
+        renderAnalytics();
+        renderDashboard();
+      };
+      reader.readAsText(f);
+    }
+
+    function clearDealForm(){
+      $("#dealId").value = "";
+      $("#dealCountry").value = "";
+      $("#dealSector").value = "";
+      $("#dealTicket").value = "";
+      $("#dealOwner").value = "";
+      $("#dealSummary").value = "";
+      $("#dealVideo").value = "";
+      $("#dealStage").value = "Origination";
+      $("#dealWarmth").value = "Cold";
+      if($("#dealStatus")) $("#dealStatus").value = "Draft";
+      if($("#dealProspectus")) $("#dealProspectus").value = "";
+      updateProspectusStatusUi();
+      setToast("Cleared", "Deal form reset.");
+    }
+
+    function loadDeal(id){
+      const d = getDeals().find(x=>x.id===id);
+      if(!d) return;
+      $("#dealId").value = d.id;
+      $("#dealRegion").value = d.region;
+      $("#dealCountry").value = d.country;
+      $("#dealSector").value = d.sector;
+      $("#dealTicket").value = d.ticket_usd_m;
+      $("#dealStage").value = d.stage;
+      $("#dealWarmth").value = d.warmth;
+      $("#dealOwner").value = d.owner || "";
+      $("#dealSummary").value = d.summary || "";
+      $("#dealVideo").value = d.video || "";
+      if($("#dealStatus")) $("#dealStatus").value = d.status || "Draft";
+      if($("#dealProspectus")) $("#dealProspectus").value = "";
+      updateProspectusStatusUi();
+      setToast("Loaded", "Deal loaded for editing.");
+    }
+
+    function saveDeal(){
+      const id = ($("#dealId").value || "").trim();
+      const deals = getDeals();
+      const existing = id ? deals.find(x=>x.id===id) : null;
+
+      const deal = {
+        id: id || ("d" + Date.now()),
+        region: $("#dealRegion").value,
+        status: ($("#dealStatus")?.value || existing?.status || "Draft"),
+        country: ($("#dealCountry").value || "").trim(),
+        sector: ($("#dealSector").value || "").trim(),
+        ticket_usd_m: parseInt($("#dealTicket").value || "0", 10),
+        stage: $("#dealStage").value,
+        warmth: $("#dealWarmth").value,
+        owner: ($("#dealOwner").value || "").trim(),
+        summary: ($("#dealSummary").value || "").trim(),
+        video: ($("#dealVideo").value || "").trim() || "Video pitch",
+        prospectus_name: existing?.prospectus_name || "",
+        prospectus_data: existing?.prospectus_data || "",
+        prospectus_mime: existing?.prospectus_mime || "",
+        prospectus_size: existing?.prospectus_size || 0,
+        prospectus_updated_at: existing?.prospectus_updated_at || ""
+      };
+
+      if(!deal.country || !deal.sector || !deal.ticket_usd_m){
+        return setToast("Missing fields", "Country, sector and ticket size are required.");
+      }
+
+      const idx = deals.findIndex(x=>x.id===deal.id);
+      if(idx >= 0) deals[idx] = deal; else deals.push(deal);
+      saveDeals(deals);
+
+      setToast("Saved", "Deal saved.");
+      logMetric("deal_saved", { deal_id: deal.id, status: deal.status });
+      renderDealsManager();
+      loadDeal(deal.id);
+      updateBadges();
+    }
+
+    function deleteDeal(id){
+      const deals = getDeals().filter(d=>d.id!==id);
+      saveDeals(deals);
+      setToast("Deleted", "Deal removed.");
+      logMetric("deal_deleted", { deal_id: id });
+      renderDealsManager();
+      renderSubmissions();
+      updateBadges();
+    }
+
+    function addDeal(){
+      clearDealForm();
+      setToast("New deal", "Fill the form and click Save.");
+    }
+
+    function resetDeals(){
+      localStorage.removeItem("timp_deals");
+      setToast("Reset", "Deals reset to sample dataset.");
+      renderDealsManager();
+      updateBadges();
+    }
+
+    /* =========================================================
+       Virtual Exhibition Admin
+       ========================================================= */
+    function renderExpoAdmin(){
+      setActive("expo");
+      $("#pageTitle").textContent = "Virtual Exhibition";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Booths + catalogs</span>`;
+      $("#pageActions").innerHTML = `
+        <button onclick="addBooth()">Add Booth</button>
+        <button class="secondary" onclick="resetBooths()">Reset</button>
+      `;
+
+      const booths = adminFilter(getBooths());
+      const allBooths = getBooths();
+
+      const rows = booths.map(b=>`
+        <tr>
+          <td>
+            <b>${escapeHtml(b.org || "")}</b><br>
+            <small>${escapeHtml(b.offers || "")}</small><br>
+            ${
+              (b.catalog_name || b.catalog)
+                ? `<small class="tag ok">Catalog: ${escapeHtml(b.catalog_name || b.catalog)}</small>`
+                : `<small class="tag muted">Catalog: not attached</small>`
+            }
+          </td>
+          <td>${regionLabel(b.region || pickRegion())}</td>
+          <td><span class="tag ${String(b.status || "").toLowerCase()==="published" ? "ok" : "warn"}">${escapeHtml(b.status || "Published")}</span></td>
+          <td class="row-actions">
+            <button class="secondary" onclick="loadBooth('${b.id}')">Edit</button>
+            <button class="danger" onclick="deleteBooth('${b.id}')">Delete</button>
+          </td>
+        </tr>
+      `).join("");
+
+      const regionOpts = TIMP_REGIONS.map(r=>`<option value="${r.id}">${regionLabel(r.id)}</option>`).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Booth Editor</h2>
+            <p>Create exhibitor booths and attach PDF catalogs. Public will only see Published booths.</p>
+
+            <div class="hr"></div>
+
+            <input type="hidden" id="boothId" value="" />
+
+            <label>Region</label>
+            <select id="boothRegion" style="width:100%">${regionOpts}</select>
+            <div style="height:10px"></div>
+
+            <label>Organisation</label>
+            <input id="boothOrg" placeholder="e.g., Afreximbank" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Offers</label>
+            <input id="boothOffers" placeholder="e.g., Trade finance, Guarantees, Advisory" style="width:100%" />
+            <div style="height:10px"></div>
+
+            <label>Status</label>
+            <select id="boothStatus" style="width:100%">
+              <option>Published</option>
+              <option>Draft</option>
+            </select>
+
+            <div class="hr"></div>
+
+            <h3 style="margin:0 0 8px 0;">Catalog (PDF)</h3>
+            <input type="file" id="boothCatalog" accept="application/pdf" />
+            <div style="height:6px"></div>
+            <div id="boothCatalogStatus"><small class="muted">No catalog attached.</small></div>
+
+            <div style="height:10px"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="attachBoothCatalog()">Attach catalog</button>
+              <button class="secondary" onclick="downloadBoothCatalog()">Download catalog</button>
+            </div>
+
+            <div class="hr"></div>
+            <div class="row-actions">
+              <button class="secondary" onclick="saveBooth()">Save</button>
+              <button class="ghost" onclick="clearBoothForm()">Clear</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Booths (Current Region View)</h2>
+            <p><small>Tip: set Region to Non-Regional to view and edit all booths.</small></p>
+            <table class="table">
+              <thead><tr><th>Booth</th><th>Region</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="4"><small>No booths in this region yet.</small></td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      const r = pickRegion();
+      $("#boothRegion").value = (r === "non_reg") ? (allBooths[0]?.region || "north") : r;
+      updateBoothCatalogStatusUi();
+      updateBadges();
+    }
+
+    function updateBoothCatalogStatusUi(){
+      const el = $("#boothCatalogStatus");
+      if(!el) return;
+
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id){
+        el.innerHTML = `<small class="muted">Save the booth first, then attach a catalog.</small>`;
+        return;
+      }
+
+      const b = getBooths().find(x=>x.id===id);
+      if(b && (b.catalog_name || b.catalog)){
+        const name = b.catalog_name || b.catalog;
+        const stored = b.catalog_data ? "stored" : "name only";
+        const sizeTxt = b.catalog_size ? ` • ${humanFileSize(b.catalog_size)}` : "";
+        el.innerHTML = `<small class="tag ok">Attached: ${escapeHtml(name)} (${stored}${sizeTxt})</small>`;
+      } else {
+        el.innerHTML = `<small class="muted">No catalog attached.</small>`;
+      }
+    }
+
+    function attachBoothCatalog(){
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id) return setToast("Save first", "Save the booth first, then attach a catalog.");
+
+      const f = $("#boothCatalog")?.files?.[0];
+      if(!f) return setToast("Missing", "Choose a PDF file first.");
+      if(f.type !== "application/pdf") return setToast("Invalid file", "Please upload a PDF catalog.");
+
+      const MAX_STORE_BYTES = 1_500_000;
+      const booths = getBooths();
+      const idx = booths.findIndex(x=>x.id===id);
+      if(idx < 0) return setToast("Not found", "Booth not found.");
+
+      booths[idx].catalog_name = f.name;
+      booths[idx].catalog_mime = f.type;
+      booths[idx].catalog_size = f.size;
+      booths[idx].catalog_updated_at = new Date().toISOString();
+
+      if(f.size > MAX_STORE_BYTES){
+        booths[idx].catalog_data = "";
+        saveBooths(booths);
+        updateBoothCatalogStatusUi();
+        return setToast("Attached (name only)", `PDF is ${humanFileSize(f.size)} — too large for demo storage.`);
+      }
+
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        booths[idx].catalog_data = String(reader.result || "");
+        saveBooths(booths);
+        updateBoothCatalogStatusUi();
+        setToast("Attached", "Catalog stored and ready for Public download.");
+      };
+      reader.onerror = ()=> setToast("Error", "Could not read the PDF.");
+      reader.readAsDataURL(f);
+    }
+
+    function downloadBoothCatalog(){
+      const id = ($("#boothId")?.value || "").trim();
+      if(!id) return setToast("No booth", "Load a booth first.");
+
+      const b = getBooths().find(x=>x.id===id);
+      const name = b?.catalog_name || b?.catalog || "";
+      if(!b || !name) return setToast("None", "No catalog attached to this booth.");
+      if(!b.catalog_data) return setToast("Demo limit", "Catalog filename exists but PDF data was not stored.");
+
+      const a = document.createElement("a");
+      a.href = b.catalog_data;
+      a.download = name || ("catalog_" + id + ".pdf");
+      a.click();
+
+      logMetric("catalog_download", { booth_id: id, filename: name });
+    }
+
+    function clearBoothForm(){
+      $("#boothId").value = "";
+      $("#boothOrg").value = "";
+      $("#boothOffers").value = "";
+      $("#boothStatus").value = "Published";
+      if($("#boothCatalog")) $("#boothCatalog").value = "";
+      updateBoothCatalogStatusUi();
+      setToast("Cleared", "Booth form reset.");
+    }
+
+    function addBooth(){
+      clearBoothForm();
+      setToast("New booth", "Fill the form and click Save.");
+    }
+
+    function loadBooth(id){
+      const b = getBooths().find(x=>x.id===id);
+      if(!b) return;
+
+      $("#boothId").value = b.id;
+      $("#boothRegion").value = b.region || pickRegion();
+      $("#boothOrg").value = b.org || "";
+      $("#boothOffers").value = b.offers || "";
+      $("#boothStatus").value = b.status || "Published";
+      if($("#boothCatalog")) $("#boothCatalog").value = "";
+      updateBoothCatalogStatusUi();
+      setToast("Loaded", "Booth loaded for editing.");
+    }
+
+    function saveBooth(){
+      const id = ($("#boothId").value || "").trim();
+      const booths = getBooths();
+      const existing = id ? booths.find(x=>x.id===id) : null;
+
+      const booth = {
+        id: id || ("b" + Date.now()),
+        region: $("#boothRegion").value,
+        org: ($("#boothOrg").value || "").trim(),
+        offers: ($("#boothOffers").value || "").trim(),
+        status: $("#boothStatus").value,
+        catalog_name: existing?.catalog_name || existing?.catalog || "",
+        catalog_data: existing?.catalog_data || "",
+        catalog_mime: existing?.catalog_mime || "",
+        catalog_size: existing?.catalog_size || 0,
+        catalog_updated_at: existing?.catalog_updated_at || ""
+      };
+
+      if(!booth.org){
+        return setToast("Missing fields", "Organisation is required.");
+      }
+
+      const idx = booths.findIndex(x=>x.id===booth.id);
+      if(idx >= 0) booths[idx] = booth; else booths.push(booth);
+      saveBooths(booths);
+
+      setToast("Saved", "Booth saved.");
+      logMetric("booth_saved", { booth_id: booth.id, status: booth.status });
+      renderExpoAdmin();
+      loadBooth(booth.id);
+    }
+
+    function deleteBooth(id){
+      const booths = getBooths().filter(b=>b.id!==id);
+      saveBooths(booths);
+      setToast("Deleted", "Booth removed.");
+      logMetric("booth_deleted", { booth_id: id });
+      renderExpoAdmin();
+    }
+
+    function resetBooths(){
+      localStorage.removeItem("timp_booths");
+      setToast("Reset", "Booths reset to sample dataset.");
+      renderExpoAdmin();
+    }
+
+    /* =========================================================
+       Inquiries
+       ========================================================= */
+    function renderInquiries(){
+      setActive("inquiries");
+      $("#pageTitle").textContent = "Inquiries";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Public inquiries from Virtual Exhibition</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This demo stores inquiries in localStorage.')">Info</button>`;
+
+      const rowsAll = getInquiries();
+      const rows = rowsAll
+        .filter(inq => (inq.status || "New") !== "Handled")
+        .sort((a,b)=> String(b.at || "").localeCompare(String(a.at || "")));
+
+      const tableRows = rows.map(inq=>{
+        const boothOrg = inq.booth_org || "Exhibitor";
+        const from = inq.from_name || inq.from_email || "Public user";
+        const msg = inq.message || "";
+        const at = inq.at ? new Date(inq.at).toLocaleString() : "";
+
+        return `
+          <tr>
+            <td><b>${escapeHtml(boothOrg)}</b><br><small class="muted">${escapeHtml(at)}</small></td>
+            <td><b>${escapeHtml(from)}</b><br><small>${escapeHtml(inq.from_email || "")}</small></td>
+            <td><small>${escapeHtml(msg)}</small></td>
+            <td class="row-actions">
+              <button onclick="replyInquiry('${inq.id}')">Reply</button>
+              <button class="secondary" onclick="markInquiryHandled('${inq.id}')">Mark handled</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      $("#pageBody").innerHTML = `
+        <div class="card">
+          <h2>Open Inquiries</h2>
+          <p>When Public clicks Send inquiry, it shows up here for Admin follow-up.</p>
+          <table class="table">
+            <thead><tr><th>Booth</th><th>From</th><th>Message</th><th>Actions</th></tr></thead>
+            <tbody>${tableRows || `<tr><td colspan="4"><small>No open inquiries.</small></td></tr>`}</tbody>
+          </table>
+          <div class="hr"></div>
+          <small class="muted">Reply creates a message in the Engagement Hub.</small>
+        </div>
+      `;
+
+      updateBadges();
+    }
+
+    function markInquiryHandled(id){
+      const all = getInquiries();
+      const i = all.findIndex(x=>x.id===id);
+      if(i < 0) return setToast("Not found", "Inquiry not found.");
+      all[i].status = "Handled";
+      all[i].handled_at = new Date().toISOString();
+      saveInquiries(all);
+      setToast("Updated", "Inquiry marked as handled.");
+      logMetric("inquiry_handled", { inquiry_id: id });
+      renderInquiries();
+      renderDashboard();
+    }
+
+    function replyInquiry(id){
+      const all = getInquiries();
+      const inq = all.find(x=>x.id===id);
+      if(!inq) return setToast("Not found", "Inquiry not found.");
+
+      const reply = prompt("Type your reply:", "Thanks for reaching out. We will follow up shortly.");
+      if(!reply) return;
+
+      const msg = {
+        id: "msg" + Date.now(),
+        from_email: "admin@timp.demo",
+        from_name: "TIMP Admin",
+        to: inq.from_email || "Public",
+        text: String(reply).trim(),
+        context: { inquiry_id: inq.id, booth_org: inq.booth_org },
+        status: "Unread",
+        at: new Date().toISOString()
+      };
+
+      pushMessageEverywhere(msg);
+
+      setToast("Sent", "Reply saved to Engagement Hub.");
+      logMetric("inquiry_replied", { inquiry_id: id, to: inq.from_email || "" });
+      renderInquiries();
+      renderDashboard();
+    }
+
+    /* =========================================================
        Prospectus Requests
-       ========================= */
+       ========================================================= */
     function renderProspectusRequests(){
       setActive("prospectus_requests");
 
@@ -1073,13 +2292,13 @@
       renderProspectusRequestDetail(id);
     }
 
-    /* =========================
+    /* =========================================================
        Engagement Hub
-       ========================= */
+       ========================================================= */
     function renderEngagement(){
       setActive("engagement");
       $("#pageTitle").textContent = "Engagement Hub";
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Chat-style follow-ups (demo)</span>`;
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Chat-style follow-ups</span>`;
       $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Note', 'This is localStorage messaging for the demo.')">Info</button>`;
 
       const all = getMessages().sort((a,b)=> String(b.at||"").localeCompare(String(a.at||"")));
@@ -1088,8 +2307,8 @@
       const rows = incoming.map(m=>{
         const from = m.from_name || m.from_email || "User";
         const at = m.at ? new Date(m.at).toLocaleString() : "";
-        const status = (m.status || "Unread");
-        const statusClass = (status === "Read") ? "muted" : "warn";
+        const status = m.status || "Unread";
+        const statusClass = status === "Read" ? "muted" : "warn";
         const ctx = m.context && Object.keys(m.context).length ? `<small class="muted">Context: ${escapeHtml(JSON.stringify(m.context))}</small><br>` : "";
 
         return `
@@ -1115,7 +2334,7 @@
       $("#pageBody").innerHTML = `
         <div class="card">
           <h2>Inbox</h2>
-          <p>Admin can reply to Public users (demo). Replies are stored as messages.</p>
+          <p>Admin can reply to Public users. Replies are stored as messages.</p>
           <table class="table">
             <thead><tr><th>From</th><th>Message</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>${rows || `<tr><td colspan="4"><small>No messages yet.</small></td></tr>`}</tbody>
@@ -1143,7 +2362,7 @@
       if(!msg) return setToast("Not found", "Message not found.");
 
       const toEmail = msg.from_email || "";
-      const reply = prompt("Type your reply (demo):", "Thanks — noted. We will follow up.");
+      const reply = prompt("Type your reply:", "Thanks — noted. We will follow up.");
       if(!reply) return;
 
       const out = {
@@ -1159,26 +2378,26 @@
 
       pushMessageEverywhere(out);
 
-      setToast("Sent", "Reply saved (demo).");
+      setToast("Sent", "Reply saved.");
       logMetric("message_replied", { to: toEmail });
       renderEngagement();
       renderDashboard();
     }
 
-    /* =========================
-       Other pages
-       ========================= */
+    /* =========================================================
+       Matchmaking
+       ========================================================= */
     function renderMatchmaking(){
       setActive("matchmaking");
-      $("#pageTitle").textContent = t("matchmaking");
-      $("#pageMeta").innerHTML = `<span class="tag ok">AI-enhanced</span> <span class="tag muted">Rules + tracking (demo)</span>`;
+      $("#pageTitle").textContent = "Matchmaking";
+      $("#pageMeta").innerHTML = `<span class="tag ok">AI-enhanced</span> <span class="tag muted">Rules + tracking</span>`;
       $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Rules saved', 'Demo: Matchmaking parameters stored and tuned over time.')">Save rules</button>`;
 
       $("#pageBody").innerHTML = `
         <div class="grid cols-2">
           <div class="card">
             <h2>Matchmaking Rules</h2>
-            <p>Recommend connections between investors and project owners based on sector + ticket size (demo).</p>
+            <p>Recommend connections between investors and project owners based on sector + ticket size.</p>
             <div class="hr"></div>
             <label>Primary match fields</label>
             <select style="width:100%" multiple size="4">
@@ -1195,6 +2414,7 @@
             <div class="hr"></div>
             <button onclick="setToast('Preview generated', 'Demo: shows sample recommendations.')">Preview recommendations</button>
           </div>
+
           <div class="card">
             <h2>Meeting Scheduling</h2>
             <p>Integrated calendar for 1:1 meetings (physical or virtual).</p>
@@ -1206,6 +2426,9 @@
       `;
     }
 
+    /* =========================================================
+       Region Profiles
+       ========================================================= */
     const RP_STORE_KEY = "timp_region_profiles_v1";
 
     function rp_loadAll(){
@@ -1213,9 +2436,7 @@
         const raw = localStorage.getItem(RP_STORE_KEY);
         const obj = raw ? JSON.parse(raw) : {};
         return (obj && typeof obj === "object") ? obj : {};
-      }catch(e){
-        return {};
-      }
+      }catch(e){ return {}; }
     }
 
     function rp_saveAll(obj){
@@ -1267,12 +2488,12 @@
 
     function rp_currentRegionId(){
       const sel = document.getElementById("regionSel");
-      return sel ? sel.value : (typeof pickRegion === "function" ? pickRegion() : "non_reg");
+      return sel ? sel.value : pickRegion();
     }
 
     function rp_currentLang(){
       const sel = document.getElementById("langSel");
-      return sel ? sel.value : (typeof pickLang === "function" ? pickLang() : "en");
+      return sel ? sel.value : pickLang();
     }
 
     function rp_readForm(){
@@ -1293,20 +2514,16 @@
     function rp_fillForm(profile, lang){
       const c = rp_pickLangContent(profile, lang) || {};
 
-      if (document.getElementById("rpTitle")) document.getElementById("rpTitle").value = c.title || "";
-      if (document.getElementById("rpSubtitle")) document.getElementById("rpSubtitle").value = c.subtitle || "";
-      if (document.getElementById("rpOverview")) document.getElementById("rpOverview").value = c.overview || "";
-      if (document.getElementById("rpKeySectors")) document.getElementById("rpKeySectors").value = c.keySectors || "";
-      if (document.getElementById("rpIncentives")) document.getElementById("rpIncentives").value = c.incentives || "";
-      if (document.getElementById("rpRisks")) document.getElementById("rpRisks").value = c.risks || "";
-      if (document.getElementById("rpTags")) document.getElementById("rpTags").value = (c.tags || []).join(", ");
+      if($("#rpTitle")) $("#rpTitle").value = c.title || "";
+      if($("#rpSubtitle")) $("#rpSubtitle").value = c.subtitle || "";
+      if($("#rpOverview")) $("#rpOverview").value = c.overview || "";
+      if($("#rpKeySectors")) $("#rpKeySectors").value = c.keySectors || "";
+      if($("#rpIncentives")) $("#rpIncentives").value = c.incentives || "";
+      if($("#rpRisks")) $("#rpRisks").value = c.risks || "";
+      if($("#rpTags")) $("#rpTags").value = (c.tags || []).join(", ");
 
-      if (document.getElementById("rpStatusLabel")) {
-        document.getElementById("rpStatusLabel").textContent = profile?.status || "draft";
-      }
-      if (document.getElementById("rpUpdatedLabel")) {
-        document.getElementById("rpUpdatedLabel").textContent = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
-      }
+      if($("#rpStatusLabel")) $("#rpStatusLabel").textContent = profile?.status || "draft";
+      if($("#rpUpdatedLabel")) $("#rpUpdatedLabel").textContent = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : "";
     }
 
     function rp_reload(){
@@ -1322,7 +2539,7 @@
       const content = rp_readForm();
       const saved = rp_upsertContent(regionId, lang, content, { status: "draft" });
       rp_fillForm(saved, lang);
-      setToast("Saved", "Region profile saved as draft (demo storage).");
+      setToast("Saved", "Region profile saved as draft.");
       logMetric("region_profile_saved", { region: regionId, lang });
     }
 
@@ -1333,14 +2550,14 @@
       rp_upsertContent(regionId, lang, content, { status: "draft" });
       const published = rp_publish(regionId);
       rp_fillForm(published, lang);
-      setToast("Published", "Region profile published (this browser demo).");
+      setToast("Published", "Region profile published.");
       logMetric("region_profile_published", { region: regionId });
     }
 
     function renderRegionProfiles(){
       setActive("region_profiles");
-      $("#pageTitle").textContent = t("region_profiles");
-      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Multi-language region briefs (demo)</span>`;
+      $("#pageTitle").textContent = "Region Profiles";
+      $("#pageMeta").innerHTML = `<span class="tag ok">${regionLabel(pickRegion())}</span> <span class="tag muted">Multi-language region briefs</span>`;
       $("#pageActions").innerHTML = `
         <button onclick="rp_saveDraft()">Save Draft</button>
         <button class="secondary" onclick="rp_publishCurrent()">Publish</button>
@@ -1396,13 +2613,13 @@
 
             <div class="hr"></div>
             <div class="row-actions">
-              <button id="saveDraftBtn" onclick="rp_saveDraft()">Save Draft</button>
-              <button id="publishBtn" class="secondary" onclick="rp_publishCurrent()">Publish</button>
+              <button onclick="rp_saveDraft()">Save Draft</button>
+              <button class="secondary" onclick="rp_publishCurrent()">Publish</button>
             </div>
           </div>
 
           <div class="card">
-            <h2>How Public will use it (demo)</h2>
+            <h2>How Public will use it</h2>
             <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
               <li>Searchable region briefs for investor onboarding</li>
               <li>Localised content (EN/FR/AR/PT)</li>
@@ -1417,16 +2634,19 @@
       rp_reload();
     }
 
+    /* =========================================================
+       RBAC
+       ========================================================= */
     function renderRBAC(){
       setActive("users_rbac");
-      $("#pageTitle").textContent = t("users_rbac");
-      $("#pageMeta").innerHTML = `<span class="tag ok">RBAC</span> <span class="tag muted">Role-based access control (demo)</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Roles updated', 'Demo: In real build, connect to SSO and identity management.')">Update roles</button>`;
+      $("#pageTitle").textContent = "Users & RBAC";
+      $("#pageMeta").innerHTML = `<span class="tag ok">RBAC</span> <span class="tag muted">Role-based access control</span>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Roles updated', 'Demo: connect to SSO and identity management.')">Update roles</button>`;
 
       $("#pageBody").innerHTML = `
         <div class="card">
           <h2>Roles</h2>
-          <p>Admin rights granted to specific roles across Regional Comms, Regional Staff, Client Relations, TFIP, and Digital Business (demo).</p>
+          <p>Admin rights granted to specific roles across Regional Comms, Regional Staff, Client Relations, TFIP, and Digital Business.</p>
           <div class="hr"></div>
           <table class="table">
             <thead><tr><th>Role</th><th>Count (indicative)</th><th>Key Permissions</th></tr></thead>
@@ -1444,19 +2664,22 @@
       `;
     }
 
+    /* =========================================================
+       Analytics
+       ========================================================= */
     function renderAnalytics(){
       setActive("analytics");
-      $("#pageTitle").textContent = t("analytics");
+      $("#pageTitle").textContent = "Analytics";
       $("#pageMeta").innerHTML = `<span class="tag ok">Reporting</span> <span class="tag muted">Live demo metrics from localStorage</span>`;
-      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Export', 'Demo: you can export metrics by reading timp_metrics in localStorage.')">Export report</button>`;
+      $("#pageActions").innerHTML = `<button class="secondary" onclick="setToast('Export', 'Demo: export metrics from localStorage.')">Export report</button>`;
 
       const events = getEvents();
       const regsAll = getRegistrations();
 
       const regs = regsAll.filter(r=>{
         const ev = events.find(e=>e.id===r.event_id);
-        if(!ev) return (pickRegion()==="non_reg");
-        return (pickRegion()==="non_reg" || ev.region===pickRegion());
+        if(!ev) return pickRegion()==="non_reg";
+        return pickRegion()==="non_reg" || ev.region===pickRegion();
       });
 
       const approved = regs.filter(r => (r.state || "Pending") === "Approved");
@@ -1468,12 +2691,12 @@
       const scopeDeals = (pickRegion()==="non_reg") ? dealsAll : dealsRegion;
 
       const activePublished = scopeDeals.filter(d => isActiveDealStatus(d.status));
-      const pendingDeals = scopeDeals.filter(d => String(d.status||"").toLowerCase() === "pending");
+      const pendingDeals = scopeDeals.filter(d => String(d.status || "").toLowerCase() === "pending");
 
-      const dealPipelineUsdM = activePublished.reduce((sum,d)=> sum + (Number(d.ticket_usd_m)||0), 0);
+      const dealPipelineUsdM = activePublished.reduce((sum,d)=> sum + (Number(d.ticket_usd_m) || 0), 0);
 
       function fmtUsdBillionsFromMillions(m){
-        const b = Number(m||0) / 1000;
+        const b = Number(m || 0) / 1000;
         const decimals = (b && b < 10) ? 1 : 0;
         return "$" + (b ? b.toFixed(decimals) : "0.0") + "B";
       }
@@ -1493,10 +2716,7 @@
               <span class="tag ok">Events</span>
             </div>
             <div class="hr"></div>
-            <small>
-              Attendance rate = (Attended ÷ Approved) •
-              Approved: <b>${approved.length}</b> • Attended: <b>${attended.length}</b>
-            </small>
+            <small>Attendance rate = (Attended ÷ Approved) • Approved: <b>${approved.length}</b> • Attended: <b>${attended.length}</b></small>
           </div>
 
           <div class="card">
@@ -1505,7 +2725,7 @@
               <span class="tag warn">Content</span>
             </div>
             <div class="hr"></div>
-            <small>Tracked via <code>timp_metrics</code> (demo).</small>
+            <small>Tracked via local metrics.</small>
           </div>
 
           <div class="card">
@@ -1514,7 +2734,7 @@
               <span class="tag ok">Signals</span>
             </div>
             <div class="hr"></div>
-            <small>From Public Deal Room “Request Prospectus”.</small>
+            <small>From Public Deal Room request button.</small>
           </div>
         </div>
 
@@ -1523,18 +2743,11 @@
         <div class="grid cols-3">
           <div class="card">
             <div class="mini">
-              <div>
-                <div class="label">Deal Pipeline (USD)</div>
-                <div class="big">${fmtUsdBillionsFromMillions(dealPipelineUsdM)}</div>
-              </div>
+              <div><div class="label">Deal Pipeline (USD)</div><div class="big">${fmtUsdBillionsFromMillions(dealPipelineUsdM)}</div></div>
               <span class="tag ok">Pipeline</span>
             </div>
             <div class="hr"></div>
-            <small>
-              ${pickRegion()==="non_reg" ? "All regions" : "Current region"} •
-              Active/Published: <b>${activePublished.length}</b> •
-              Pending: <b>${pendingDeals.length}</b>
-            </small>
+            <small>${pickRegion()==="non_reg" ? "All regions" : "Current region"} • Active/Published: <b>${activePublished.length}</b> • Pending: <b>${pendingDeals.length}</b></small>
           </div>
 
           <div class="card">
@@ -1552,7 +2765,7 @@
               <span class="tag warn">Content</span>
             </div>
             <div class="hr"></div>
-            <small>Tracked via Admin/Public download buttons (demo).</small>
+            <small>Tracked via Admin/Public download buttons.</small>
           </div>
         </div>
 
@@ -1560,7 +2773,7 @@
 
         <div class="grid cols-2">
           <div class="card">
-            <h2>Operational metrics (demo)</h2>
+            <h2>Operational metrics</h2>
             <ul style="margin:0; padding-left:18px; color:var(--muted); line-height:1.55">
               <li><b>Inquiries handled:</b> ${inquiriesHandled}</li>
               <li><b>Unread messages:</b> ${getMessages().filter(m => (m.to==="Admin"||m.to==="All"||!m.to) && String(m.status||"Unread")!=="Read").length}</li>
@@ -1572,9 +2785,9 @@
 
           <div class="card">
             <h2>Follow-up prioritization</h2>
-            <p>Real build uses analytics to rank “warm leads” and automate follow-up sequences.</p>
+            <p>Real build uses analytics to rank warm leads and automate follow-up sequences.</p>
             <div class="hr"></div>
-            <button onclick="setToast('Follow-up queued', 'Demo: in real build, this triggers sequences and assigns owners.')">Generate follow-up list</button>
+            <button onclick="setToast('Follow-up queued', 'Demo: this would trigger sequences and assign owners.')">Generate follow-up list</button>
           </div>
         </div>
       `;
@@ -1582,10 +2795,13 @@
       updateBadges();
     }
 
+    /* =========================================================
+       Archive
+       ========================================================= */
     function renderArchive(){
       setActive("archive");
-      $("#pageTitle").textContent = t("archive");
-      $("#pageMeta").innerHTML = `<span class="tag ok">Institutional Memory</span> <span class="tag muted">Audit-ready searchable repository (demo)</span>`;
+      $("#pageTitle").textContent = "Archive";
+      $("#pageMeta").innerHTML = `<span class="tag ok">Institutional Memory</span> <span class="tag muted">Audit-ready searchable repository</span>`;
       $("#pageActions").innerHTML = ``;
 
       $("#pageBody").innerHTML = `
@@ -1598,6 +2814,7 @@
             <div class="hr"></div>
             <div id="results"><small>Try “Manufacturing”.</small></div>
           </div>
+
           <div class="card">
             <h2>Audit & Governance</h2>
             <p>Real build keeps logs for publishing, approvals, access to sensitive documents, and exports.</p>
@@ -1633,6 +2850,9 @@
         : `<small>No results.</small>`;
     }
 
+    /* =========================================================
+       Router
+       ========================================================= */
     function route(){
       const h = location.hash || "#dashboard";
       if(h.startsWith("#dashboard")) renderDashboard();
